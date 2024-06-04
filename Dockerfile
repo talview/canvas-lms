@@ -65,6 +65,7 @@ RUN npm install -g npm@9.8.1 && npm cache clean --force
 USER docker
 COPY config/database.yml.example config/database.yml
 COPY config/security.yml.example config/security.yml
+COPY config/domain.yml.example config/domain.yml
 COPY --chown=docker:docker . /usr/src/app
 RUN mkdir -p tmp/files
 ENV COMPILE_ASSETS_BRAND_CONFIGS=0
