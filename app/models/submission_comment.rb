@@ -91,6 +91,7 @@ class SubmissionComment < ActiveRecord::Base
   scope :for_assignment_id, ->(assignment_id) { where(submissions: { assignment_id: }).joins(:submission) }
   scope :for_groups, -> { where.not(group_comment_id: nil) }
   scope :not_for_groups, -> { where(group_comment_id: nil) }
+  scope :authored_by, ->(user_id) { where(draft: false).or(where(author_id: user_id)) }
 
   workflow do
     state :active
@@ -381,10 +382,17 @@ class SubmissionComment < ActiveRecord::Base
     return result if result.blank?
 
     result.map do |attachment|
-      # back-compat for when this was OpenObject. can be removed when we datafix all existing data
-      # to just be a hash, not an OpenObject
-      attributes = attachment.is_a?(Hash) ? attachment : attachment.instance_variable_get(:@table)
-      Attachment.new(attributes)
+      if attachment.is_a?(Hash)
+        attributes = attachment
+      else
+        # back-compat for when this was OpenObject. can be removed when we datafix all existing data
+        # to just be a hash, not an OpenObject
+        attributes = attachment.table
+        attributes = attributes[:table] if attributes.keys == [:table, :object_type]
+        attributes = attributes.stringify_keys
+      end
+
+      Attachment.new(attributes.slice(*Attachment.columns.map(&:name)))
     end
   end
 
@@ -449,6 +457,10 @@ class SubmissionComment < ActiveRecord::Base
     methods = []
     methods << :avatar_path if context.root_account.service_enabled?(:avatars)
     methods
+  end
+
+  def non_draft_or_authored_by(user)
+    !draft? || user.id == author_id
   end
 
   def publishable_for?(user)

@@ -762,7 +762,9 @@ class Enrollment < ActiveRecord::Base
       association(:enrollment_state).reload
       result = super
     end
-    result.enrollment = self # ensure reverse association
+    # ensure we have an enrollment state object present with a reverse association
+    result ||= create_enrollment_state
+    result.enrollment = self
     result
   end
 
@@ -1063,7 +1065,7 @@ class Enrollment < ActiveRecord::Base
   end
 
   def self.recompute_due_dates_and_scores(user_id)
-    Course.where(id: StudentEnrollment.where(user_id:).distinct.pluck(:course_id)).each do |course|
+    Course.where(id: StudentEnrollment.where(user_id:).distinct.select(:course_id)).each do |course|
       SubmissionLifecycleManager.recompute_users_for_course([user_id], course, nil, update_grades: true)
     end
   end

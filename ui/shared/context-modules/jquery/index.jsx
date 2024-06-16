@@ -39,7 +39,8 @@ import get from 'lodash/get'
 import axios from '@canvas/axios'
 import {showFlashError} from '@canvas/alerts/react/FlashAlert'
 import '@canvas/jquery/jquery.ajaxJSON'
-import '@canvas/datetime/jquery' /* dateString, datetimeString, time_field, datetime_field */
+import {dateString, datetimeString} from '@canvas/datetime/date-functions'
+import {renderDatetimeField} from '@canvas/datetime/jquery/DatetimeField'
 import '@canvas/jquery/jquery.instructure_forms' /* formSubmit, fillFormData, formErrors, errorBox */
 import 'jqueryui/dialog'
 import '@canvas/util/jquery/fixDialogButtons'
@@ -49,7 +50,7 @@ import '@canvas/jquery/jquery.simulate'
 import '@canvas/jquery-keycodes'
 import '@canvas/loading-image'
 import '@canvas/util/templateData' /* fillTemplateData, getTemplateData */
-import 'date-js' /* Date.parse */
+import '@instructure/date-js' /* Date.parse */
 import 'jqueryui/sortable'
 import '@canvas/rails-flash-notifications'
 import DirectShareCourseTray from '@canvas/direct-sharing/react/components/DirectShareCourseTray'
@@ -102,7 +103,7 @@ window.modules = (function () {
     },
 
     addModule(callback = () => {}) {
-      if (ENV.FEATURES.differentiated_modules) {
+      if (ENV.FEATURES?.selective_release_ui_api) {
         const options = {initialTab: 'settings'}
         const settings = {
           moduleList: parseModuleList(),
@@ -300,12 +301,12 @@ window.modules = (function () {
               if (ENV.IN_PACED_COURSE && !ENV.IS_STUDENT) {
                 $context_module_item.find('.due_date_display').remove()
               } else if (info.todo_date != null) {
-                data.due_date_display = $.dateString(info.todo_date)
+                data.due_date_display = dateString(info.todo_date)
               } else if (info.due_date != null) {
                 if (info.past_due != null) {
                   $context_module_item.data('past_due', true)
                 }
-                data.due_date_display = $.dateString(info.due_date)
+                data.due_date_display = dateString(info.due_date)
               } else if (info.has_many_overrides != null) {
                 data.due_date_display = I18n.t('Multiple Due Dates')
               } else if (info.vdd_tooltip != null) {
@@ -603,18 +604,11 @@ window.modules = (function () {
       $item.addClass('indent_' + (data.indent || 0))
       $item.addClass(modules.itemClass(data))
 
-      const isValidContentType = [
-        'Assignment',
-        'Quizzes::Quiz',
-        'DiscussionTopic',
-        'WikiPage'
-      ].includes(data.content_type)
-      
       // This function is called twice, once with the data the user just entered
       // and again after the api request returns. The second time we have
       // all the real data, including the module item's id. Wait until then
       // to add the option.
-      if (isValidContentType && 'id' in data) {
+      if ('id' in data && data.can_manage_assign_to) {
         const $assignToMenuItem = $item.find('.assign-to-option')
         if ($assignToMenuItem.length) {
           $assignToMenuItem.removeClass('hidden')
@@ -628,6 +622,7 @@ window.modules = (function () {
           $a.attr('data-item-context-id', data.context_id)
           $a.attr('data-item-context-type', data.context_type)
           $a.attr('data-item-content-id', data.content_id)
+          $a.attr('data-item-has-assignment', data.assignment_id ? 'true' : 'false')
         }
       }
 
@@ -862,7 +857,7 @@ const renderDifferentiatedModulesTray = (
 
 // Based on the logic from ui/shared/context-modules/differentiated-modules/utils/moduleHelpers.ts
 const updateUnlockTime = function ($module, unlock_at) {
-  const friendlyDatetime = unlock_at ? $.datetimeString(unlock_at) : ''
+  const friendlyDatetime = unlock_at ? datetimeString(unlock_at) : ''
 
   const unlockAtElement = $module.find('.unlock_at')
   if (unlockAtElement.length) {
@@ -959,7 +954,9 @@ const newPillMessage = function ($module, requirement_count) {
 const updatePublishMenuDisabledState = function (disabled) {
   if (ENV.FEATURES.instui_header) {
     // Send event to ContextModulesHeader component to update the publish menu
-    window.dispatchEvent(new CustomEvent('update-publish-menu-disabled-state', {detail: {disabled}}))
+    window.dispatchEvent(
+      new CustomEvent('update-publish-menu-disabled-state', {detail: {disabled}})
+    )
   } else {
     // Update the top level publish menu to reflect the new module
     const publishMenu = document.getElementById('context-modules-publish-menu')
@@ -1384,9 +1381,9 @@ modules.initModuleManagement = function (duplicate) {
             }
           })
           const $prevModule = $(this).prev()
-          const $addModuleButton = ENV.FEATURES.instui_header ?
-            $('#context-modules-header-add-module-button') :
-            $('#content .header-bar .add_module_link')
+          const $addModuleButton = ENV.FEATURES.instui_header
+            ? $('#context-modules-header-add-module-button')
+            : $('#content .header-bar .add_module_link')
 
           const $toFocus = $prevModule.length
             ? $('.ig-header-admin .al-trigger', $prevModule)
@@ -1718,7 +1715,7 @@ modules.initModuleManagement = function (duplicate) {
     $(event.currentTarget).addClass('screenreader-only')
   })
 
-  const add_module_link_handler = (event) => {
+  const add_module_link_handler = event => {
     event.preventDefault()
     const addModuleCallback = (data, $moduleElement) =>
       addModuleElement(
@@ -2181,7 +2178,7 @@ $(document).ready(function () {
     Helper.externalUrlLinkClick(event, $(this))
   })
 
-  $('.datetime_field').datetime_field()
+  renderDatetimeField($('.datetime_field'))
 
   $(document).on('mouseover', '.context_module', function () {
     $('.context_module_hover').removeClass('context_module_hover')
@@ -2255,6 +2252,9 @@ $(document).ready(function () {
   if (!ENV.disable_keyboard_shortcuts) {
     const $document = $(document)
     $document.keycodes('k up', _event => {
+      // If the vertical kebob pop-up menu is open then ignore the shortcut
+      if ($('.ui-menu.ui-state-open').length) return
+
       const params = {
         selectWhenModuleFocused: {
           item:
@@ -2273,6 +2273,9 @@ $(document).ready(function () {
 
     // "j" and "down arrow" move the focus down between modules and module items
     $document.keycodes('j down', _event => {
+      // If the vertical kebob pop-up menu is open then ignore the shortcut
+      if ($('.ui-menu.ui-state-open').length) return
+
       const params = {
         selectWhenModuleFocused: {
           item: $currentElem && $currentElem.find('.context_module_item:visible:first'),
@@ -2488,7 +2491,7 @@ $(document).ready(function () {
 
   $(document).on('click', '.edit_module_link', function (event) {
     event.preventDefault()
-    if (ENV.FEATURES.differentiated_modules) {
+    if (ENV.FEATURES?.selective_release_ui_api) {
       const returnFocusTo = $(event.target).closest('ul').prev('.al-trigger')
       const moduleElement = $(event.target).parents('.context_module')[0]
       const settingsProps = parseModule(moduleElement)
@@ -2501,9 +2504,12 @@ $(document).ready(function () {
   })
 
   function handleRemoveDueDateInput(itemProps) {
-    switch(itemProps.moduleItemType) {
+    switch (itemProps.moduleItemType) {
       case 'discussion':
       case 'discussion_topic':
+        if (itemProps.moduleItemHasAssignment === 'true') {
+          return false
+        } else return true
       case 'page':
       case 'wiki_page':
         return true
@@ -2556,6 +2562,7 @@ $(document).ready(function () {
     const moduleItemType = event.target.getAttribute('data-item-type')
     const courseId = event.target.getAttribute('data-item-context-id')
     const moduleItemContentId = event.target.getAttribute('data-item-content-id')
+    const moduleItemHasAssignment = event.target.getAttribute('data-item-has-assignment')
     const itemProps = parseModuleItemElement(
       document.getElementById(`context_module_item_${moduleItemId}`)
     )
@@ -2564,6 +2571,7 @@ $(document).ready(function () {
       moduleItemName,
       moduleItemType,
       moduleItemContentId,
+      moduleItemHasAssignment,
       ...itemProps,
     })
   })

@@ -24,6 +24,7 @@ require_relative "../../dashboard/pages/k5_dashboard_page"
 require_relative "../../dashboard/pages/k5_dashboard_common_page"
 require_relative "../../../helpers/k5_common"
 require_relative "../shared_examples/module_selective_release_shared_examples"
+require_relative "../../../helpers/selective_release_common"
 
 describe "selective_release module set up" do
   include_context "in-process server selenium tests"
@@ -33,6 +34,7 @@ describe "selective_release module set up" do
   include K5DashboardPageObject
   include K5DashboardCommonPageObject
   include K5Common
+  include SelectiveReleaseCommon
 
   context "using tray to update settings" do
     before(:once) do
@@ -368,6 +370,21 @@ describe "selective_release module set up" do
 
       click_clear_all
       expect(element_exists?(assignee_selection_item_selector)).to be false
+    end
+
+    it "does not show the assign to buttons when the user does not have the manage_course_content_edit permission" do
+      @module.assignment_overrides.create!
+
+      go_to_modules
+      manage_module_button(@module).click
+      expect(f("body")).to contain_jqcss(module_index_menu_tool_link_selector("Assign To..."))
+      expect(f("body")).to contain_jqcss(view_assign_to_link_selector)
+
+      RoleOverride.create!(context: @course.account, permission: "manage_course_content_edit", role: teacher_role, enabled: false)
+      go_to_modules
+      manage_module_button(@module).click
+      expect(f("body")).not_to contain_jqcss(module_index_menu_tool_link_selector("Assign To..."))
+      expect(f("body")).not_to contain_jqcss(view_assign_to_link_selector)
     end
   end
 

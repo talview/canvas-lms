@@ -23,18 +23,19 @@ import {Flex} from '@instructure/ui-flex'
 import {RatingButton} from './RatingButton'
 import {Text} from '@instructure/ui-text'
 import {View} from '@instructure/ui-view'
+import {escapeNewLineText} from './utils/rubricUtils'
 
 const {licorice} = colors
 
 type VerticalButtonDisplayProps = {
-  isPeerReview: boolean
+  isPreviewMode: boolean
   ratings: RubricRating[]
   ratingOrder: string
   selectedRatingIndex?: number
   onSelectRating: (index: number) => void
 }
 export const VerticalButtonDisplay = ({
-  isPeerReview,
+  isPreviewMode,
   ratings,
   ratingOrder,
   selectedRatingIndex,
@@ -59,7 +60,7 @@ export const VerticalButtonDisplay = ({
               >
                 <RatingButton
                   buttonDisplay={buttonDisplay}
-                  isPeerReview={isPeerReview}
+                  isPreviewMode={isPreviewMode}
                   isSelected={isSelected}
                   selectedArrowDirection="right"
                   onClick={() => onSelectRating(index)}
@@ -88,7 +89,10 @@ export const VerticalButtonDisplay = ({
                       </Text>
                     </View>
                     <View as="div" display="block">
-                      <Text size="x-small">{rating.longDescription}</Text>
+                      <Text
+                        size="x-small"
+                        dangerouslySetInnerHTML={escapeNewLineText(rating.longDescription)}
+                      />
                     </View>
                   </View>
                 ) : (

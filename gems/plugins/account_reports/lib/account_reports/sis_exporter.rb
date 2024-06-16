@@ -471,18 +471,13 @@ module AccountReports
 
     def section_query_options(sections)
       if @include_deleted
-        sections.where!("course_sections.workflow_state<>'deleted'
-                           OR
-                           (course_sections.sis_source_id IS NOT NULL
-                            AND rc.sis_source_id IS NOT NULL)")
+        sections.where!("course_sections.workflow_state<>'deleted' OR course_sections.sis_source_id IS NOT NULL")
       else
-        sections.where!("course_sections.workflow_state<>'deleted'
-                           AND rc.workflow_state<>'deleted'")
+        sections.where!("course_sections.workflow_state<>'deleted' AND rc.workflow_state<>'deleted'")
       end
 
       if @sis_format
-        sections = sections.where("course_sections.sis_source_id IS NOT NULL
-                                     AND rc.sis_source_id IS NOT NULL")
+        sections = sections.where("course_sections.sis_source_id IS NOT NULL AND rc.sis_source_id IS NOT NULL")
       end
 
       sections = sections.where.not(course_sections: { sis_batch_id: nil }) if @created_by_sis
@@ -586,7 +581,7 @@ module AccountReports
       unless enrollment.temporary_enrollment_source_user_id.nil?
         temporary_enrollment_provider_pseudonym = loaded_pseudonym(pseudonyms, users_by_id[enrollment.temporary_enrollment_source_user_id], include_deleted: @include_deleted)
       end
-      row << temporary_enrollment_provider_pseudonym&.sis_user_id if @temp_enroll_feature_enabled
+      row << temporary_enrollment_provider_pseudonym&.sis_user_id if @temp_enroll_feature_enabled && @sis_format
       row << HostUrl.context_host(pseud.account) if include_other_roots
       row
     end
@@ -595,7 +590,8 @@ module AccountReports
       if @include_deleted
         enrol.where!("enrollments.workflow_state<>'deleted' OR enrollments.sis_batch_id IS NOT NULL")
       else
-        enrol.where!("enrollments.workflow_state<>'deleted' AND enrollments.workflow_state<>'completed'")
+        enrol.where!("enrollments.workflow_state<>'deleted' AND enrollments.workflow_state<>'completed'
+                        AND es.state<>'completed'")
       end
 
       if @sis_format
@@ -619,6 +615,7 @@ module AccountReports
                 cs.sis_source_id AS course_section_sis_id,
                 CASE WHEN cs.workflow_state = 'deleted' THEN 'deleted'
                      WHEN courses.workflow_state = 'deleted' THEN 'deleted'
+                     WHEN es.state = 'completed' THEN 'concluded'
                      WHEN enrollments.workflow_state = 'invited' THEN 'invited'
                      WHEN enrollments.workflow_state = 'creation_pending' THEN 'invited'
                      WHEN enrollments.workflow_state = 'active' THEN 'active'
@@ -627,6 +624,7 @@ module AccountReports
                      WHEN enrollments.workflow_state = 'deleted' THEN 'deleted'
                      WHEN enrollments.workflow_state = 'rejected' THEN 'rejected' END AS enroll_state")
                           .joins("INNER JOIN #{CourseSection.quoted_table_name} cs ON cs.id = enrollments.course_section_id
+               INNER JOIN #{EnrollmentState.quoted_table_name} AS es ON enrollments.id = es.enrollment_id
                INNER JOIN #{Course.quoted_table_name} ON courses.id = cs.course_id")
                           .where("enrollments.type <> 'StudentViewEnrollment'")
       enrol = enrol.where.not(enrollments: { sis_batch_id: nil }) if @created_by_sis
@@ -663,9 +661,8 @@ module AccountReports
         headers << "base_role_type"
         headers << "limit_section_privileges"
         headers << "canvas_enrollment_id"
+        headers << "canvas_temporary_enrollment_source_user_id" if @temp_enroll_feature_enabled
       end
-      headers << "canvas_temporary_enrollment_source_user_id" if @temp_enroll_feature_enabled
-      headers << "temporary_enrollment_source_user_id" if @temp_enroll_feature_enabled
       headers << "root_account" if include_other_roots
       headers
     end

@@ -61,6 +61,7 @@ import {
   removeAttachmentFn,
 } from '@canvas/message-attachments'
 import type {CamelizedAssignment} from '@canvas/grading/grading.d'
+import {View} from '@instructure/ui-view'
 
 export enum MSWLaunchContext {
   ASSIGNMENT_CONTEXT,
@@ -90,6 +91,7 @@ export type Student = {
   sortableName: string
   submittedAt: null | Date
   excused?: boolean
+  workflowState: string
 }
 
 export type Props = {
@@ -228,6 +230,10 @@ function observerCount(students, observers) {
   return students.reduce((acc, student) => acc + (observers[student.id]?.length || 0), 0)
 }
 
+function calculateObserverRecipientCount(selectedObservers) {
+  return Object.values(selectedObservers).reduce((acc: number, array: any) => acc + array.length, 0)
+}
+
 function filterStudents(criterion, students, cutoff) {
   const newfilteredStudents: Student[] = []
   for (const student of students) {
@@ -238,12 +244,12 @@ function filterStudents(criterion, students, cutoff) {
         }
         break
       case 'submitted_and_graded':
-        if (student.submittedAt && student.grade) {
+        if (student.submittedAt && student.grade && student.workflowState !== 'pending_review') {
           newfilteredStudents.push(student)
         }
         break
       case 'submitted_and_not_graded':
-        if (student.submittedAt && !student.grade) {
+        if (student.submittedAt && (!student.grade || student.workflowState === 'pending_review')) {
           newfilteredStudents.push(student)
         }
         break
@@ -258,7 +264,7 @@ function filterStudents(criterion, students, cutoff) {
         }
         break
       case 'ungraded':
-        if (!student.grade && !student.excused) {
+        if ((!student.grade && !student.excused) || student.workflowState === 'pending_review') {
           newfilteredStudents.push(student)
         }
         break
@@ -443,7 +449,8 @@ const MessageStudentsWhoDialog = ({
       assignmentGroupName
     )
   )
-  const [observersDisplayed, setObserversDisplayed] = useState(0.0)
+
+  const [observerRecipientCount, setObserverRecipientCount] = useState(0)
 
   useEffect(() => {
     const partialStudentSelection = isLengthBetweenBoundaries(
@@ -491,14 +498,17 @@ const MessageStudentsWhoDialog = ({
 
   useEffect(() => {
     if (!loading && data) {
-      setObserversDisplayed(
-        observerCount(
-          filterStudents(selectedCriterion, sortedStudents, cutoff),
-          observersByStudentID
-        )
-      )
+      setObserverRecipientCount(calculateObserverRecipientCount(selectedObservers))
     }
-  }, [loading, data, selectedCriterion, sortedStudents, cutoff, observersByStudentID])
+  }, [
+    loading,
+    data,
+    selectedCriterion,
+    sortedStudents,
+    cutoff,
+    observersByStudentID,
+    selectedObservers,
+  ])
 
   useEffect(() => {
     return () => {
@@ -517,9 +527,7 @@ const MessageStudentsWhoDialog = ({
     if (newCriterion != null) {
       setSelectedCriterion(newCriterion)
       setFilteredStudents(filterStudents(newCriterion, sortedStudents, cutoff))
-      setObserversDisplayed(
-        observerCount(filterStudents(newCriterion, sortedStudents, cutoff), observersByStudentID)
-      )
+      setObserverRecipientCount(calculateObserverRecipientCount(selectedObservers))
       setSubject(
         defaultSubject(
           newCriterion.value,
@@ -571,9 +579,7 @@ const MessageStudentsWhoDialog = ({
     const criterion = filterCriteria.find(c => c.value === value)
     if (criterion) {
       setFilteredStudents(filterStudents(criterion, sortedStudents, cutoff))
-      setObserversDisplayed(
-        observerCount(filterStudents(criterion, sortedStudents, cutoff), observersByStudentID)
-      )
+      setObserverRecipientCount(calculateObserverRecipientCount(selectedObservers))
       setSubject(
         defaultSubject(
           criterion.value,
@@ -592,9 +598,7 @@ const MessageStudentsWhoDialog = ({
     const criterion = filterCriteria.find(c => c.value === criteriaValue)
     if (criterion) {
       setFilteredStudents(filterStudents(criterion, sortedStudents, cutoff))
-      setObserversDisplayed(
-        observerCount(filterStudents(criterion, sortedStudents, cutoff), observersByStudentID)
-      )
+      setObserverRecipientCount(calculateObserverRecipientCount(selectedObservers))
     }
   }
 
@@ -700,8 +704,8 @@ const MessageStudentsWhoDialog = ({
         </Modal.Header>
 
         <Modal.Body>
-          <Flex alignItems="end">
-            <Flex.Item>
+          <View as="div" width="19.75em">
+            <View as="div" padding="0 0 small 0">
               <SimpleSelect
                 renderLabel={I18n.t('For students who…')}
                 onChange={handleCriterionSelected}
@@ -719,9 +723,9 @@ const MessageStudentsWhoDialog = ({
                   </SimpleSelect.Option>
                 ))}
               </SimpleSelect>
-            </Flex.Item>
+            </View>
             {selectedCriterion.requiresCutoff && (
-              <Flex.Item margin="0 0 0 small">
+              <>
                 <NumberInput
                   value={cutoff}
                   onChange={(_e, value) => {
@@ -741,57 +745,52 @@ const MessageStudentsWhoDialog = ({
                     }
                   }}
                   showArrows={false}
-                  renderLabel={
-                    <ScreenReaderContent>{I18n.t('Enter score cutoff')}</ScreenReaderContent>
-                  }
-                  width="5em"
+                  renderLabel={I18n.t('Cutoff Value')}
+                  data-testid="cutoff-input"
                 />
-              </Flex.Item>
+                <Text size="small" data-testid="cutoff-footnote">
+                  {I18n.t(
+                    'This is based on values seen in this grade book. It may not be the same values students see.'
+                  )}
+                </Text>
+              </>
             )}
-          </Flex>
-          <br />
-          {selectedCriterion.value === 'submitted' && (
-            <>
-              <Flex>
-                <RadioInputGroup
-                  description=""
-                  defaultValue="all"
-                  name="include-students"
-                  data-testid="include-student-radio-group"
-                >
-                  <RadioInput
-                    label={I18n.t('All submissions')}
-                    value="all"
-                    onClick={() => onSubmissionRadioSelect('submitted')}
-                    data-testid="all-students-radio-button"
-                  />
-                  <RadioInput
-                    label={I18n.t('Graded submissions')}
-                    value="graded"
-                    onClick={() => onSubmissionRadioSelect('submitted_and_graded')}
-                    data-testid="graded-students-radio-button"
-                  />
-                  <RadioInput
-                    label={I18n.t('Not graded submissions')}
-                    value="not_graded"
-                    onClick={() => onSubmissionRadioSelect('submitted_and_not_graded')}
-                    data-testid="not-graded-students-radio-button"
-                  />
-                </RadioInputGroup>
-              </Flex>
-              <br />
-            </>
-          )}
-          {selectedCriterion.value === 'unsubmitted' && (
-            <>
+            {selectedCriterion.value === 'submitted' && (
+              <RadioInputGroup
+                description=""
+                defaultValue="all"
+                name="include-students"
+                data-testid="include-student-radio-group"
+              >
+                <RadioInput
+                  label={I18n.t('All submissions')}
+                  value="all"
+                  onClick={() => onSubmissionRadioSelect('submitted')}
+                  data-testid="all-students-radio-button"
+                />
+                <RadioInput
+                  label={I18n.t('Graded submissions')}
+                  value="graded"
+                  onClick={() => onSubmissionRadioSelect('submitted_and_graded')}
+                  data-testid="graded-students-radio-button"
+                />
+                <RadioInput
+                  label={I18n.t('Not graded submissions')}
+                  value="not_graded"
+                  onClick={() => onSubmissionRadioSelect('submitted_and_not_graded')}
+                  data-testid="not-graded-students-radio-button"
+                />
+              </RadioInputGroup>
+            )}
+            {selectedCriterion.value === 'unsubmitted' && (
               <Checkbox
                 onChange={onExcusedCheckBoxChange}
                 data-testid="skip-excused-checkbox"
                 label={<Text>{I18n.t('Skip excused students when messaging')}</Text>}
               />
-              <br />
-            </>
-          )}
+            )}
+          </View>
+          <br />
           <Flex>
             <Flex.Item>
               <Text weight="bold">{I18n.t('Send Message To:')}</Text>
@@ -803,9 +802,10 @@ const MessageStudentsWhoDialog = ({
                 onChange={onStudentsCheckboxChanged}
                 checked={isCheckedStudentsCheckbox}
                 defaultChecked={true}
+                data-testid="total-student-checkbox"
                 label={
                   <Text weight="bold">
-                    {I18n.t('%{studentCount} Students', {studentCount: filteredStudents.length})}
+                    {I18n.t('%{studentCount} Students', {studentCount: selectedStudents.length})}
                   </Text>
                 }
               />
@@ -816,10 +816,11 @@ const MessageStudentsWhoDialog = ({
                 disabled={isDisabledObserversCheckbox}
                 onChange={onObserversCheckboxChanged}
                 checked={isCheckedObserversCheckbox}
+                data-testid="total-observer-checkbox"
                 label={
                   <Text weight="bold">
                     {I18n.t('%{observerCount} Observers', {
-                      observerCount: observersDisplayed,
+                      observerCount: observerRecipientCount,
                     })}
                   </Text>
                 }

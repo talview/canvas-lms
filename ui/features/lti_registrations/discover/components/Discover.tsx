@@ -16,60 +16,72 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {useEffect, useState} from 'react'
-import {useSearchParams} from 'react-router-dom'
+import React, {useMemo, useState} from 'react'
 import {useQuery} from '@tanstack/react-query'
-
-// TODO - remove this useSearch package and use our own solution
-import useSearch from '@canvas/outcomes/react/hooks/useSearch'
 import {useScope as useI18nScope} from '@canvas/i18n'
-import {Button, IconButton} from '@instructure/ui-buttons'
+import {Button, CondensedButton, IconButton} from '@instructure/ui-buttons'
 import {IconEndSolid, IconFilterLine, IconSearchLine} from '@instructure/ui-icons'
 import {View} from '@instructure/ui-view'
 import {TextInput} from '@instructure/ui-text-input'
 import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import {Flex} from '@instructure/ui-flex'
 import {Spinner} from '@instructure/ui-spinner'
-import {Tag} from '@instructure/ui-tag'
-import {Heading} from '@instructure/ui-heading'
-
 import LtiFilterTray from './LtiFilterTray'
 import FilterTags from './FilterTags'
-import ProductCard from './ProductCard'
-
-import {fetchProducts} from '../queries/productsQuery'
-import type {Product, Company} from '../model/Product'
-import type {LtiFilter} from '../model/Filter'
+import ProductCard from './ProductCard/ProductCard'
+import {fetchProducts, fetchToolsByDisplayGroups} from '../queries/productsQuery'
+import type {Product} from '../model/Product'
+import type {FilterItem, LtiFilter} from '../model/Filter'
+import {Heading} from '@instructure/ui-heading'
+import {Pagination} from '@instructure/ui-pagination'
+import useDebouncedSearch from './useDebouncedSearch'
+import useDiscoverQueryParams from './useDiscoverQueryParams'
 
 // TODO: remove mock data
 const filterValues: LtiFilter = {
   companies: [
     {
-      id: 100,
-      name: 'Praxis',
+      id: '19a',
+      name: 'Vendor Test Company',
     },
     {
-      id: 200,
-      name: 'Khan Academy',
+      id: '9a',
+      name: 'Smart Sparrow',
+    },
+    {
+      id: '1a',
+      name: 'Khan11',
+    },
+    {
+      id: '6a',
+      name: 'Test',
+    },
+    {
+      id: '17a',
+      name: 'NEW COMPANY',
+    },
+    {
+      id: '101a',
+      name: "Tom's Education Company",
     },
   ],
   versions: [
     {
-      id: 9465,
+      id: '9465',
       name: 'LTI v1.1',
     },
     {
-      id: 9494,
+      id: '9494',
       name: 'LTI v1.3',
     },
   ],
   audience: [
     {
-      id: 387,
+      id: '387',
       name: 'HiEd',
     },
     {
-      id: 9495,
+      id: '9495',
       name: 'K-12',
     },
   ],
@@ -78,36 +90,44 @@ const filterValues: LtiFilter = {
 const I18n = useI18nScope('lti_registrations')
 
 export const Discover = () => {
-  const {search: searchString, onChangeHandler, onClearHandler} = useSearch()
   const [isTrayOpen, setIsTrayOpen] = useState(false)
-  const [searchParams, _] = useSearchParams()
-  const [filterIds, setFilterIds] = useState<number[]>([])
-  const [company, setCompany] = useState<Company | null>(null)
+  const {queryParams, setQueryParams, updateQueryParams} = useDiscoverQueryParams()
+  const {searchValue, handleSearchInputChange} = useDebouncedSearch({
+    initialValue: queryParams.search,
+    delay: 300,
+    updateQueryParams,
+  })
+  const isFilterApplied = useMemo(
+    () => Object.values(queryParams.filters).flat().length > 0 || queryParams.search.length > 0,
+    [queryParams]
+  )
 
   const params = () => {
     return {
-      company_id_eq: company?.id,
-      name_cont: searchString,
+      filters: queryParams.filters,
+      name_cont: queryParams.search,
+      page: queryParams.page,
     }
   }
 
   const {data, isLoading} = useQuery({
-    queryKey: ['lti_product_info', company],
+    queryKey: ['lti_product_info', queryParams],
     queryFn: () => fetchProducts(params()),
   })
 
-  useEffect(() => {
-    onClearHandler()
-    const queryParams = searchParams.get('filter')
-    const params = queryParams ? JSON.parse(queryParams) : []
-    const ids: number[] = Object.values(params) as number[]
-    setFilterIds(ids)
-  }, [onClearHandler, searchParams])
+  const {data: displayGroupsData, isLoading: isLoadingDisplayGroups} = useQuery({
+    queryKey: ['lti_tool_display_groups'],
+    queryFn: () => fetchToolsByDisplayGroups(),
+  })
 
   const renderProducts = () => {
-    return data?.tools.map((product: Product) => (
-      <ProductCard product={product} setCompany={setCompany} />
-    ))
+    return data?.tools.map((product: Product) => <ProductCard product={product} />)
+  }
+
+  const setTag = (tag: FilterItem) => {
+    setQueryParams({
+      filters: {tags: [tag]},
+    })
   }
 
   return (
@@ -118,21 +138,21 @@ export const Discover = () => {
             <TextInput
               renderLabel={
                 <ScreenReaderContent>
-                  {I18n.t('Search by extension name & company name')}
+                  {I18n.t('Search by app name & company name')}
                 </ScreenReaderContent>
               }
               placeholder="Search by extension name & company name"
-              value={searchString}
-              onChange={onChangeHandler}
+              value={searchValue}
+              onChange={handleSearchInputChange}
               renderBeforeInput={<IconSearchLine inline={false} />}
               renderAfterInput={
-                searchString ? (
+                queryParams.search ? (
                   <IconButton
                     size="small"
                     screenReaderLabel={I18n.t('Clear search field')}
                     withBackground={false}
                     withBorder={false}
-                    onClick={onClearHandler}
+                    onClick={() => updateQueryParams({search: ''})}
                   >
                     <IconEndSolid size="x-small" data-testid="clear-search-icon" />
                   </IconButton>
@@ -150,29 +170,69 @@ export const Discover = () => {
           {I18n.t('Filters')}
         </Button>
       </Flex>
-      <FilterTags filterValues={filterValues} />
 
-      {company && (
-        <>
-          <Heading level="h2">{I18n.t('Search Results')}</Heading>
-          <Flex gap="x-small" wrap="no-wrap" margin="0 0 medium 0">
-            <p>
-              {data?.meta.count ?? 0} {I18n.t('result(s) filtered by')}
-            </p>
-            <Tag dismissible={true} onClick={() => setCompany(null)} text={company.name} />
-          </Flex>
-        </>
+      {isFilterApplied && (
+        <FilterTags
+          numberOfResults={data?.meta.count ?? 0}
+          queryParams={queryParams}
+          updateQueryParams={updateQueryParams}
+        />
       )}
-      <Flex gap="medium" wrap="wrap">
-        {isLoading ? <Spinner /> : renderProducts()}
-      </Flex>
 
+      {isLoading || isLoadingDisplayGroups ? (
+        <Spinner />
+      ) : isFilterApplied ? (
+        <>
+          <Flex gap="medium" wrap="wrap" alignItems="stretch">
+            {renderProducts()}
+          </Flex>
+          <Pagination
+            as="nav"
+            margin="small"
+            variant="compact"
+            labelNext={I18n.t('Next Page')}
+            labelPrev={I18n.t('Previous Page')}
+          >
+            {Array.from(Array(data?.meta.num_pages)).map((_, i) => (
+              <Pagination.Page
+                // eslint-disable-next-line react/no-array-index-key
+                key={i}
+                current={i === queryParams.page - 1}
+                onClick={() => updateQueryParams({page: i + 1})}
+              >
+                {i + 1}
+              </Pagination.Page>
+            ))}
+          </Pagination>
+        </>
+      ) : (
+        displayGroupsData?.map(group => {
+          return (
+            <div key={group.tag.id}>
+              <Heading level="h3" as="h2" margin="medium 0 0 0">
+                {group.display_name}
+              </Heading>
+              <Flex justifyItems="space-between">
+                <p>TODO</p>
+                <CondensedButton onClick={() => setTag(group.tag)}>
+                  {I18n.t('See All')}
+                </CondensedButton>
+              </Flex>
+              <Flex gap="medium" wrap="wrap" alignItems="stretch">
+                {group.tools.map(product => (
+                  <ProductCard key={product.id} product={product} />
+                ))}
+              </Flex>
+            </div>
+          )
+        })
+      )}
       <LtiFilterTray
         isTrayOpen={isTrayOpen}
         setIsTrayOpen={setIsTrayOpen}
         filterValues={filterValues}
-        filterIds={filterIds}
-        setFilterIds={setFilterIds}
+        queryParams={queryParams}
+        setQueryParams={setQueryParams}
       />
     </div>
   )

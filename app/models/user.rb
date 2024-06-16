@@ -179,7 +179,6 @@ class User < ActiveRecord::Base
   has_many :eportfolios, dependent: :destroy
   has_many :quiz_submissions, dependent: :destroy, class_name: "Quizzes::QuizSubmission"
   has_many :dashboard_messages, -> { where(to: "dashboard", workflow_state: "dashboard").order("created_at DESC") }, class_name: "Message", dependent: :destroy
-  has_many :collaborations, -> { order("created_at DESC") }
   has_many :user_services, -> { order("created_at") }, dependent: :destroy
   has_many :rubric_associations, -> { preload(:rubric).order(created_at: :desc) }, as: :context, inverse_of: :context
   has_many :rubrics
@@ -342,14 +341,28 @@ class User < ActiveRecord::Base
 
   # NOTE: only use for courses with differentiated assignments on
   scope :able_to_see_assignment_in_course_with_da, lambda { |assignment_id, course_id|
-    joins(:assignment_student_visibilities)
-      .where(assignment_student_visibilities: { assignment_id:, course_id: })
+    if Account.site_admin.feature_enabled?(:selective_release_backend)
+      visible_user_id = AssignmentVisibility::AssignmentVisibilityService.assignment_visible_in_course(assignment_id:, course_id:).map(&:user_id)
+      if visible_user_id.any?
+        where(id: visible_user_id)
+      else
+        none
+      end
+    else
+      joins(:assignment_student_visibilities)
+        .where(assignment_student_visibilities: { assignment_id:, course_id: })
+    end
   }
 
   # NOTE: only use for courses with differentiated assignments on
   scope :able_to_see_quiz_in_course_with_da, lambda { |quiz_id, course_id|
-    joins(:quiz_student_visibilities)
-      .where(quiz_student_visibilities: { quiz_id:, course_id: })
+    if Account.site_admin.feature_enabled?(:selective_release_backend)
+      visible_user_ids = QuizVisibility::QuizVisibilityService.quiz_visible_in_course(quiz_id:, course_id:).map(&:user_id)
+      where(id: visible_user_ids)
+    else
+      joins(:quiz_student_visibilities)
+        .where(quiz_student_visibilities: { quiz_id:, course_id: })
+    end
   }
 
   scope :observing_students_in_course, lambda { |observee_ids, course_ids|
@@ -360,7 +373,7 @@ class User < ActiveRecord::Base
   # a student, this first enrollment stays the same, but a new one with an associated_user_id is added. thusly to find
   # course observers, you take the difference between all active observers and active observers with associated users
   scope :observing_full_course, lambda { |course_ids|
-    active_observer_scope = joins(:enrollments).where(enrollments: { type: "ObserverEnrollment", course_id: course_ids, workflow_state: "active" })
+    active_observer_scope = joins(:enrollments).where(enrollments: { type: "ObserverEnrollment", course_id: course_ids, workflow_state: ["active", "invited"] })
     users_observing_students = active_observer_scope.where.not(enrollments: { associated_user_id: nil }).pluck(:id)
 
     if users_observing_students == [] || users_observing_students.nil?
@@ -380,11 +393,17 @@ class User < ActiveRecord::Base
     super
   end
 
-  def assignment_and_quiz_visibilities(context)
-    RequestCache.cache("assignment_and_quiz_visibilities", self, context) do
+  def learning_object_visibilities(context)
+    RequestCache.cache("learning_object_visibilities", self, context) do
       GuardRail.activate(:secondary) do
-        { assignment_ids: DifferentiableAssignment.scope_filter(context.assignments, self, context).pluck(:id),
-          quiz_ids: DifferentiableAssignment.scope_filter(context.quizzes, self, context).pluck(:id) }
+        visibilities = { assignment_ids: DifferentiableAssignment.scope_filter(context.assignments, self, context).pluck(:id),
+                         quiz_ids: DifferentiableAssignment.scope_filter(context.quizzes, self, context).pluck(:id) }
+        if Account.site_admin.feature_enabled?(:selective_release_backend)
+          visibilities[:context_module_ids] = DifferentiableAssignment.scope_filter(context.context_modules, self, context).pluck(:id)
+          visibilities[:discussion_topic_ids] = DifferentiableAssignment.scope_filter(context.discussion_topics, self, context).pluck(:id)
+          visibilities[:wiki_page_ids] = DifferentiableAssignment.scope_filter(context.wiki_pages, self, context).pluck(:id)
+        end
+        visibilities
       end
     end
   end
@@ -971,7 +990,7 @@ class User < ActiveRecord::Base
   # which also depends on the current context.
   def lookup_lti_id(context)
     old_lti_id = context.shard.activate do
-      past_lti_ids.where(context:).take&.user_lti_id
+      past_lti_ids.find_by(context:)&.user_lti_id
     end
     old_lti_id || self.lti_id
   end
@@ -1050,7 +1069,7 @@ class User < ActiveRecord::Base
   def gmail_channel
     addr = user_services
            .where(service_domain: "google.com")
-           .limit(1).pluck(:service_user_id).first
+           .limit(1).pick(:service_user_id)
     communication_channels.email.by_path(addr).first
   end
 
@@ -1071,7 +1090,7 @@ class User < ActiveRecord::Base
 
   def google_service_address(service_name)
     user_services.where(service: service_name)
-                 .limit(1).pluck((service_name == "google_drive") ? :service_user_name : :service_user_id).first
+                 .limit(1).pick((service_name == "google_drive") ? :service_user_name : :service_user_id)
   end
 
   def email=(e)
@@ -1356,6 +1375,9 @@ class User < ActiveRecord::Base
 
     given { |user| user == self && user.user_can_edit_name? }
     can :rename
+
+    given { |user| user == self }
+    can :change_pronoun
 
     given { |user| courses.any? { |c| c.user_is_instructor?(user) } }
     can :read_profile
@@ -2786,7 +2808,7 @@ class User < ActiveRecord::Base
   end
 
   def self.default_storage_quota
-    Setting.get("user_default_quota", 50.megabytes.to_s).to_i
+    Setting.get("user_default_quota", 50.decimal_megabytes.to_s).to_i
   end
 
   def update_last_user_note
@@ -3355,7 +3377,7 @@ class User < ActiveRecord::Base
   end
 
   def authenticate_one_time_password(code)
-    result = one_time_passwords.where(code:, used: false).take
+    result = one_time_passwords.find_by(code:, used: false)
     return unless result
     # atomically update used
     return unless one_time_passwords.where(used: false, id: result).update_all(used: true, updated_at: Time.now.utc) == 1

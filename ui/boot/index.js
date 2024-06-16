@@ -24,11 +24,11 @@ import filterUselessConsoleMessages from '../../packages/filter-console-messages
 import moment from 'moment'
 import './initializers/fakeRequireJSFallback'
 import './initializers/ujsLinks'
-import {up as configureDateTimeMomentParser} from './initializers/configureDateTimeMomentParser'
-import {up as configureDateTime} from './initializers/configureDateTime'
+import {up as configureDateTimeMomentParser} from '@canvas/datetime/configureDateTimeMomentParser'
+import {up as configureDateTime} from '@canvas/datetime/configureDateTime'
 import {initSentry} from './initializers/initSentry'
 import {up as renderRailsFlashNotifications} from './initializers/renderRailsFlashNotifications'
-import {up as activateCourseMenuToggler} from './initializers/activateCourseMenuToggler'
+import {up as activateCourseMenuToggler} from '@canvas/common/activateCourseMenuToggler'
 
 // Import is required, workaround for ARC-8398
 // eslint-disable-next-line import/no-nodejs-modules

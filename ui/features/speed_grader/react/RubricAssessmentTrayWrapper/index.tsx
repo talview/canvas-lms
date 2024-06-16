@@ -44,7 +44,9 @@ const convertSubmittedAssessment = (assessments: RubricAssessmentData[]): any =>
     data[pre + '[comments]'] = assessment.comments
     data[pre + '[save_comment]'] = assessment.saveCommentsForLater ? '1' : '0'
     data[pre + '[description]'] = assessment.description
-    data[pre + '[rating_id]'] = assessment.id ?? '-1'
+    if (assessment.id) {
+      data[pre + '[rating_id]'] = assessment.id
+    }
   })
 
   return data
@@ -56,26 +58,36 @@ type RubricAssessmentTrayWrapperProps = {
   onSave: (assessmentData: any) => void
 }
 export default ({rubric, onAccessorChange, onSave}: RubricAssessmentTrayWrapperProps) => {
-  const {rubricAssessmentTrayOpen, studentAssessment, rubricAssessors} = useStore()
+  const {
+    rubricAssessmentTrayOpen,
+    studentAssessment,
+    rubricAssessors,
+    rubricHidePoints,
+    rubricSavedComments = {},
+  } = useStore()
 
   const handleSubmit = (assessmentData: RubricAssessmentData[]) => {
     const data = convertSubmittedAssessment(assessmentData)
     onSave(data)
   }
 
-  const isPeerReview = studentAssessment?.assessor_id !== ENV.RUBRIC_ASSESSMENT?.assessor_id
+  const isPreviewPeerMode =
+    !!studentAssessment?.assessor_id &&
+    studentAssessment.assessor_id !== ENV.RUBRIC_ASSESSMENT?.assessor_id
 
   return (
     <RubricAssessmentTray
+      hidePoints={rubricHidePoints}
       isOpen={rubricAssessmentTrayOpen}
-      isPreviewMode={false}
-      isPeerReview={isPeerReview}
+      isPreviewMode={isPreviewPeerMode}
+      isPeerReview={isPreviewPeerMode}
       rubric={mapRubricUnderscoredKeysToCamelCase(rubric)}
       rubricAssessmentData={mapRubricAssessmentDataUnderscoredKeysToCamelCase(
         studentAssessment?.data ?? []
       )}
       rubricAssessmentId={studentAssessment?.id}
       rubricAssessors={rubricAssessors}
+      rubricSavedComments={rubricSavedComments}
       onAccessorChange={onAccessorChange}
       onDismiss={() => useStore.setState({rubricAssessmentTrayOpen: false})}
       onSubmit={handleSubmit}

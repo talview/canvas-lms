@@ -790,9 +790,9 @@ CanvasRails::Application.routes.draw do
     resources :developer_keys, only: :index
     get "/developer_keys/:key_id", controller: :developer_keys, action: :index, as: "account_developer_key_view"
 
-    get "extensions", controller: :lti_registrations, action: :index, as: "lti_registrations"
-    get "extensions/*path", controller: :lti_registrations, action: :index
-    get "extensions/manage", controller: :lti_registrations, action: :index, as: "lti_manage_registrations"
+    get "apps", controller: "lti/registrations", action: :index, as: "lti_registrations"
+    get "apps/*path", controller: "lti/registrations", action: :index
+    get "apps/manage", controller: "lti/registrations", action: :index, as: "lti_manage_registrations"
 
     get "release_notes" => "release_notes#manage", :as => :release_notes_manage
 
@@ -830,6 +830,9 @@ CanvasRails::Application.routes.draw do
 
   get "login/canvas" => "login/canvas#new", :as => :canvas_login
   post "login/canvas" => "login/canvas#create"
+
+  get "login/email_verify" => "login/email_verify#show", :as => :login_email_verify_show
+  post "login/email_verify" => "login/email_verify#verify", :as => :login_email_verify
 
   get "login/ldap" => "login/ldap#new"
   post "login/ldap" => "login/ldap#create"
@@ -1104,6 +1107,12 @@ CanvasRails::Application.routes.draw do
     get "courses/:course_id/search", action: :show, as: :course_search
     # TODO: Add back global search once we have a good way to handle it
     # get "search", action: :show
+  end
+
+  scope(controller: :translation) do
+    post "courses/:course_id/translate", action: :translate
+    post "courses/:course_id/translate/paragraph", action: :translate_paragraph
+    post "translate/message", action: :translate_message
   end
 
   ### API routes ###
@@ -1451,6 +1460,14 @@ CanvasRails::Application.routes.draw do
 
     scope(controller: :discussion_topics_api) do
       %w[course group].each do |context|
+        put "#{context.pluralize}/:#{context}_id/discussion_topics/read_all", action: :mark_all_topic_read, as: "#{context}_discussion_mark_all_read"
+        put "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id/read", action: :mark_topic_read, as: "#{context}_discussion_topic_mark_read"
+        delete "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id/read", action: :mark_topic_unread, as: "#{context}_discussion_topic_mark_unread"
+        put "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id/read_all", action: :mark_all_read, as: "#{context}_discussion_topic_mark_all_read"
+        delete "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id/read_all", action: :mark_all_unread, as: "#{context}_discussion_topic_mark_all_unread"
+        put "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id/entries/:entry_id/read", action: :mark_entry_read, as: "#{context}_discussion_topic_discussion_entry_mark_read"
+        delete "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id/entries/:entry_id/read", action: :mark_entry_unread, as: "#{context}_discussion_topic_discussion_entry_mark_unread"
+
         get "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id", action: :show, as: "#{context}_discussion_topic"
         post "#{context.pluralize}/:#{context}_id/discussion_topics", controller: :discussion_topics, action: :create
         put "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id", controller: :discussion_topics, action: :update
@@ -1458,6 +1475,9 @@ CanvasRails::Application.routes.draw do
         delete "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id", controller: :discussion_topics, action: :destroy
 
         get "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id/view", action: :view, as: "#{context}_discussion_topic_view"
+        get "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id/summaries", action: :summary, as: "#{context}_discussion_topic_summary"
+        put "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id/summaries/disable", action: :disable_summary, as: "#{context}_discussion_topic_disable_summary"
+        post "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id/summaries/:summary_id/feedback", action: :summary_feedback, as: "#{context}_discussion_topic_summary_feedback"
         post "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id/duplicate", action: :duplicate
         get "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id/entry_list", action: :entry_list, as: "#{context}_discussion_topic_entry_list"
         post "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id/entries", action: :add_entry, as: "#{context}_discussion_add_entry"
@@ -1467,12 +1487,6 @@ CanvasRails::Application.routes.draw do
         put "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id/entries/:id", controller: :discussion_entries, action: :update, as: "#{context}_discussion_update_reply"
         delete "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id/entries/:id", controller: :discussion_entries, action: :destroy, as: "#{context}_discussion_delete_reply"
 
-        put "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id/read", action: :mark_topic_read, as: "#{context}_discussion_topic_mark_read"
-        delete "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id/read", action: :mark_topic_unread, as: "#{context}_discussion_topic_mark_unread"
-        put "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id/read_all", action: :mark_all_read, as: "#{context}_discussion_topic_mark_all_read"
-        delete "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id/read_all", action: :mark_all_unread, as: "#{context}_discussion_topic_mark_all_unread"
-        put "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id/entries/:entry_id/read", action: :mark_entry_read, as: "#{context}_discussion_topic_discussion_entry_mark_read"
-        delete "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id/entries/:entry_id/read", action: :mark_entry_unread, as: "#{context}_discussion_topic_discussion_entry_mark_unread"
         post "#{context.pluralize}/:#{context}_id/discussion_topics/:topic_id/entries/:entry_id/rating",
              action: :rate_entry,
              as: "#{context}_discussion_topic_discussion_entry_rate"
@@ -1704,6 +1718,7 @@ CanvasRails::Application.routes.draw do
       put "accounts/:account_id/logins/:id", action: :update
       delete "users/:user_id/logins/:id", action: :destroy
       post "users/reset_password", action: :forgot_password
+      post "users/:user_id/logins/:id/migrate_login_attribute", action: :migrate_login_attribute
     end
 
     scope(controller: :accounts) do
@@ -1902,6 +1917,14 @@ CanvasRails::Application.routes.draw do
 
       get "accounts/:account_id/developer_keys", action: :index, as: "account_developer_keys"
       post "accounts/:account_id/developer_keys", action: :create
+    end
+
+    scope(controller: "lti/registrations") do
+      get "accounts/:account_id/lti_registrations", action: :list
+      delete "accounts/:account_id/lti_registrations/:id", action: :destroy
+      get "accounts/:account_id/lti_registrations/:id", action: :show
+      put "accounts/:account_id/lti_registrations/:id", action: :update
+      post "accounts/:account_id/lti_registrations/:id/bind", action: :bind
     end
 
     scope(controller: :immersive_reader) do
@@ -2275,6 +2298,14 @@ CanvasRails::Application.routes.draw do
         get  "#{prefix}/apps/:app_id/reviews/self", action: :review,  as: "#{context}_app_center_app_review"
         post "#{prefix}/apps/:app_id/reviews/self", action: :add_review
       end
+    end
+
+    scope(controller: :learn_platform) do
+      prefix = "accounts/:account_id/learn_platform"
+      get  "#{prefix}/products", action: :index
+      get  "#{prefix}/products_categories", action: :index_by_category
+      get  "#{prefix}/products/:id", action: :show
+      get  "#{prefix}/products/filters", action: :filters
     end
 
     scope(controller: :feature_flags) do

@@ -21,12 +21,14 @@ require_relative "../helpers/context_modules_common"
 require_relative "../helpers/public_courses_context"
 require_relative "page_objects/modules_index_page"
 require_relative "page_objects/modules_settings_tray"
+require_relative "../../helpers/selective_release_common"
 
 describe "context modules" do
   include_context "in-process server selenium tests"
   include ContextModulesCommon
   include ModulesIndexPage
   include ModulesSettingsTray
+  include SelectiveReleaseCommon
 
   context "as a teacher", priority: "1" do
     before(:once) do
@@ -281,7 +283,7 @@ describe "context modules" do
     end
 
     it "does not have a prerequisites section when creating the first module" do
-      Account.site_admin.disable_feature! :differentiated_modules
+      Account.site_admin.disable_feature! :selective_release_ui_api
       get "/courses/#{@course.id}/modules"
 
       form = new_module_form
@@ -313,7 +315,7 @@ describe "context modules" do
     end
 
     it "validates locking a module item display functionality without differentiated modules" do
-      Account.site_admin.disable_feature! :differentiated_modules
+      Account.site_admin.disable_feature! :selective_release_ui_api
 
       get "/courses/#{@course.id}/modules"
       add_form = new_module_form

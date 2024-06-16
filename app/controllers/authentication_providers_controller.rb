@@ -215,6 +215,12 @@
 #           "type": "boolean",
 #           "default": false,
 #           "example": false
+#         },
+#         "autoconfirm": {
+#           "description": "(only for email) If the email address is trusted and should be automatically confirmed",
+#           "type": "boolean",
+#           "default": false,
+#           "example": false
 #         }
 #       }
 #     }
@@ -239,6 +245,9 @@ class AuthenticationProvidersController < ApplicationController
       render json: aacs_json(@account.authentication_providers.active)
     else
       @presenter = AuthenticationProvidersPresenter.new(@account)
+      @page_title = t("Authentication Settings")
+      add_crumb @page_title
+      page_has_instui_topnav
     end
   end
 

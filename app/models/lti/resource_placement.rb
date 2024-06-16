@@ -23,6 +23,8 @@ module Lti
   class InvalidMessageTypeForPlacementError < StandardError; end
 
   class ResourcePlacement < ActiveRecord::Base
+    CANVAS_PLACEMENT_EXTENSION_PREFIX = "https://canvas.instructure.com/lti/"
+
     ACCOUNT_NAVIGATION = "account_navigation"
     ASSIGNMENT_EDIT = "assignment_edit"
     ASSIGNMENT_SELECTION = "assignment_selection"
@@ -34,13 +36,24 @@ module Lti
     SIMILARITY_DETECTION = "similarity_detection"
     GLOBAL_NAVIGATION = "global_navigation"
 
+    # These placements are defined in the Dynamic Registration spec
+    # https://www.imsglobal.org/spec/lti-dr/v1p0
+    CONTENT_AREA = "ContentArea"
+    RICH_TEXT_EDITOR = "RichTextEditor"
+
     SIMILARITY_DETECTION_LTI2 = "Canvas.placements.similarityDetection"
 
     # Default placements for LTI 1 and LTI 2, ignored for LTI 1.3
     LEGACY_DEFAULT_PLACEMENTS = [ASSIGNMENT_SELECTION, LINK_SELECTION].freeze
 
     # Placements restricted so not advertised in the UI
-    NON_PUBLIC_PLACEMENTS = [:submission_type_selection].freeze
+    NON_PUBLIC_PLACEMENTS = %i[submission_type_selection top_navigation].freeze
+
+    # These placements require tools to be on an allow list
+    RESTRICTED_PLACEMENTS = %i[submission_type_selection top_navigation].freeze
+
+    # These placements can be marked as pinned, which will influence their visibility in the UI
+    PINNABLE_PLACEMENTS = %i[top_navigation].freeze
 
     PLACEMENTS_BY_MESSAGE_TYPE = {
       LtiAdvantage::Messages::ResourceLinkRequest::MESSAGE_TYPE => %i[
@@ -62,6 +75,7 @@ module Lti
         file_index_menu
         file_menu
         global_navigation
+        top_navigation
         homework_submission
         link_selection
         migration_selection
@@ -116,6 +130,10 @@ module Lti
     validates :message_handler, :placement, presence: true
 
     validates :placement, inclusion: { in: PLACEMENT_LOOKUP.values }
+
+    def self.add_extension_prefix(placement)
+      "#{CANVAS_PLACEMENT_EXTENSION_PREFIX}#{placement}"
+    end
 
     def self.valid_placements(_root_account)
       PLACEMENTS.dup.tap do |p|

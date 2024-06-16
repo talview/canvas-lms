@@ -43,20 +43,24 @@ import {
 } from '../util/differentiatedModulesUtil'
 import {uid} from '@instructure/uid'
 import {Pill} from '@instructure/ui-pill'
+import DateValidator from '@canvas/grading/DateValidator'
+import GradingPeriodsAPI from '@canvas/grading/jquery/gradingPeriodsApi'
 
 const I18n = useI18nScope('DueDateOverrideView')
 
 const DifferentiatedModulesSection = ({
   onSync,
-  assignmentName,
+  getAssignmentName,
   assignmentId,
+  getGroupCategoryId,
   type,
-  pointsPossible,
+  getPointsPossible,
   overrides,
   defaultSectionId,
   importantDates,
   onTrayOpen,
   onTrayClose,
+  supportDueDates = true,
 }) => {
   const [open, setOpen] = useState(false)
   // stagedCards are the itemAssignToCards that will be saved when the assignment is saved
@@ -73,7 +77,33 @@ const DifferentiatedModulesSection = ({
   const [showPendingChangesPill, setShowPendingChangesPill] = useState(false)
   const [disabledOptionIds, setDisabledOptionIds] = useState([])
   const [stagedImportantDates, setStagedImportantDates] = useState(importantDates)
+  const [hasModuleOverrides, setHasModuleOverrides] = useState(false)
+  const [moduleAssignees, setModuleAssignees] = useState([])
   const linkRef = useRef()
+  const dateValidator = useRef(
+    new DateValidator({
+      date_range: {...ENV.VALID_DATE_RANGE},
+      hasGradingPeriods: ENV.HAS_GRADING_PERIODS,
+      gradingPeriods: GradingPeriodsAPI.deserializePeriods(ENV.active_grading_periods),
+      userIsAdmin: ENV.current_user_is_admin,
+      postToSIS: ENV.POST_TO_SIS && ENV.DUE_DATE_REQUIRED_FOR_ACCOUNT,
+    })
+  )
+
+  const shouldRenderImportantDates = useMemo(
+    () => type === 'assignment' || type === 'discussion' || type === 'quiz',
+    [type]
+  )
+
+  const formData = useMemo(
+    () => ({
+      assignmentName: getAssignmentName(),
+      pointsPossible: getPointsPossible(),
+      groupCategoryId: getGroupCategoryId?.(),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [open]
+  )
 
   useEffect(() => {
     const updatedOverrides = overrides.map(override => {
@@ -90,13 +120,31 @@ const DifferentiatedModulesSection = ({
 
   useEffect(() => {
     if (stagedOverrides === null) return
-    const parsedOverrides = getParsedOverrides(stagedOverrides, stagedCards)
+    const parsedOverrides = getParsedOverrides(
+      stagedOverrides,
+      stagedCards,
+      formData.groupCategoryId
+    )
     const uniqueOverrides = removeOverriddenAssignees(overrides, parsedOverrides)
     setStagedCards(uniqueOverrides)
     if (initialState === null) {
       const state = cloneObject(uniqueOverrides)
       // initialState is set only 1 time to check if the overrides have pending changes
       setInitialState(state)
+      // hasModuleOverrides and module assignees are only set once since they don't change
+      setHasModuleOverrides(overrides.some(card => card.context_module_id))
+      const allModuleAssignees = overrides
+        .filter(override => override.context_module_id)
+        ?.map(moduleOverride => {
+          if (moduleOverride.course_section_id) {
+            return `section-${moduleOverride.course_section_id}`
+          }
+          if (moduleOverride.student_ids) {
+            return moduleOverride.student_ids.map(id => `student-${id}`)
+          }
+        })
+        .flat()
+      setModuleAssignees(allModuleAssignees)
       // checkPoint is set every time the user applies changes to the overrides
       setCheckPoint(state)
     }
@@ -104,7 +152,7 @@ const DifferentiatedModulesSection = ({
       setPreSavedOverrides(cloneObject(stagedOverrides))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stagedOverrides])
+  }, [stagedOverrides, formData.groupCategoryId])
 
   const cards = useMemo(() => {
     const selectedOptionIds = []
@@ -122,6 +170,9 @@ const DifferentiatedModulesSection = ({
           card.index = 0
           defaultOptions.push(everyoneOptionKey)
           selectedOptionIds.push(...defaultOptions)
+        } else if (override?.course_id) {
+          defaultOptions.push(everyoneOptionKey)
+          selectedOptionIds.push(...defaultOptions)
         } else {
           const studentOverrides =
             override?.student_ids?.map(studentId => `student-${studentId}`) ?? []
@@ -129,15 +180,26 @@ const DifferentiatedModulesSection = ({
           if (override?.course_section_id) {
             defaultOptions.push(`section-${override?.course_section_id}`)
           }
+          if (override?.group_id) {
+            defaultOptions.push(`group-${override?.group_id}`)
+          }
           selectedOptionIds.push(...defaultOptions)
         }
       })
       const uniqueIds = [...new Set(defaultOptions)]
       const preSavedCard = initialState[cardId]
       const isPersisted = areCardsEqual(preSavedCard, card)
+
+      const data = {
+        ...card,
+        due_at: dates.due_at,
+        unlock_at: dates.unlock_at,
+        lock_at: dates.lock_at,
+      }
+      const dateErrors = dateValidator.current.validateDatetimes(data)
       return {
         key: cardId,
-        isValid: uniqueIds.length > 0,
+        isValid: uniqueIds.length > 0 && Object.keys(dateErrors).length === 0,
         highlightCard: !isPersisted,
         hasAssignees: uniqueIds.length > 0,
         due_at: dates.due_at,
@@ -159,8 +221,10 @@ const DifferentiatedModulesSection = ({
   }, [stagedCards])
 
   const handleOpen = useCallback(() => {
+    if (onTrayOpen !== undefined) {
+      if (!onTrayOpen()) return
+    }
     setOpen(true)
-    onTrayOpen?.()
   }, [onTrayOpen])
 
   useEffect(() => {
@@ -188,7 +252,12 @@ const DifferentiatedModulesSection = ({
     )
     const defaultState = getParsedOverrides(preSaved, checkPoint)
     const checkPointOverrides = getAllOverridesFromCards(defaultState).filter(
-      card => card.course_section_id || card.student_ids || card.noop_id
+      card =>
+        card.course_section_id ||
+        card.student_ids ||
+        card.noop_id ||
+        card.course_id ||
+        card.group_id
     )
     setStagedOverrides(checkPointOverrides)
     const newStagedCards = resetStagedCards(stagedCards, checkPoint, defaultState)
@@ -202,7 +271,12 @@ const DifferentiatedModulesSection = ({
     newCard.draft = true
     newCard.index = stagedOverrides.length + 1
     const oldOverrides = getAllOverridesFromCards(stagedCards).filter(
-      card => card.course_section_id || card.student_ids || card.noop_id
+      card =>
+        card.course_section_id ||
+        card.student_ids ||
+        card.noop_id ||
+        card.course_id ||
+        card.group_id
     )
     const newStageOverrides = [...oldOverrides, newCard]
     setStagedOverrides(newStageOverrides)
@@ -252,6 +326,7 @@ const DifferentiatedModulesSection = ({
       return {
         ...override,
         [dateType]: date,
+        [`${dateType}_overridden`]: !!date,
       }
     })
 
@@ -322,6 +397,7 @@ const DifferentiatedModulesSection = ({
       delete existingOverrideData.course_section_id
       delete existingOverrideData.group_id
       delete existingOverrideData.noop_id
+      delete existingOverrideData.course_id
       remainingCardOverrides = [existingOverrideData]
     }
 
@@ -338,8 +414,40 @@ const DifferentiatedModulesSection = ({
 
   const handleSave = () => {
     const newOverrides = getAllOverridesFromCards(stagedCards).filter(
-      card => card.course_section_id || card.student_ids || card.noop_id
+      card =>
+        card.course_section_id ||
+        card.student_ids ||
+        card.noop_id ||
+        card.course_id ||
+        card.group_id
     )
+
+    const deletedModuleAssignees = moduleAssignees.filter(
+      assignee => !disabledOptionIds.includes(assignee)
+    )
+
+    if (deletedModuleAssignees.length > 0) {
+      const studentIds = deletedModuleAssignees
+        .filter(assignee => assignee.includes('student'))
+        ?.map(id => id.split('-')[1])
+      if (studentIds.length > 0) {
+        newOverrides.push({
+          id: undefined,
+          student_ids: studentIds,
+          unassign_item: true,
+        })
+      }
+      const sectionIds = deletedModuleAssignees
+        .filter(assignee => assignee.includes('section'))
+        ?.map(id => id.split('-')[1])
+      sectionIds.forEach(section => {
+        newOverrides.push({
+          id: undefined,
+          course_section_id: section,
+          unassign_item: true,
+        })
+      })
+    }
 
     const withoutModuleOverrides = processModuleOverrides(newOverrides, checkPoint)
     resetOverrides(newOverrides, withoutModuleOverrides)
@@ -351,14 +459,17 @@ const DifferentiatedModulesSection = ({
     handleClose(false)
   }
 
-  const handleImportantDatesChange = event => {
-    const newImportantDatesValue = event.target.checked
-    onSync(undefined, newImportantDatesValue)
-    setStagedImportantDates(newImportantDatesValue)
-  }
+  const handleImportantDatesChange = useCallback(
+    event => {
+      const newImportantDatesValue = event.target.checked
+      onSync(undefined, newImportantDatesValue)
+      setStagedImportantDates(newImportantDatesValue)
+    },
+    [onSync]
+  )
 
-  const importantDatesCheckbox = () => {
-    if (ENV.K5_SUBJECT_COURSE || ENV.K5_HOMEROOM_COURSE) {
+  const importantDatesCheckbox = useCallback(() => {
+    if (supportDueDates && (ENV.K5_SUBJECT_COURSE || ENV.K5_HOMEROOM_COURSE)) {
       const disabled = !preSavedOverrides?.some(override => override.due_at)
       const checked = !disabled && stagedImportantDates
       return (
@@ -377,7 +488,7 @@ const DifferentiatedModulesSection = ({
         </div>
       )
     }
-  }
+  }, [handleImportantDatesChange, preSavedOverrides, supportDueDates, stagedImportantDates])
 
   return (
     <>
@@ -402,17 +513,19 @@ const DifferentiatedModulesSection = ({
           </View>
         </Link>
       </View>
-      {type === 'assignment' && importantDatesCheckbox()}
+      {shouldRenderImportantDates && importantDatesCheckbox()}
       <ItemAssignToTray
         open={open}
         onClose={handleClose}
         onDismiss={handleDismiss}
         courseId={ENV.COURSE_ID}
-        itemName={assignmentName}
+        itemName={formData.assignmentName}
         itemType={type}
         iconType={type}
         itemContentId={assignmentId}
-        pointsPossible={pointsPossible}
+        initHasModuleOverrides={hasModuleOverrides}
+        pointsPossible={formData.pointsPossible}
+        defaultGroupCategoryId={formData.groupCategoryId}
         useApplyButton={true}
         locale={ENV.LOCALE || 'en'}
         timezone={ENV.TIMEZONE || 'UTC'}
@@ -424,6 +537,7 @@ const DifferentiatedModulesSection = ({
         onAssigneesChange={handleChange}
         onDatesChange={handleDatesUpdate}
         onCardRemove={handleCardRemove}
+        removeDueDateInput={!supportDueDates}
       />
     </>
   )
@@ -431,14 +545,17 @@ const DifferentiatedModulesSection = ({
 
 DifferentiatedModulesSection.propTypes = {
   onSync: func.isRequired,
-  assignmentName: string.isRequired,
+  getAssignmentName: func.isRequired,
   assignmentId: string,
   type: string.isRequired,
-  pointsPossible: oneOfType([number, string]),
+  getPointsPossible: func.isRequired,
   overrides: array.isRequired,
   defaultSectionId: oneOfType([number, string]),
   importantDates: bool,
+  getGroupCategoryId: func,
   onTrayOpen: func,
   onTrayClose: func,
+  supportDueDates: bool,
 }
+
 export default DifferentiatedModulesSection

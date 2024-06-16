@@ -254,6 +254,7 @@ class ApplicationController < ActionController::Base
             open_registration: @domain_root_account&.open_registration?,
             collapse_global_nav: @current_user&.collapse_global_nav?,
             release_notes_badge_disabled: @current_user&.release_notes_badge_disabled?,
+            can_add_pronouns: @domain_root_account&.can_add_pronouns?
           },
           RAILS_ENVIRONMENT: Canvas.environment,
         }
@@ -321,6 +322,16 @@ class ApplicationController < ActionController::Base
         @js_env[:LOCALE_TRANSLATION_FILE] = ::Canvas::Cdn.registry.url_for("javascripts/translations/#{@js_env[:LOCALES].first}.json")
         @js_env[:ACCOUNT_ID] = effective_account_id(@context)
         @js_env[:user_cache_key] = Base64.encode64("#{@current_user.uuid}vyfW=;[p-0?:{P_=HUpgraqe;njalkhpvoiulkimmaqewg") if @current_user&.workflow_state
+        @js_env[:top_navigation_tools] = external_tools_display_hashes(:top_navigation) if !!@domain_root_account&.feature_enabled?(:top_navigation_placement)
+        # partner context data
+        if @context&.grants_right?(@current_user, session, :read)
+          @js_env[:current_context] = {
+            id: @context.id,
+            name: @context.name,
+            type: @context.class.name,
+            url: named_context_url(@context, :context_url, include_host: true)
+          }
+        end
       end
     end
 
@@ -353,21 +364,25 @@ class ApplicationController < ActionController::Base
     explicit_latex_typesetting
     media_links_use_attachment_id
     permanent_page_links
-    differentiated_modules
+    selective_release_backend
+    selective_release_ui_api
     enhanced_course_creation_account_fetching
     instui_for_import_page
-    enhanced_rubrics
     multiselect_gradebook_filters
     assignment_edit_placement_not_on_announcements
     platform_service_speedgrader
     instui_header
     rce_find_replace
+    courses_popout_sisid
+    dashboard_graphql_integration
+    discussion_checkpoints
   ].freeze
   JS_ENV_ROOT_ACCOUNT_FEATURES = %i[
     product_tours
     usage_rights_discussion_topics
     granular_permissions_manage_users
     create_course_subaccount_picker
+    file_verifiers_for_quiz_links
     lti_deep_linking_module_index_menu_modal
     lti_dynamic_registration
     lti_multiple_assignment_deep_linking
@@ -383,6 +398,7 @@ class ApplicationController < ActionController::Base
     instui_nav
     enhanced_developer_keys_tables
     lti_registrations_discover_page
+    enhanced_rubrics
   ].freeze
   JS_ENV_BRAND_ACCOUNT_FEATURES = [
     :embedded_release_notes
@@ -552,6 +568,9 @@ class ApplicationController < ActionController::Base
     hash[:external_url] = tool.url if custom_settings.include?(:external_url)
     if type == :submission_type_selection && tool.submission_type_selection[:description].present?
       hash[:description] = tool.submission_type_selection[:description]
+    end
+    if type == :top_navigation
+      hash[:pinned] = tool.placement_pinned?(type)
     end
 
     # Add the tool's postmessage scopes to the JS environment, if present.
@@ -1204,7 +1223,8 @@ class ApplicationController < ActionController::Base
           @context_membership = @context_enrollment
           check_for_readonly_enrollment_state
         elsif params[:account_id] || (is_a?(AccountsController) && (params[:account_id] = params[:id]))
-          @context = api_find(Account.active, params[:account_id])
+          account_scope = (params.dig(:account, :event) && params[:account][:event] == "restore") ? Account : Account.active
+          @context = api_find(account_scope, params[:account_id])
           params[:context_id] = @context.id
           params[:context_type] = "Account"
           @context_enrollment = @context.account_users.active.where(user_id: @current_user.id).first if @context && @current_user
@@ -1395,7 +1415,7 @@ class ApplicationController < ActionController::Base
     badge_counts = {}
     ["Submission"].each do |type|
       participation_count = context.content_participation_counts
-                                   .where(user_id: user.id, content_type: type).take
+                                   .find_by(user_id: user.id, content_type: type)
       participation_count ||= content_participation_count(context, type, user)
       badge_counts[type.underscore.pluralize] = participation_count.unread_count
     end
@@ -1457,8 +1477,10 @@ class ApplicationController < ActionController::Base
                 t "#application.errors.quota_exceeded", "Storage quota exceeded"
               end
       respond_to do |format|
-        flash[:error] = error unless request.format.to_s == "text/plain"
-        format.html { redirect_to redirect }
+        format.html do
+          flash[:error] = error
+          redirect_to redirect
+        end
         format.json { render json: { errors: { base: error } }, status: :bad_request }
         format.text { render json: { errors: { base: error } }, status: :bad_request }
       end
@@ -1534,7 +1556,7 @@ class ApplicationController < ActionController::Base
   end
 
   def find_user_from_uuid(uuid)
-    @current_user = UserPastLtiId.where(user_uuid: uuid).take&.user
+    @current_user = UserPastLtiId.find_by(user_uuid: uuid)&.user
     @current_user ||= User.where(uuid:).first
   end
 
@@ -1735,7 +1757,7 @@ class ApplicationController < ActionController::Base
     elsif @page_view && !@page_view.new_record?
       @page_view.destroy
     end
-  rescue StandardError, CassandraCQL::Error::InvalidRequestException => e
+  rescue => e
     Canvas::Errors.capture_exception(:page_view, e)
     logger.error "Pageview error!"
     raise e if Rails.env.development?
@@ -2219,7 +2241,7 @@ class ApplicationController < ActionController::Base
         @lti_launch.link_text = @resource_title
         @lti_launch.analytics_id = @tool.tool_id
 
-        Lti::LogService.new(tool: @tool, context:, user: @current_user, placement: nil, launch_type: :content_item).call
+        Lti::LogService.new(tool: @tool, context:, user: @current_user, session_id: session[:session_id], placement: nil, launch_type: :content_item).call
 
         @append_template = "context_modules/tool_sequence_footer" if render_external_tool_append_template?
         render Lti::AppUtil.display_template(external_tool_redirect_display_type)
@@ -2941,7 +2963,8 @@ class ApplicationController < ActionController::Base
       [assignment.id,
        {
          update: assignment.user_can_update?(@current_user, session),
-         delete: assignment.grants_right?(@current_user, :delete)
+         delete: assignment.grants_right?(@current_user, :delete),
+         manage_assign_to: assignment.grants_right?(@current_user, :manage_assign_to)
        }]
     end
 
@@ -2952,6 +2975,7 @@ class ApplicationController < ActionController::Base
                    include: [
                      "assignments",
                      "discussion_topic",
+                     Account.site_admin.feature_enabled?(:discussion_checkpoints) && "checkpoints",
                      (permissions[:manage] || current_user_has_been_observer_in_this_course) && "all_dates",
                      permissions[:manage] && "module_ids",
                      peer_reviews_for_a2_enabled? && "assessment_requests"
@@ -3214,11 +3238,7 @@ class ApplicationController < ActionController::Base
   end
 
   def react_discussions_post_enabled_for_preferences_use?
-    if @context.instance_of?(UserProfile) && Account.default.feature_enabled?(:react_discussions_post)
-      return true
-    end
-
-    @context.respond_to?(:feature_enabled?) && @context.feature_enabled?(:react_discussions_post)
+    !!@domain_root_account&.feature_enabled?(:discussions_reporting)
   end
   helper_method :react_discussions_post_enabled_for_preferences_use?
 end

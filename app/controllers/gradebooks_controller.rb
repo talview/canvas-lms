@@ -521,6 +521,8 @@ class GradebooksController < ApplicationController
       custom_grade_statuses:,
       custom_grade_statuses_enabled:,
       default_grading_standard: grading_standard.data,
+      default_grading_standard_points_based: grading_standard.points_based,
+      default_grading_standard_scaling_factor: grading_standard.scaling_factor,
       download_assignment_submissions_url: named_context_url(@context, :context_assignment_submissions_url, "{{ assignment_id }}", zip: 1),
       enhanced_gradebook_filters: @context.feature_enabled?(:enhanced_gradebook_filters),
       hide_zero_point_quizzes: Account.site_admin.feature_enabled?(:hide_zero_point_quizzes_option),
@@ -1038,7 +1040,8 @@ class GradebooksController < ApplicationController
   def speed_grader
     unless @context.allows_speed_grader?
       flash[:notice] = t(:speed_grader_disabled, "SpeedGrader is disabled for this course")
-      return redirect_to(course_gradebook_path(@context))
+      redirect_to(course_gradebook_path(@context))
+      return
     end
 
     return unless authorized_action(@context, @current_user, [:manage_grades, :view_all_grades])
@@ -1048,7 +1051,8 @@ class GradebooksController < ApplicationController
     if @assignment.unpublished?
       flash[:notice] = t(:speedgrader_enabled_only_for_published_content,
                          "SpeedGrader is enabled only for published content.")
-      return redirect_to polymorphic_url([@context, @assignment])
+      redirect_to polymorphic_url([@context, @assignment])
+      return
     end
 
     if @assignment.moderated_grading? && !@assignment.user_is_moderation_grader?(@current_user)
@@ -1166,7 +1170,7 @@ class GradebooksController < ApplicationController
           )
         end
 
-        if Account.site_admin.feature_enabled?(:platform_service_speedgrader) && params[:platform_sg].present?
+        if Account.site_admin.feature_enabled?(:platform_service_speedgrader) && value_to_boolean(params[:platform_sg])
 
           @page_title = t("SpeedGrader")
           @body_classes << "full-width padless-content"

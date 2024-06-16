@@ -34,6 +34,14 @@ module Types
     value "desc", value: :desc
   end
 
+  class Types::DiscussionTopicAnonymousStateType < Types::BaseEnum
+    graphql_name "DiscussionTopicAnonymousStateType"
+    description "Anonymous states for discussionTopics"
+    value "partial_anonymity"
+    value "full_anonymity"
+    value "off"
+  end
+
   class DiscussionType < ApplicationObjectType
     graphql_name "Discussion"
 
@@ -46,6 +54,7 @@ module Types
     include Canvas::LockExplanation
 
     global_id_field :id
+    field :anonymous_state, DiscussionTopicAnonymousStateType, null: true
     field :title, String, null: true
     field :context_id, ID, null: false
     field :context_type, String, null: false
@@ -57,7 +66,6 @@ module Types
     field :podcast_enabled, Boolean, null: true
     field :podcast_has_student_posts, Boolean, null: true
     field :discussion_type, String, null: true
-    field :anonymous_state, String, null: true
     field :is_anonymous_author, Boolean, null: true
     field :position, Int, null: true
     field :allow_rating, Boolean, null: true
@@ -68,6 +76,8 @@ module Types
     field :is_section_specific, Boolean, null: true
     field :require_initial_post, Boolean, null: true
     field :can_group, Boolean, null: true, method: :can_group?
+    field :visible_to_everyone, Boolean, null: true
+    field :only_visible_to_overrides, Boolean, null: true
 
     field :message, String, null: true
     def message
@@ -356,6 +366,35 @@ module Types
         current_user:,
         search_term:
       ).load(object)
+    end
+
+    field :ungraded_discussion_overrides, Types::AssignmentOverrideType.connection_type, null: true
+    def ungraded_discussion_overrides
+      return nil if object.assignment.present? || object.context_type == "Group" || !Account.site_admin.feature_enabled?(:selective_release_ui_api)
+
+      overrides = AssignmentOverrideApplicator.overrides_for_assignment_and_user(object, current_user)
+
+      # this is a temporary check for any discussion_topic_section_visibilities until we eventually backfill that table
+      if object.is_section_specific
+        section_overrides = object.assignment_overrides.active.where(set_type: "CourseSection").select(:set_id)
+        section_visibilities = object.discussion_topic_section_visibilities.active.where.not(course_section_id: section_overrides)
+      end
+
+      if section_visibilities
+        section_overrides = section_visibilities.map do |section_visibility|
+          assignment_override = AssignmentOverride.new(
+            discussion_topic: section_visibility.discussion_topic,
+            course_section: section_visibility.course_section
+          )
+          assignment_override.unlock_at = object.unlock_at if object.unlock_at
+          assignment_override.lock_at = object.lock_at if object.lock_at
+          assignment_override
+        end
+      end
+
+      all_overrides = overrides.to_a
+      all_overrides += section_overrides if section_visibilities
+      all_overrides
     end
 
     def get_entries(search_term: nil, filter: nil, sort_order: :asc, root_entries: false, user_search_id: nil, unread_before: nil)

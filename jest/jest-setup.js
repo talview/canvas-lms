@@ -23,8 +23,8 @@ import Enzyme from 'enzyme'
 import Adapter from 'enzyme-adapter-react-16'
 import filterUselessConsoleMessages from '@instructure/filter-console-messages'
 import rceFormatMessage from '@instructure/canvas-rce/es/format-message'
-import {up as configureDateTime} from '../ui/boot/initializers/configureDateTime'
-import {up as configureDateTimeMomentParser} from '../ui/boot/initializers/configureDateTimeMomentParser'
+import {up as configureDateTime} from '@canvas/datetime/configureDateTime'
+import {up as configureDateTimeMomentParser} from '@canvas/datetime/configureDateTimeMomentParser'
 import {useTranslations} from '@canvas/i18n'
 import MockBroadcastChannel from './MockBroadcastChannel'
 
@@ -54,6 +54,7 @@ const ignoredErrors = [
   /You seem to have overlapping act\(\) calls/,
   /Warning: `value` prop on `%s` should not be null. Consider using an empty string to clear the component or `undefined` for uncontrolled components.%s/,
   /Warning: This synthetic event is reused for performance reasons/,
+  /Invalid prop `value` supplied to `MenuItem`/, // https://instructure.atlassian.net/browse/INSTUI-4054
 ]
 const globalWarn = global.console.warn
 const ignoredWarnings = [

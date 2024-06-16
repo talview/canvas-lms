@@ -1,20 +1,3 @@
-GIT
-  remote: https://github.com/kreynolds/cassandra-cql.git
-  revision: 02b5abbe441a345c051a180327932566fd66bb36
-  ref: 02b5abbe441a345c051a180327932566fd66bb36
-  specs:
-    cassandra-cql (1.2.3)
-      simple_uuid (>= 0.2.0)
-      thrift_client (>= 0.7.1, < 0.10)
-
-GIT
-  remote: https://github.com/twitter/thrift_client.git
-  revision: 5c10d59881825cb8e26ab1aa8f1d2738e88c0e83
-  ref: 5c10d59881825cb8e26ab1aa8f1d2738e88c0e83
-  specs:
-    thrift_client (0.9.3)
-      thrift (~> 0.9.0)
-
 PATH
   remote: ../bookmarked_collection
   specs:
@@ -25,13 +8,6 @@ PATH
       paginated_collection
       railties (>= 3.2)
       will_paginate (>= 3.0, < 5.0)
-
-PATH
-  remote: ../canvas_cassandra
-  specs:
-    canvas_cassandra (0.1.0)
-      cassandra-cql (~> 1.2.2)
-      config_file
 
 PATH
   remote: ../config_file
@@ -58,7 +34,6 @@ PATH
     event_stream (0.1.0)
       activerecord (>= 4.2)
       bookmarked_collection
-      canvas_cassandra
       inst_statsd
       json_token
       paginated_collection
@@ -102,9 +77,9 @@ GEM
       activerecord (>= 5.2)
       activesupport (>= 5.2)
     base64 (0.2.0)
-    bigdecimal (3.1.7)
-    builder (3.2.4)
-    concurrent-ruby (1.2.3)
+    bigdecimal (3.1.8)
+    builder (3.3.0)
+    concurrent-ruby (1.3.3)
     connection_pool (2.4.1)
     crass (1.0.6)
     diff-lcs (1.5.1)
@@ -113,38 +88,38 @@ GEM
     drb (2.2.1)
     erubi (1.12.0)
     folio-pagination (0.0.12)
-    i18n (1.14.4)
+    i18n (1.14.5)
       concurrent-ruby (~> 1.0)
     inst_statsd (3.0.4)
       aroi (>= 0.0.7)
       dogstatsd-ruby (>= 4.2, < 6.0, != 5.0.0)
       statsd-ruby (~> 1.0)
     io-console (0.7.2)
-    irb (1.12.0)
-      rdoc
+    irb (1.13.1)
+      rdoc (>= 4.0.0)
       reline (>= 0.4.2)
-    json (2.7.1)
+    json (2.7.2)
     loofah (2.22.0)
       crass (~> 1.0.2)
       nokogiri (>= 1.12.0)
-    mini_portile2 (2.8.6)
-    minitest (5.22.3)
+    mini_portile2 (2.8.7)
+    minitest (5.23.1)
     mutex_m (0.2.0)
-    nokogiri (1.16.4)
+    nokogiri (1.16.5)
       mini_portile2 (~> 2.8.2)
       racc (~> 1.4)
-    nokogiri (1.16.4-aarch64-linux)
+    nokogiri (1.16.5-aarch64-linux)
       racc (~> 1.4)
-    nokogiri (1.16.4-arm64-darwin)
+    nokogiri (1.16.5-arm64-darwin)
       racc (~> 1.4)
-    nokogiri (1.16.4-x86_64-darwin)
+    nokogiri (1.16.5-x86_64-darwin)
       racc (~> 1.4)
-    nokogiri (1.16.4-x86_64-linux)
+    nokogiri (1.16.5-x86_64-linux)
       racc (~> 1.4)
     psych (5.1.2)
       stringio
-    racc (1.7.3)
-    rack (3.0.10)
+    racc (1.8.0)
+    rack (3.0.11)
     rack-session (2.0.0)
       rack (>= 3.0.0)
     rack-test (2.1.0)
@@ -168,9 +143,9 @@ GEM
       thor (~> 1.0, >= 1.2.2)
       zeitwerk (~> 2.6)
     rake (13.2.1)
-    rdoc (6.6.3.1)
+    rdoc (6.7.0)
       psych (>= 4.0.0)
-    reline (0.5.2)
+    reline (0.5.8)
       io-console (~> 0.5)
     rspec (3.13.0)
       rspec-core (~> 3.13.0)
@@ -181,11 +156,10 @@ GEM
     rspec-expectations (3.13.0)
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.13.0)
-    rspec-mocks (3.13.0)
+    rspec-mocks (3.13.1)
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.13.0)
     rspec-support (3.13.1)
-    simple_uuid (0.4.0)
     simplecov (0.22.0)
       docile (~> 1.1)
       simplecov-html (~> 0.11)
@@ -201,13 +175,12 @@ GEM
     statsd-ruby (1.5.0)
     stringio (3.1.0)
     thor (1.3.1)
-    thrift (0.9.3.0)
     timeout (0.4.1)
     tzinfo (2.0.6)
       concurrent-ruby (~> 1.0)
     webrick (1.8.1)
-    will_paginate (4.0.0)
-    zeitwerk (2.6.13)
+    will_paginate (4.0.1)
+    zeitwerk (2.6.15)
 
 PLATFORMS
   aarch64-linux
@@ -219,8 +192,6 @@ PLATFORMS
 DEPENDENCIES
   bookmarked_collection!
   bundler (~> 2.2)
-  canvas_cassandra!
-  cassandra-cql (= 1.2.3)!
   config_file!
   event_stream!
   json_token!
@@ -228,10 +199,9 @@ DEPENDENCIES
   rspec (~> 3.12)
   simplecov (~> 0.22)
   sqlite3
-  thrift_client (= 0.9.3)!
 
 RUBY VERSION
    ruby 3.1.2p20
 
 BUNDLED WITH
-   2.5.9
+   2.5.10

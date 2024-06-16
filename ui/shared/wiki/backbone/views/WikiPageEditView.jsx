@@ -26,10 +26,11 @@ import WikiPageDeleteDialog from './WikiPageDeleteDialog'
 import WikiPageReloadView from './WikiPageReloadView'
 import {useScope as useI18nScope} from '@canvas/i18n'
 import DueDateCalendarPicker from '@canvas/due-dates/react/DueDateCalendarPicker'
-import '@canvas/datetime/jquery'
+import {unfudgeDateForProfileTimezone} from '@instructure/moment-utils'
+import {renderDatetimeField} from '@canvas/datetime/jquery/DatetimeField'
 import renderWikiPageTitle from '../../react/renderWikiPageTitle'
 import {renderAssignToTray} from '../../react/renderAssignToTray'
-import { itemTypeToApiURL } from "@canvas/context-modules/differentiated-modules/utils/assignToHelper"
+import {itemTypeToApiURL} from '@canvas/context-modules/differentiated-modules/utils/assignToHelper'
 
 const I18n = useI18nScope('pages')
 
@@ -59,8 +60,8 @@ export default class WikiPageEditView extends ValidatedFormView {
     this.prototype.template = template
     this.prototype.className = 'form-horizontal edit-form validated-form-view'
     this.prototype.dontRenableAfterSaveSuccess = true
-    if (window.ENV.FEATURES?.differentiated_modules) {
-    this.prototype.disablingDfd = new $.Deferred()
+    if (window.ENV.FEATURES?.selective_release_ui_api) {
+      this.prototype.disablingDfd = new $.Deferred()
     }
     this.optionProperty('wiki_pages_path')
     this.optionProperty('WIKI_RIGHTS')
@@ -71,12 +72,16 @@ export default class WikiPageEditView extends ValidatedFormView {
     super.initialize(...arguments)
     if (!this.WIKI_RIGHTS) this.WIKI_RIGHTS = {}
     if (!this.PAGE_RIGHTS) this.PAGE_RIGHTS = {}
-    let redirect = () => {
+    this.enableAssignTo =
+      window.ENV.FEATURES?.selective_release_ui_api &&
+      ENV.COURSE_ID != null &&
+      ENV.WIKI_RIGHTS.manage_assign_to
+    const redirect = () => {
       window.location.href = this.model.get('html_url')
     }
-    let callBack = redirect;
-    if (window.ENV.FEATURES?.differentiated_modules) {
-      callBack = (_args) => this.handleOverridesSave(_args, redirect)
+    let callBack = redirect
+    if (this.enableAssignTo) {
+      callBack = _args => this.handleOverridesSave(_args, redirect)
     }
     this.on('success', callBack)
     this.lockedItems = options.lockedItems || {}
@@ -86,15 +91,15 @@ export default class WikiPageEditView extends ValidatedFormView {
   }
 
   handleOverridesSave(page, redirect) {
-    if(!page.page_id) return;
+    if (!page.page_id) return
     const url = itemTypeToApiURL(ENV.COURSE_ID, 'page', page.page_id)
-    const errorCallBack = () =>{
+    const errorCallBack = () => {
       this.disablingDfd.reject()
-      $.flashError(
-        I18n.t("Oops! We weren't able to save your page. Please try again")
-      )
+      $.flashError(I18n.t("Oops! We weren't able to save your page. Please try again"))
     }
-    $.ajaxJSON(url, 'PUT',JSON.stringify(this.overrides), redirect , errorCallBack, {contentType: 'application/json'})
+    $.ajaxJSON(url, 'PUT', JSON.stringify(this.overrides), redirect, errorCallBack, {
+      contentType: 'application/json',
+    })
   }
 
   toJSON() {
@@ -137,6 +142,7 @@ export default class WikiPageEditView extends ValidatedFormView {
     json.assignment = json.assignment != null ? json.assignment.toView() : undefined
 
     json.content_is_locked = this.lockedItems.content
+    json.show_assign_to = this.enableAssignTo
 
     return json
   }
@@ -210,17 +216,24 @@ export default class WikiPageEditView extends ValidatedFormView {
       })
     }
 
-    if (window.ENV.FEATURES?.differentiated_modules) {
-    const pageName = this.model.get('title')
-    const pageId = this.model.id
-    const mountElement = document.getElementById('assign-to-mount-point-edit-page')
-    const onSync = (payload) => {
+    if (this.enableAssignTo) {
+      const pageName = this.model.get('title')
+      const pageId = this.model.id
+      const mountElement = document.getElementById('assign-to-mount-point-edit-page')
+      const onSync = payload => {
         this.overrides = payload
-    }
-    renderAssignToTray(mountElement, {pageId, onSync, pageName})
+      }
+      renderAssignToTray(mountElement, {pageId, onSync, pageName})
     }
     if (window.ENV.BLOCK_EDITOR) {
-      ReactDOM.render(<BlockEditor />, document.getElementById('block_editor'))
+      const blockEditorData = ENV.WIKI_PAGE?.block_editor_attributes || {
+        version: '1',
+        blocks: [{data: undefined}],
+      }
+      ReactDOM.render(
+        <BlockEditor version={blockEditorData.version} content={blockEditorData.blocks[0].data} />,
+        document.getElementById('block_editor')
+      )
     } else {
       RichContentEditor.loadNewEditor(this.$wikiPageBody, {
         focus: true,
@@ -241,8 +254,7 @@ export default class WikiPageEditView extends ValidatedFormView {
       if (this.model.get('published')) {
         publishAtInput.prop('disabled', true)
       } else {
-        publishAtInput
-          .datetime_field()
+        renderDatetimeField(publishAtInput)
           .change(e => {
             $('.save_and_publish').prop('disabled', e.target.value.length > 0)
           })
@@ -363,11 +375,11 @@ export default class WikiPageEditView extends ValidatedFormView {
       }
     }
     if (window.block_editor) {
-      let blockEditorData
-      await window.block_editor.save().then((outputData) => {
-        blockEditorData = outputData
-      })
-      this.blockEditorData = blockEditorData
+      this.blockEditorData = {
+        time: Date.now(),
+        version: '1',
+        blocks: [{data: window.block_editor.serialize()}],
+      }
     }
 
     if (this.reloadView != null) {
@@ -407,7 +419,7 @@ export default class WikiPageEditView extends ValidatedFormView {
     }
 
     if (page_data.publish_at) {
-      page_data.publish_at = $.unfudgeDateForProfileTimezone(page_data.publish_at)
+      page_data.publish_at = unfudgeDateForProfileTimezone(page_data.publish_at)
     }
     if (this.blockEditorData) {
       page_data.block_editor_attributes = this.blockEditorData

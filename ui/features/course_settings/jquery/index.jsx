@@ -20,9 +20,8 @@ import React from 'react'
 import {useScope as useI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import {tabIdFromElement} from './course_settings_helper'
-import * as tz from '@canvas/datetime'
+import {isMidnight} from '@instructure/moment-utils'
 import '@canvas/jquery/jquery.ajaxJSON'
-import '@canvas/datetime/jquery' /* datetimeString, date_field */
 import '@canvas/jquery/jquery.instructure_forms' /* formSubmit, fillFormData, getFormData, formErrors */
 import 'jqueryui/dialog'
 import '@canvas/util/jquery/fixDialogButtons'
@@ -397,7 +396,7 @@ $(document).ready(function () {
           initiallySelectedGradingSchemeId={selectedGradingSchemeId}
           onChange={gradingSchemeId => handleSelectedGradingSchemeIdChanged(gradingSchemeId)}
           archivedGradingSchemesEnabled={ENV.ARCHIVED_GRADING_SCHEMES_ENABLED}
-          shrinkSearchBar
+          shrinkSearchBar={true}
         />,
         grading_scheme_selector
       )
@@ -440,9 +439,9 @@ $(document).ready(function () {
     const $warning = $course_form.find('#course_conclude_at_warning')
     const $parent = $(this).parent()
     const date = $(this).data('unfudged-date')
-    const isMidnight = tz.isMidnight(date)
-    $warning.detach().appendTo($parent).showIf(isMidnight)
-    $(this).attr('aria-describedby', isMidnight ? 'course_conclude_at_warning' : null)
+    const isMidnight_ = isMidnight(date)
+    $warning.detach().appendTo($parent).showIf(isMidnight_)
+    $(this).attr('aria-describedby', isMidnight_ ? 'course_conclude_at_warning' : null)
   })
   $course_form.formSubmit({
     beforeSubmit(data) {
@@ -513,25 +512,6 @@ $(document).ready(function () {
         $obj.focus().select()
       }
     })
-  $('.course_form_more_options_link').click(function (event) {
-    event.preventDefault()
-    const $moreOptions = $('.course_form_more_options')
-    const optionText = $moreOptions.is(':visible')
-      ? I18n.t('links.more_options', 'more options')
-      : I18n.t('links.fewer_options', 'fewer options')
-    $(this).text(optionText)
-    const csp = document.getElementById('csp_options')
-    if (csp) {
-      import('../react/renderCSPSelectionBox')
-        .then(({renderCSPSelectionBox}) => renderCSPSelectionBox(csp))
-        .catch(() => {
-          // We shouldn't get here, but if we do... do something.
-          const $message = $('<div />').text(I18n.t('Setting failed to load, try refreshing.'))
-          $(csp).append($message)
-        })
-    }
-    $moreOptions.slideToggle()
-  })
   $enrollment_dialog.find('.cancel_button').click(() => {
     $enrollment_dialog.dialog('close')
   })
@@ -562,7 +542,6 @@ $(document).ready(function () {
       }
     )
   })
-  $('.date_entry').datetime_field({alwaysShowTime: true})
 
   const $default_edit_roles_select = $('#course_default_wiki_editing_roles')
   $default_edit_roles_select.data(

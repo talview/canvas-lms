@@ -20,7 +20,7 @@ import {render, fireEvent, screen} from '@testing-library/react'
 import React from 'react'
 import {AssignmentDueDatesManager} from '../AssignmentDueDatesManager'
 import {
-  GradedDiscussionDueDatesContext,
+  DiscussionDueDatesContext,
   defaultEveryoneOption,
   defaultEveryoneElseOption,
   masteryPathsOption,
@@ -54,9 +54,11 @@ const setup = ({
   courseGroups = DEFAULT_LIST_OPTIONS.Groups,
   gradedDiscussionRefMap = new Map(),
   setGradedDiscussionRefMap = () => {},
+  importantDates = false,
+  setImportantDates = () => {},
 } = {}) => {
   return render(
-    <GradedDiscussionDueDatesContext.Provider
+    <DiscussionDueDatesContext.Provider
       value={{
         assignedInfoList,
         setAssignedInfoList,
@@ -65,10 +67,12 @@ const setup = ({
         groups: courseGroups,
         gradedDiscussionRefMap,
         setGradedDiscussionRefMap,
+        importantDates,
+        setImportantDates,
       }}
     >
       <AssignmentDueDatesManager />
-    </GradedDiscussionDueDatesContext.Provider>
+    </DiscussionDueDatesContext.Provider>
   )
 }
 
@@ -161,6 +165,89 @@ describe('AssignmentDueDatesManager', () => {
     fireEvent.click(assignToOptionTwo)
     availableOptions = screen.getAllByTestId('assign-to-select-option')
     expect(availableOptions.length).toBe(11)
+  })
+
+  describe('important dates', () => {
+    beforeEach(() => {
+      window.ENV.K5_SUBJECT_COURSE = true
+    })
+    it('does not display the important dates checkbox if the course is not a K5 course', () => {
+      window.ENV.K5_SUBJECT_COURSE = false
+      setup({})
+
+      const importantDates = screen.queryByTestId('important-dates-checkbox')
+
+      expect(importantDates).not.toBeInTheDocument()
+    })
+    it('checks the important dates checkbox if importantDates is true', () => {
+      setup({
+        assignedInfoList: [
+          {
+            dueDateId: 'C2mULLRUV9e8p7zVJNPfr',
+            assignedList: ['everyone'],
+            dueDate: '2024-04-17T05:00:00.000Z',
+            availableFrom: '',
+            availableUntil: '',
+          },
+        ],
+        importantDates: true,
+      })
+      const importantDates = screen.getByTestId('important-dates-checkbox')
+
+      expect(importantDates.checked).toBe(true)
+    })
+    it('toggles the important dates checkbox when clicked', () => {
+      const setImportantDates = jest.fn()
+      setup({
+        assignedInfoList: [
+          {
+            dueDateId: 'C2mULLRUV9e8p7zVJNPfr',
+            assignedList: ['everyone'],
+            dueDate: '2024-04-17T05:00:00.000Z',
+            availableFrom: '',
+            availableUntil: '',
+          },
+        ],
+        importantDates: true,
+        setImportantDates,
+      })
+      const importantDatesCheckbox = screen.getByTestId('important-dates-checkbox')
+
+      fireEvent.click(importantDatesCheckbox)
+      expect(setImportantDates).toHaveBeenCalledWith(false)
+    })
+    it('enables the important dates checkbox if there is an existing override with a due date', () => {
+      setup({
+        assignedInfoList: [
+          {
+            dueDateId: 'C2mULLRUV9e8p7zVJNPfr',
+            assignedList: ['everyone'],
+            dueDate: '2024-04-17T05:00:00.000Z',
+            availableFrom: '',
+            availableUntil: '',
+          },
+        ],
+      })
+      const importantDates = screen.getByTestId('important-dates-checkbox')
+
+      expect(importantDates).toBeEnabled()
+    })
+    it('disables the important dates checkbox if there are no overrides with due dates', () => {
+      setup({
+        assignedInfoList: [
+          {
+            dueDateId: 'C2mULLRUV9e8p7zVJNPfr',
+            assignedList: ['everyone'],
+            dueDate: '',
+            availableFrom: '',
+            availableUntil: '',
+          },
+        ],
+      })
+      const importantDates = screen.getByTestId('important-dates-checkbox')
+
+      expect(importantDates).toBeDisabled()
+    })
   })
 
   describe('everyone option', () => {

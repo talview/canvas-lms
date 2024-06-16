@@ -229,6 +229,7 @@ he:
     root_account_cant_have_sis_id: "מזהי SIS אינם יכולים להיות מוגדרים בחשבון המשתמש הבסיסי "
     sis_id_in_use: "מזהה SIS \"%{sis_id}\" כבר נמצא בשימוש"
     tab_admin_tools: "כלים ניהוליים"
+    tab_apps: תוספות
     tab_authentication: הזדהות
     tab_brand_configs: "ערכות נושא"
     tab_courses: קורסים
@@ -1470,6 +1471,7 @@ he:
       turnitin_pledge_help: "תלמידים צריכים לסמן תיבה המאשרת כי הם מסכימים עם הצהרה זו"
       turnitin_settings_title: "הגדרות Turnitin"
       update_settings_button: "עדכון הגדרות"
+    settings_crumb: הגדרות
     show: 
       courses_crumb: קורסים
       no_courses_account_message: "אין קורסים בחשבון זה"
@@ -1972,6 +1974,7 @@ he:
   add_people_7948b7da: "הוספת אנשים"
   add_people_7ee4b2ec: "הוספת אנשים"
   add_people_to_coursename_5ea234e1: "הוספת אנשים אל: %{courseName}"
+  add_prerequisite_6409bd9: "הוספת דרישה מוקדמת"
   add_proficiency_rating_d819f6b8: "הוספת דירוג מומחיות"
   add_quiz_cebfa28b: "הוספת בוחן"
   add_quiz_ip_filter_c7b37dc5: "הוספת כתובת IP למסנן בוחן"
@@ -2020,6 +2023,7 @@ he:
   admin_4d3ba42f: "מנהל המערכת"
   admin_csv_f8d1b3eb: "קובץ CSV של מנהל המערכת"
   admin_navigation_menu_77b801a2: "תפריט ניווט למנהל"
+  admin_tools_9e2c9268: "כלי מנהל המערכת"
   admin_tools_grade_change_logs_d804833f: "כלי ניהול המערכת (לוג של שינויי ציונים)"
   admin_tools_logging_tab_680698f3: "כלי ניהול המערכת (טאב רישום הפעילויות)"
   admin_tools_restore_courses_tab_b07bbfa7: "כלי ניהול המערכת (טאב שיחזור קורסים)"
@@ -2389,7 +2393,7 @@ he:
   appointments_dcb41d23: פגישות
   approved_c3b285d4: אושר
   approximate_value_with_precision_precision_6b7cc6ef: "%{approximate_value} עם דיוק של  %{precision}"
-  apps_54d24a47: אפליקציות
+  apps_54d24a47: תוספות
   apps_are_an_easy_way_to_add_new_features_to_canvas_2cbc2531: "אפליקציות הנן דרך נוחה להוסיף תכונות חדשות לקנבס. הן יכולות להתווסף לקורסים מסוימים או לכל הקורסים בחשבון. עם הגדרתן, תוכלו להתקשר אליהם דרך המודולים של הקורס וליצור משימות עבור כלי הערכה."
   appt_calendar_event_dialog: 
     invalid_participants: "יש לאפשר לפחות למשתמש אחד להשתתף"
@@ -2836,7 +2840,7 @@ he:
         one: "הגשה מחודשת שלא הוערכה"
         other: "%{count} הגשות מחודשות שלא הוערכו"
         two: "%{count} הגשות מחודשות שלא הוערכו"
-      speed_grader: SpeedGrader™
+      speed_grader: SpeedGrader
       titles: 
         related_items: "פריטים משויכים"
     grade_gpa_scale_screenreader: "ציון: %{grade}"
@@ -3393,6 +3397,7 @@ he:
       discovery_url_description: "אם הוגדרה כתובת דף discovery , קנבס ינתב את כל המשתמשים לכתובת זו באם יש צורך בהזדהות. דף זה יצטרך להנחות את המשתמשים היכן מבצעים את הלוג-אין. אם לא הוגדרה הכתובת, הקונפיגורציה הראשונית תשמש כנסיון לאמת את זהות המשתמש."
       login_handle_name_description: "הכיתוב המשמש למזהי התחברות יחודיים. לדוגמא: מזהה משתמש, שם משתמש, מספר תלמיד וכו'."
       unknown_user_url_description: "כתובת הדף לניתוב כאשר משתמש מזוהה לא אותר במערכת קנבס."
+  authentication_settings_5c2078a3: "הגדרות הזדהות"
   authentication_with_provider_was_successful_but_no_6a194137: "ההזדהות עם %{provider} הצליחה, אך לא סופק מזהה ייחודי לכניסה לקנבס."
   authnrequest_sent_to_idp_74e030fc: "בקשת הזדהות נשלחה למנגנון ההזדהות"
   authnresponse_from_idp_185037e9: "תשובת ההזדהות ממנגנון ההזדהות"
@@ -4124,6 +4129,7 @@ he:
   canvas_error_report_ff678539: "דוח שגיאות של קנבס"
   canvas_group_category_id_38d8cfd7: canvas_group_category_id
   canvas_introduction_video_2d81f3ad: "סרטון ההכירות של קנבס"
+  canvas_lms_6ce68514: "קנבס LMS"
   canvas_login_failure_message_4c922f2f: " הודעת שגיאת התחברות למערכת קנבס"
   canvas_multi_factor_authentication_backup_codes_4bd08f93: "קודי גיבוי להזדהות מרובת מרכיבים של קנבס."
   canvas_observer_id_59db0918: canvas_observer_id
@@ -10950,6 +10956,9 @@ he:
       new_tab: "כלי זה יש לטעון בחלון חדש של דפדפן"
       new_tab_expired: "ה Session של כלי זה פג. יש לרענן את הדף כדי להכנס לכלי זה שוב"
       new_tab_loaded: "כלי זה נטען בהצלחה בחלון דפדפן חדש. יש לרענן את הדף כדי לחזור לכלי."
+    registrations: 
+      index: 
+        title: תוספות
   lti2: 
     register_tool: "רישום כלי"
   lti_2_reregistration_afabde25: "הרשמת LTI 2"
@@ -14371,6 +14380,10 @@ he:
         upload_ui_conf: "דף מזהה ממשק המשתמש של \"מעלה קבצים\""
         user_secret_key: "מלה סודית של משתמש"
       ui_conf_ids: "על לקוחות מבוססי מערכת Kaltura לבקש מ Kaltura לספק לכם את המזהים האלה. מופעים המתארחים במחשב מקומי יוכלו למצוא ערכים אלו בטבלת ה ui_confs "
+    learn_platform_settings: 
+      labels: 
+        base_url: "כתובת דף בסיס"
+        token: "אסימון גישה"
     linked_in: 
       description: "אינטגרציה עם לינקדאין"
     linked_in_settings: 
@@ -16408,6 +16421,7 @@ he:
       create_group: "יצירת קבוצה "
       create_question: "יצירת שאלה"
       creating_group: "יצירת קבוצה..."
+      generate: יצירה
       generating: "מייצר:"
       generating_combinations_progress: "מבצע... (%{done}/%{total})"
       save: "שמירה "
@@ -18408,7 +18422,7 @@ he:
   speedgrader_d9a6fa90: Speedgrader
   speedgrader_de0affa6: SpeedGrader
   speedgrader_settings_c9503705: "הגדרות Speedgrader"
-  speedgrader_tm_44688790: SpeedGrader™
+  speedgrader_tm_44688790: SpeedGrader
   spreadsheet_6d622119: "גיליון חישובים"
   spring_grading_period_current_score_7083cf0d: "ציון ביניים של תקופת ההערכה אביב"
   spring_grading_period_final_score_386d92f7: "ציון סופי של תקופת ההערכה אביב"
@@ -18463,6 +18477,7 @@ he:
   start_participating_f0c75256: "התחלת השתתפות"
   start_time_2c3d11b5: "זמן התחלה"
   start_tls_26e4b0dc: "התחלת TLS"
+  started_5e138638: התחיל
   starts_ce584f1c: "מתחיל:"
   state_standards_c9b1affd: "תקני מדינה"
   statistics: 
@@ -18600,6 +18615,8 @@ he:
       one: "חשבון משנה אחד"
       other: "%{count} חשבונות משנה"
       two: "%{count} חשבונות משנה"
+    titles: 
+      sub_accounts: "חשבונות משנה"
   subaccount_91f4c279: "חשבון משנה"
   subdomain_url_1e43b6f0: "כתובת דף של דומיין משנה"
   subject_114b2e98: נושא
@@ -20196,6 +20213,8 @@ he:
       resubmit_to_vericite: "הגשה מחודשת ל VeriCite"
   vericite_similarity_score_more_information_7df9ea5c: "ניקוד תאימות של VeriCite - מידע נוסף"
   vericite_similarity_score_see_detailed_report_390ab687: "ניקוד תאימות של VeriCite - ניתן לעיין בפרטי הדו\"ח."
+  verification_code_5acd64ef: "קוד אימות"
+  version_5599c321: גירסה
   video_b9f27375: וידאו
   video_content_is_not_supported_by_your_device_or_a_25214f57: "תוכן הוידאו אינו נתמך במכשיר או האפליקציה שלך."
   video_player_b371005: "נגן הוידאו"

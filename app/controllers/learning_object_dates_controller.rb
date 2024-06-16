@@ -76,7 +76,7 @@
 #       }
 #     }
 class LearningObjectDatesController < ApplicationController
-  before_action :require_feature_flag # remove when differentiated_modules flag is removed
+  before_action :require_feature_flag # remove when selective_release_ui_api flag is removed
   before_action :require_user
   before_action :require_context
   before_action :check_authorized_action
@@ -84,6 +84,9 @@ class LearningObjectDatesController < ApplicationController
   include Api::V1::LearningObjectDates
   include Api::V1::Assignment
   include Api::V1::AssignmentOverride
+  include SubmittableHelper
+
+  OBJECTS_WITH_ASSIGNMENTS = %w[DiscussionTopic WikiPage].freeze
 
   # @API Get a learning object's date information
   #
@@ -140,7 +143,8 @@ class LearningObjectDatesController < ApplicationController
   #   an ID and will be updated if needed. New overrides will be created for overrides in the list
   #   without an ID. Overrides not included in the list will be deleted. Providing an empty list
   #   will delete all of the object's overrides. Keys for each override object can include: 'id',
-  #   'title', 'student_ids', and 'course_section_id'.
+  #   'title', 'due_at', 'unlock_at', 'lock_at', 'student_ids', and 'course_section_id', 'course_id',
+  #   'noop_id', and 'unassign_item'.
   #
   # @example_request
   #   curl https://<canvas>/api/v1/courses/:course_id/assignments/:assignment_id/date_details \
@@ -176,7 +180,15 @@ class LearningObjectDatesController < ApplicationController
         update_assignment(overridable, object_update_params)
         prefer_assignment_availability_dates(asset, overridable)
       end
-    when "WikiPage", "Attachment"
+    when "WikiPage"
+      if wiki_page_needs_assignment?
+        apply_assignment_parameters(object_update_params.merge(set_assignment: true), asset)
+      elsif asset == overridable
+        update_ungraded_object(asset, object_update_params)
+      else
+        update_assignment(overridable, object_update_params)
+      end
+    when "Attachment"
       update_ungraded_object(asset, object_update_params)
     end
   end
@@ -184,11 +196,13 @@ class LearningObjectDatesController < ApplicationController
   private
 
   def require_feature_flag
-    not_found unless Account.site_admin.feature_enabled? :differentiated_modules
+    not_found unless Account.site_admin.feature_enabled? :selective_release_ui_api
   end
 
   def check_authorized_action
-    render_unauthorized_action unless @context.grants_any_right?(@current_user, :manage_content, :manage_course_content_edit)
+    return render json: { error: "This API does not support files." }, status: :bad_request if asset.is_a?(Attachment) && !Account.site_admin.feature_enabled?(:differentiated_files)
+
+    render_unauthorized_action unless asset.grants_right?(@current_user, :manage_assign_to)
   end
 
   def asset
@@ -211,7 +225,8 @@ class LearningObjectDatesController < ApplicationController
   def overridable
     # graded discussions have an assignment and are differentiated solely via that assignment
     # ungraded topics do not have an assignment and have direct overrides and availability dates
-    @overridable ||= (asset.is_a?(DiscussionTopic) && asset.assignment) ? asset.assignment : asset
+    # pages might have an assignment if they're "allowed in mastery paths"
+    @overridable ||= (OBJECTS_WITH_ASSIGNMENTS.include?(asset.class_name) && asset.assignment) ? asset.assignment : asset
   end
 
   def update_assignment(assignment, params)
@@ -260,6 +275,7 @@ class LearningObjectDatesController < ApplicationController
         object.update!(is_section_specific: false)
       end
     end
+    object.clear_cache_key(:availability) if caches_availability?
     head :no_content
   end
 
@@ -274,6 +290,17 @@ class LearningObjectDatesController < ApplicationController
 
   def allow_due_at?
     asset.is_a?(Assignment) || asset.is_a?(Quizzes::Quiz) || (asset.is_a?(DiscussionTopic) && asset.assignment)
+  end
+
+  def caches_availability?
+    asset.is_a?(Assignment) || asset.is_a?(Quizzes::Quiz) || asset.is_a?(DiscussionTopic) || asset.is_a?(WikiPage)
+  end
+
+  def wiki_page_needs_assignment?
+    asset.is_a?(WikiPage) &&
+      asset.assignment.nil? &&
+      @context.conditional_release? &&
+      params[:assignment_overrides]&.any? { |override| override[:noop_id].present? }
   end
 
   def object_update_params

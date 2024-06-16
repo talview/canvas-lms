@@ -180,7 +180,7 @@ module ContextModulesCommon
   end
 
   def manually_add_module_item(item_select_selector, module_name, item_name)
-    if Account.site_admin.feature_enabled?(:differentiated_modules)
+    if Account.site_admin.feature_enabled?(:selective_release_ui_api)
       add_module_with_tray(module_name + "Module")
     else
       add_module(module_name + "Module")
@@ -399,13 +399,6 @@ module ContextModulesCommon
 
   def lock_check_click
     move_to_click("label[for=unlock_module_at]")
-  end
-
-  def differentiated_modules_on
-    Account.site_admin.enable_feature!(:differentiated_modules)
-    Setting.set("differentiated_modules_setting", "true")
-    AssignmentStudentVisibility.reset_table_name
-    Quizzes::QuizStudentVisibility.reset_table_name
   end
 
   # Ugly page retrieval for when footer doesn't show up in flakey_spec_catcher mode

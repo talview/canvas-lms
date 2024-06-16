@@ -253,7 +253,11 @@ class AssignmentsController < ApplicationController
     GuardRail.activate(:secondary) do
       @assignment ||= @context.assignments.find(params[:id])
 
-      js_env({ ASSIGNMENT_POINTS_POSSIBLE: nil })
+      js_env({
+               ASSIGNMENT_POINTS_POSSIBLE: nil,
+               POST_TO_SIS: Assignment.sis_grade_export_enabled?(@context),
+               DUE_DATE_REQUIRED_FOR_ACCOUNT: AssignmentUtil.due_date_required_for_account?(@context)
+             })
 
       if @assignment.deleted?
         flash[:notice] = t "notices.assignment_delete", "This assignment has been deleted"
@@ -836,8 +840,8 @@ class AssignmentsController < ApplicationController
         ARCHIVED_GRADING_SCHEMES_ENABLED: Account.site_admin.feature_enabled?(:archived_grading_schemes),
         OUTCOMES_NEW_DECAYING_AVERAGE_CALCULATION:
           @context.root_account.feature_enabled?(:outcomes_new_decaying_average_calculation),
-        UPDATE_ASSIGNMENT_SUBMISSION_TYPE_LAUNCH_BUTTON_ENABLED:
-          Account.site_admin.feature_enabled?(:update_assignment_submission_type_launch_button)
+        ASSIGNMENT_SUBMISSION_TYPE_CARD_ENABLED:
+          Account.site_admin.feature_enabled?(:assignment_submission_type_card)
       }
 
       if @context.root_account.feature_enabled?(:instui_nav)

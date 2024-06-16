@@ -16,7 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {useRef} from 'react'
+import React, {useEffect, useRef, useState} from 'react'
 import {Button, CloseButton} from '@instructure/ui-buttons'
 import {Tray} from '@instructure/ui-tray'
 import {useScope as useI18nScope} from '@canvas/i18n'
@@ -24,7 +24,8 @@ import {Flex} from '@instructure/ui-flex'
 import {Heading} from '@instructure/ui-heading'
 import type {FilterItem, LtiFilter} from '../model/Filter'
 import FilterOptions from './FilterOptions'
-import {useSearchParams} from 'react-router-dom'
+import {View} from '@instructure/ui-view'
+import type {DiscoverParams} from './useDiscoverQueryParams'
 
 const I18n = useI18nScope('lti_registrations')
 
@@ -32,45 +33,56 @@ export type LtiFilterTrayProps = {
   isTrayOpen: boolean
   setIsTrayOpen: (isOpen: boolean) => void
   filterValues: LtiFilter
-  filterIds: number[]
-  setFilterIds: (filterIds: number[]) => void
+  setQueryParams: (params: Partial<DiscoverParams>) => void
+  queryParams: DiscoverParams
 }
 
 export default function LtiFilterTray({
   isTrayOpen,
   setIsTrayOpen,
   filterValues,
-  filterIds,
-  setFilterIds,
+  setQueryParams,
+  queryParams,
 }: LtiFilterTrayProps) {
   const closeRef = useRef<HTMLElement>()
-  const [searchParams, setSearchParams] = useSearchParams()
+  // Need to duplicate for the apply button's behaviour
+  const [localFilters, setLocalFilters] = useState<LtiFilter>({})
 
-  const setFilterValue = (filterItem: FilterItem, value: boolean) => {
+  const setFilterValue = (filterItem: FilterItem, value: boolean, category: string) => {
     if (value) {
-      setFilterIds([...filterIds, filterItem.id])
+      setLocalFilters(prev => {
+        return {
+          ...prev,
+          [category]: prev[category] ? [...prev[category], filterItem] : [filterItem],
+        }
+      })
     } else {
-      setFilterIds(filterIds.filter(id => id !== filterItem.id))
+      setLocalFilters(prev => {
+        return {...prev, [category]: prev[category].filter(filter => filter.id !== filterItem.id)}
+      })
     }
   }
 
   const applyFilters = () => {
-    setSearchParams({filter: JSON.stringify(filterIds)})
+    setQueryParams({filters: localFilters})
     setIsTrayOpen(false)
   }
 
   const resetFilterValues = () => {
-    setFilterIds([])
-    setSearchParams()
+    setLocalFilters({})
+    setQueryParams({search: queryParams.search})
   }
 
   const cancelClick = () => {
-    const queryParams = searchParams.get('filter')
-    const params = queryParams ? JSON.parse(queryParams) : []
-    const ids: number[] = Object.values(params) as number[]
-    setFilterIds(ids)
+    setLocalFilters(queryParams.filters)
     setIsTrayOpen(false)
   }
+
+  useEffect(() => {
+    if (isTrayOpen) {
+      setLocalFilters(queryParams.filters)
+    }
+  }, [isTrayOpen, queryParams])
 
   return (
     <Tray
@@ -113,9 +125,9 @@ export default function LtiFilterTray({
                 key={category}
                 categoryName={category}
                 options={filterValues[category]}
-                filterIds={filterIds}
+                filterIds={!!localFilters[category] && localFilters[category].map(f => f.id)}
                 setFilterValue={(filterItem: FilterItem, value: boolean) =>
-                  setFilterValue(filterItem, value)
+                  setFilterValue(filterItem, value, category)
                 }
                 limit={category === 'companies' ? 10 : undefined}
               />
@@ -123,7 +135,7 @@ export default function LtiFilterTray({
           })}
         </Flex.Item>
 
-        <Flex.Item padding="small medium">
+        <View background="secondary" borderWidth="small none none none" padding="small">
           <Flex>
             <Flex.Item shouldGrow={true}>
               <Button onClick={() => resetFilterValues()}> {I18n.t('Reset')}</Button>
@@ -137,7 +149,7 @@ export default function LtiFilterTray({
               </Button>
             </Flex.Item>
           </Flex>
-        </Flex.Item>
+        </View>
       </Flex>
     </Tray>
   )

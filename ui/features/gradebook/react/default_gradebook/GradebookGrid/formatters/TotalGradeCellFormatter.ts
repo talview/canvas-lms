@@ -44,7 +44,7 @@ function buildHiddenAssignmentsWarning() {
   return {
     icon: 'icon-off',
     warningText: I18n.t(
-      "This grade differs from the student's view of the grade because some assignment grades are not yet posted"
+      "This grade may differ from the student's view of the grade because some assignment grades are not yet posted"
     ),
   }
 }
@@ -193,11 +193,16 @@ export default class TotalGradeCellFormatter {
 
       if (displayAsScaledPoints && grade.possible) {
         scaledPossible = I18n.n(scalingFactor, {
-          precision: 1,
+          precision: 2,
         })
         scaledScore = I18n.n(scoreToScaledPoints(grade.score, grade.possible, scalingFactor), {
-          precision: 1,
+          precision: 2,
         })
+
+        const scaledPercentage = getGradePercentage(scaledScore, scaledPossible)
+        letterGrade = GradeFormatHelper.replaceDashWithMinus(
+          scoreToGrade(scaledPercentage, scheme.data, scheme.pointsBased)
+        )
       }
     }
 

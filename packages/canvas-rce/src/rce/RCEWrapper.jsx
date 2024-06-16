@@ -305,6 +305,7 @@ class RCEWrapper extends React.Component {
       rce_transform_loaded_content = false,
       media_links_use_attachment_id = false,
       rce_find_replace = false,
+      file_verifiers_for_quiz_links = false,
     } = this.props.features
 
     return {
@@ -312,6 +313,7 @@ class RCEWrapper extends React.Component {
       explicit_latex_typesetting,
       rce_transform_loaded_content,
       media_links_use_attachment_id,
+      file_verifiers_for_quiz_links,
       rce_find_replace,
     }
   }
@@ -442,6 +444,12 @@ class RCEWrapper extends React.Component {
     const editor = this.mceInstance()
     const element = contentInsertion.insertContent(editor, code)
     this.contentInserted(element)
+  }
+
+  replaceCode(code) {
+    if (code !== "" && window.confirm(formatMessage('Content in the editor will be changed. Press Cancel to keep the original content.'))) {
+      this.mceInstance().setContent(code);
+    }
   }
 
   insertEmbedCode(code) {
@@ -1738,20 +1746,14 @@ class RCEWrapper extends React.Component {
   setEditorView(view) {
     switch (view) {
       case RAW_HTML_EDITOR_VIEW:
-        this.getTextarea().removeAttribute('aria-hidden')
-        this.getTextarea().labels?.[0]?.removeAttribute('aria-hidden')
         this.mceInstance().hide()
         break
       case PRETTY_HTML_EDITOR_VIEW:
-        this.getTextarea().setAttribute('aria-hidden', true)
-        this.getTextarea().labels?.[0]?.setAttribute('aria-hidden', true)
         this.mceInstance().hide()
         this._elementRef.current.querySelector('.CodeMirror')?.CodeMirror.setCursor(0, 0)
         break
       case WYSIWYG_VIEW:
         this.setCode(this.textareaValue())
-        this.getTextarea().setAttribute('aria-hidden', true)
-        this.getTextarea().labels?.[0]?.setAttribute('aria-hidden', true)
         this.mceInstance().show()
     }
   }

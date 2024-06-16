@@ -379,7 +379,7 @@ export default AssignmentListItemView = (function () {
         data = this._setJSONForGrade(data)
       }
       data.courseId = this.model.get('course_id')
-      data.differentiatedModulesFlag = ENV.FEATURES?.differentiated_modules
+      data.differentiatedModulesFlag = ENV.FEATURES?.selective_release_ui_api
       data.showSpeedGraderLinkFlag = ENV.FLAGS?.show_additional_speed_grader_link
       data.showSpeedGraderLink = ENV.SHOW_SPEED_GRADER_LINK
       // publishing and unpublishing the underlying model does not rerender this view.
@@ -390,6 +390,7 @@ export default AssignmentListItemView = (function () {
       data.canMove = this.canMove()
       data.canDelete = this.canDelete()
       data.canDuplicate = this.canDuplicate()
+      data.canManageAssignTo = this.canManageAssignTo()
       data.is_locked = this.model.isRestrictedByMasterCourse()
       data.showAvailability =
         !(this.model.inPacedCourse() && this.canManage()) &&
@@ -724,6 +725,10 @@ export default AssignmentListItemView = (function () {
       return ENV.PERMISSIONS.manage
     }
 
+    canManageAssignTo() {
+      return ENV.PERMISSIONS.by_assignment_id?.[this.model.id]?.manage_assign_to
+    }
+
     canShowBuildLink() {
       return !!(ENV.FLAGS && this.model.isQuizLTIAssignment())
     }
@@ -786,13 +791,17 @@ export default AssignmentListItemView = (function () {
         }
         json.submission = submissionJSON
         let grade = submission.get('grade')
-        // it should skip this logic if it is a pass/fail assignment or if the 
+        // it should skip this logic if it is a pass/fail assignment or if the
         // grading type is letter grade and the grade represents the letter grade
         // and the score represents the numerical grade
         // this is usually how the grade is stored when the assignment is letter grade
         // but this does not happen when points possible is 0, then the grade is not saved as a letter grade
         // and needs to be converted
-        if (json.restrict_quantitative_data && gradingType !== 'pass_fail' && !(gradingType === 'letter_grade' && String(grade) !== String(score))) {
+        if (
+          json.restrict_quantitative_data &&
+          gradingType !== 'pass_fail' &&
+          !(gradingType === 'letter_grade' && String(grade) !== String(score))
+        ) {
           gradingType = 'letter_grade'
           if (json.pointsPossible === 0 && json.submission.score < 0) {
             grade = json.submission.score

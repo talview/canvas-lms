@@ -159,7 +159,7 @@ class EffectiveDueDates
   end
 
   def context_module_overrides
-    if Account.site_admin.feature_enabled?(:differentiated_modules)
+    if Account.site_admin.feature_enabled?(:selective_release_backend)
       "/* fetch all module overrides for this assignment */
       tags AS (
         SELECT
@@ -167,25 +167,31 @@ class EffectiveDueDates
           t.context_module_id,
           t.content_id,
           qt.context_module_id as quiz_context_module_id,
-          q.assignment_id as quiz_assignment_id
+          q.assignment_id as quiz_assignment_id,
+          dt.context_module_id as discussion_context_module_id,
+          d.assignment_id as discussion_assignment_id
         FROM
           models a
         LEFT JOIN #{ContentTag.quoted_table_name} t ON t.content_id = a.id AND t.content_type = 'Assignment'
         LEFT JOIN #{Quizzes::Quiz.quoted_table_name} q ON q.assignment_id = a.id
         LEFT JOIN #{ContentTag.quoted_table_name} qt ON qt.content_id = q.id AND qt.content_type = 'Quizzes::Quiz'
+        LEFT JOIN #{DiscussionTopic.quoted_table_name} d ON d.assignment_id = a.id
+        LEFT JOIN #{ContentTag.quoted_table_name} dt ON dt.content_id = d.id AND dt.content_type = 'DiscussionTopic'
         WHERE
-          COALESCE(t.tag_type, qt.tag_type) = 'context_module'
-          AND COALESCE(t.workflow_state, qt.workflow_state) <> 'deleted'
+          COALESCE(t.tag_type, qt.tag_type, dt.tag_type) = 'context_module'
+          AND COALESCE(t.workflow_state, qt.workflow_state, dt.workflow_state) <> 'deleted'
       ),
 
       modules AS (
         SELECT
+          a.id AS item_assignment_id,
           m.id
         FROM
+          models a,
           tags t
-        INNER JOIN #{ContextModule.quoted_table_name} m ON m.id = COALESCE(t.context_module_id, t.quiz_context_module_id)
-        WHERE
-          m.workflow_state <>'deleted'
+        INNER JOIN #{ContextModule.quoted_table_name} m ON m.id = COALESCE(t.context_module_id, t.quiz_context_module_id, t.discussion_context_module_id)
+        WHERE m.workflow_state <>'deleted'
+          AND a.id = COALESCE(t.content_id, t.quiz_assignment_id, t.discussion_assignment_id)
       ),
 
       module_overrides AS (
@@ -203,8 +209,8 @@ class EffectiveDueDates
           modules m
             INNER JOIN #{AssignmentOverride.quoted_table_name} o on o.context_module_id = m.id
         WHERE
-           o.workflow_state = 'active' AND m.id = COALESCE(t.context_module_id, t.quiz_context_module_id) AND
-           a.id = COALESCE(t.content_id, t.quiz_assignment_id)
+           o.workflow_state = 'active' AND m.id = COALESCE(t.context_module_id, t.quiz_context_module_id, t.discussion_context_module_id) AND
+           a.id = COALESCE(t.content_id, t.quiz_assignment_id, t.discussion_assignment_id)
       ),"
     else
       ""
@@ -212,8 +218,10 @@ class EffectiveDueDates
   end
 
   def visible_to_everyone
-    if Account.site_admin.feature_enabled?(:differentiated_modules)
-      "a.only_visible_to_overrides IS NOT TRUE AND (NOT EXISTS (SELECT * FROM modules) OR EXISTS (
+    if Account.site_admin.feature_enabled?(:selective_release_backend)
+      "a.only_visible_to_overrides IS NOT TRUE AND (NOT EXISTS (
+        SELECT 1 FROM modules m WHERE m.item_assignment_id = a.id AND m.id IS NOT NULL
+        ) OR EXISTS (
         SELECT
           *
         FROM
@@ -222,8 +230,8 @@ class EffectiveDueDates
         LEFT JOIN #{AssignmentOverride.quoted_table_name} o on o.context_module_id = m.id AND o.workflow_state = 'active'
         WHERE
           o.context_module_id IS NULL
-          AND a.id = COALESCE(t.content_id, t.quiz_assignment_id)
-          AND m.id = COALESCE(t.context_module_id, t.quiz_context_module_id)
+          AND a.id = COALESCE(t.content_id, t.quiz_assignment_id, t.discussion_assignment_id)
+          AND m.id = COALESCE(t.context_module_id, t.quiz_context_module_id, t.discussion_context_module_id)
         )
       )"
     else
@@ -232,7 +240,7 @@ class EffectiveDueDates
   end
 
   def union_all_overrides
-    if Account.site_admin.feature_enabled?(:differentiated_modules)
+    if Account.site_admin.feature_enabled?(:selective_release_backend)
       "overrides AS (
         SELECT * FROM assignment_overrides
         UNION ALL
@@ -246,7 +254,7 @@ class EffectiveDueDates
   end
 
   def course_overrides
-    if Account.site_admin.feature_enabled?(:differentiated_modules)
+    if Account.site_admin.feature_enabled?(:selective_release_backend)
       "/* fetch all students affected by course overrides */
       override_course_students AS (
         SELECT
@@ -275,7 +283,7 @@ class EffectiveDueDates
   end
 
   def union_course_overrides
-    if Account.site_admin.feature_enabled?(:differentiated_modules)
+    if Account.site_admin.feature_enabled?(:selective_release_backend)
       "SELECT * FROM override_course_students
         UNION ALL"
     else
@@ -284,7 +292,7 @@ class EffectiveDueDates
   end
 
   def unassign_item
-    if Account.site_admin.feature_enabled?(:differentiated_modules)
+    if Account.site_admin.feature_enabled?(:selective_release_backend)
       "WHERE
         overrides.unassign_item = FALSE"
     else

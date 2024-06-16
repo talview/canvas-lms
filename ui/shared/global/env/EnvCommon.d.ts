@@ -41,6 +41,17 @@ type Role = {
   plural_label: string
 }
 
+type ToolPlacement = 'top_navigation'
+
+export type Tool = {
+  id: string
+  title: string
+  base_url: string
+  icon_url: string
+  pinned?: boolean
+  placement?: ToolPlacement
+}
+
 export type GroupOutcome = {
   id: string
   title: string
@@ -78,6 +89,7 @@ export interface EnvCommon {
   current_user_id: string | null
   current_user_global_id: string
   COURSE_ROLES: Role[]
+  COURSE_USERS_PATH?: string
   current_user_roles: string[]
   current_user_is_student: boolean
   current_user_is_admin: boolean
@@ -208,7 +220,13 @@ export interface EnvCommon {
     type?: string
     classes?: string
   }>
-  breadcrumbs: {name: string; url: string}[]
+  breadcrumbs: {name: string; url: string | null}[]
+
+  /**
+   * Used by ui/features/top_navigation_tools/react/TopNavigationTools.tsx
+   * and ui/shared/trays/react/ContentTypeExternalToolDrawer.tsx
+   */
+  top_navigation_tools: Tool[]
 }
 
 /**
@@ -219,7 +237,8 @@ export type SiteAdminFeatureId =
   | 'account_level_blackout_dates'
   | 'course_paces_for_students'
   | 'course_paces_redesign'
-  | 'differentiated_modules'
+  | 'selective_release_backend'
+  | 'selective_release_ui_api'
   | 'enhanced_course_creation_account_fetching'
   | 'enhanced_rubrics'
   | 'explicit_latex_typesetting'
@@ -233,6 +252,8 @@ export type SiteAdminFeatureId =
   | 'render_both_to_do_lists'
   | 'instui_header'
   | 'lti_registrations_discover_page'
+  | 'courses_popout_sisid'
+  | 'dashboard_graphql_integration'
 
 /**
  * From ApplicationController#JS_ENV_ROOT_ACCOUNT_FEATURES

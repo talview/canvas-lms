@@ -21,7 +21,7 @@ import {ApolloProvider} from 'react-apollo'
 import ComposeModalManager from '../ComposeModalContainer/ComposeModalManager'
 import {fireEvent, render, waitFor} from '@testing-library/react'
 import waitForApolloLoading from '../../../util/waitForApolloLoading'
-import {handlers} from '../../../graphql/mswHandlers'
+import {handlers, inboxSettingsHandlers} from '../../../graphql/mswHandlers'
 import {mswClient} from '../../../../../shared/msw/mswClient'
 import {mswServer} from '../../../../../shared/msw/mswServer'
 import React from 'react'
@@ -29,9 +29,7 @@ import {ConversationContext} from '../../../util/constants'
 import * as utils from '../../../util/utils'
 import * as uploadFileModule from '@canvas/upload-file'
 
-jest.mock('@canvas/upload-file', () => ({
-  uploadFiles: jest.fn().mockResolvedValue([]), // Or any initial mock setup
-}))
+jest.mock('@canvas/upload-file')
 
 jest.mock('../../../util/utils', () => ({
   responsiveQuerySizes: jest.fn().mockReturnValue({
@@ -40,7 +38,7 @@ jest.mock('../../../util/utils', () => ({
 }))
 
 describe('ComposeModalContainer', () => {
-  const server = mswServer(handlers)
+  const server = mswServer(handlers.concat(inboxSettingsHandlers()))
   beforeAll(() => {
     server.listen()
 
@@ -84,6 +82,7 @@ describe('ComposeModalContainer', () => {
     conversation,
     selectedIds = ['1'],
     isSubmissionCommentsType = false,
+    inboxSignatureBlock = false,
   } = {}) =>
     render(
       <ApolloProvider client={mswClient}>
@@ -98,6 +97,7 @@ describe('ComposeModalContainer', () => {
               conversation={conversation}
               onSelectedIdsChange={jest.fn()}
               selectedIds={selectedIds}
+              inboxSignatureBlock={inboxSignatureBlock}
             />
           </ConversationContext.Provider>
         </AlertManagerContext.Provider>
@@ -142,8 +142,7 @@ describe('ComposeModalContainer', () => {
     })
   })
 
-  // VICE-4065 - remove or rewrite to remove spies on responsiveQuerySizes import
-  describe.skip('Attachments', () => {
+  describe('Attachments', () => {
     it('attempts to upload a file', async () => {
       uploadFileModule.uploadFiles.mockResolvedValue([{id: '1', name: 'file1.jpg'}])
       const {findByTestId} = setup()
@@ -510,5 +509,12 @@ describe('ComposeModalContainer', () => {
     fireEvent.click(button)
 
     expect(component.findByText('Please select a course')).toBeTruthy()
+  })
+
+  describe('Inbox Settings Loader', () => {
+    it('shows loader when Inbox Signature Block Setting is enabled', async () => {
+      const {findAllByText} = setup({inboxSignatureBlock: true})
+      expect((await findAllByText('Loading Inbox Settings')).length).toBe(2)
+    })
   })
 })

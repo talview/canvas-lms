@@ -23,7 +23,7 @@ import $ from 'jquery'
 import timing from './quiz_timing'
 import openModerateStudentDialog from './openModerateStudentDialog'
 import '@canvas/jquery/jquery.ajaxJSON'
-import '@canvas/datetime/jquery' /* datetimeString */
+import {datetimeString} from '@canvas/datetime/date-functions'
 import '@canvas/jquery/jquery.instructure_forms' /* fillFormData, getFormData */
 import 'jqueryui/dialog'
 import '@canvas/util/jquery/fixDialogButtons'
@@ -31,7 +31,7 @@ import '@canvas/jquery/jquery.instructure_misc_helpers' /* replaceTags */
 import '@canvas/jquery/jquery.instructure_misc_plugins' /* showIf */
 import '@canvas/rails-flash-notifications'
 import '@canvas/util/templateData' /* fillTemplateData */
-import 'date-js'
+import '@instructure/date-js'
 import replaceTags from '@canvas/util/replaceTags'
 
 const I18n = useI18nScope('quizzes.moderate')
@@ -474,8 +474,8 @@ $(document).ready(function (_event) {
   $(document).on('click', '.extend_time_link', event => {
     event.preventDefault()
     const $row = $(event.target).parents('.student')
-    const end_at = $.datetimeString($row.attr('data-end-at'))
-    const started_at = $.datetimeString($row.attr('data-started-at'))
+    const end_at = datetimeString($row.attr('data-end-at'))
+    const started_at = datetimeString($row.attr('data-started-at'))
     const $dialog = $('#extend_time_dialog')
     $dialog.data('row', $row)
     $dialog.fillTemplateData({

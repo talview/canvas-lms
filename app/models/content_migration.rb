@@ -456,7 +456,7 @@ class ContentMigration < ActiveRecord::Base
     running_cutoff = Setting.get("content_migration_job_block_hours", "4").to_i.hours.ago # at some point just let the jobs keep going
 
     if context && context.content_migrations
-                         .where(workflow_state: %w[created queued pre_processing pre_processed exporting importing]).where("id < ?", id)
+                         .where(workflow_state: %w[created queued pre_processing pre_processed exporting importing]).where(id: ...id)
                          .where("started_at > ?", running_cutoff).exists?
 
       # there's another job already going so punt
@@ -644,6 +644,7 @@ class ContentMigration < ActiveRecord::Base
       import!(data)
 
       process_master_deletions(deletions.slice("LearningOutcome", "AssignmentGroup")) if deletions
+      SmartSearch.copy_embeddings(self) if for_master_course_import?
 
       unless import_immediately?
         update_import_progress(100)
@@ -741,7 +742,7 @@ class ContentMigration < ActiveRecord::Base
   end
 
   def for_common_cartridge?
-    migration_type == "common_cartridge_importer"
+    ["common_cartridge_importer", "canvas_cartridge_importer"].include? migration_type
   end
 
   def should_skip_import?(content_importer)
@@ -1185,10 +1186,11 @@ class ContentMigration < ActiveRecord::Base
 
   MIGRATION_DATA_FIELDS = {
     "WikiPage" => %i[url current_lookup_id],
-    "Attachment" => %i[media_entry_id]
+    "Attachment" => %i[media_entry_id uuid]
   }.freeze
 
   def migration_data_fields_for(asset_type)
+    MIGRATION_DATA_FIELDS["Attachment"] << :uuid if context.root_account.feature_enabled?(:file_verifiers_for_quiz_links)
     MIGRATION_DATA_FIELDS[asset_type] || []
   end
 
@@ -1246,6 +1248,14 @@ class ContentMigration < ActiveRecord::Base
         migration_data_fields_for(asset_type).each do |field|
           mig_id_to_dest_id[o.migration_id.to_s][field] = o.send(field)
         end
+      end
+
+      if key == "files" && context.root_account.feature_enabled?(:file_verifiers_for_quiz_links)
+        dest_id_to_dest_uuid = {}
+        scope.each do |file|
+          dest_id_to_dest_uuid[file.id] = file.uuid
+        end
+        mapping["verifiers"] = dest_id_to_dest_uuid unless dest_id_to_dest_uuid.empty?
       end
 
       next if mig_id_to_dest_id.empty?
@@ -1354,6 +1364,53 @@ class ContentMigration < ActiveRecord::Base
     save!
   end
 
+  # this is a much-simplified subset of asset_id_mapping that includes only ids,
+  # for only the items imported in this migration
+  def imported_asset_id_map
+    return nil unless imported? && for_course_copy?
+
+    mapping = {}
+    master_template = migration_type == "master_course_import" &&
+                      master_course_subscription&.master_template
+    global_ids = master_template.present? || use_global_identifiers?
+
+    migration_settings[:imported_assets].each do |asset_type, dest_ids|
+      klass = asset_type.constantize
+      next unless klass.column_names.include? "migration_id"
+
+      dest_ids = dest_ids.split(",").map(&:to_i)
+      mig_id_to_dest_id = context.shard.activate do
+        scope = klass.where(context:, id: dest_ids)
+        scope = scope.only_discussion_topics if asset_type == "DiscussionTopic"
+        scope.where.not(migration_id: nil)
+             .pluck(:migration_id, :id)
+             .to_h
+      end
+
+      mapping[asset_type] ||= {}
+      if master_template
+        master_template.master_content_tags
+                       .where(migration_id: mig_id_to_dest_id.keys)
+                       .pluck(:content_id, :migration_id)
+                       .each do |src_id, mig_id|
+          mapping[asset_type][src_id] = mig_id_to_dest_id[mig_id]
+        end
+      else
+        source_course.shard.activate do
+          src_ids = klass.where(context: source_course).pluck(:id)
+          src_ids.each do |src_id|
+            asset_string = klass.asset_string(src_id)
+            mig_id = CC::CCHelper.create_key(asset_string, global: global_ids)
+            dest_id = mig_id_to_dest_id[mig_id]
+            mapping[asset_type][src_id] = dest_id if dest_id
+          end
+        end
+      end
+    end
+
+    mapping
+  end
+
   def destination_hosts
     return [] unless context
 
@@ -1385,7 +1442,7 @@ class ContentMigration < ActiveRecord::Base
 
   scope :expired, lambda {
     if ContentMigration.expire?
-      where("created_at < ?", ContentMigration.expire_days.days.ago)
+      where(created_at: ...ContentMigration.expire_days.days.ago)
     else
       none
     end

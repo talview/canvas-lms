@@ -112,7 +112,7 @@ const enrollmentsByCourse = [
 ]
 
 const ENROLLMENTS_URI = encodeURI(
-  `/api/v1/users/${modalProps.user.id}/courses?enrollment_state=active&include[]=sections&per_page=${MAX_ALLOWED_COURSES_PER_PAGE}&account_id=${enrollmentsByCourse[0].account_id}`
+  `/api/v1/users/${modalProps.user.id}/courses?enrollment_state=active&include[]=sections&include[]=term&per_page=${MAX_ALLOWED_COURSES_PER_PAGE}&account_id=${enrollmentsByCourse[0].account_id}`
 )
 
 const userListsData = {
@@ -322,7 +322,7 @@ describe('TempEnrollModal', () => {
 
     fetchMock.get(
       encodeURI(
-        `/api/v1/users/${modalProps.user.id}/enrollments?state[]=current_and_future&per_page=${ITEMS_PER_PAGE}&temporary_enrollment_recipients_for_provider=true`
+        `/api/v1/users/${modalProps.user.id}/enrollments?state[]=current_future_and_restricted&per_page=${ITEMS_PER_PAGE}&temporary_enrollment_recipients_for_provider=true`
       ),
       {
         status: 500,

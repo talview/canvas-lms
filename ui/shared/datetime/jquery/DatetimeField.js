@@ -18,9 +18,11 @@
 import {useScope as useI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import {debounce} from 'lodash'
-import * as tz from '../index'
+import './datepicker'
+import * as tz from '@instructure/moment-utils'
 import fallbacks from 'translations/en.json'
-import datePickerFormat from '../datePickerFormat'
+import datePickerFormat from '@instructure/moment-utils/datePickerFormat'
+import {fudgeDateForProfileTimezone, isMidnight} from '@instructure/moment-utils'
 import {isRTL} from '@canvas/i18n/rtlHelper'
 
 import moment from 'moment'
@@ -118,6 +120,18 @@ function computeDatepickerDefaults() {
     datepickerDefaults.dayNamesShort = fallbacks['date.abbr_day_names']
     datepickerDefaults.dayNamesMin = fallbacks['date.datepicker.column_headings']
   }
+}
+
+export function renderDatetimeField($fields, options) {
+  options = {...options}
+  $fields.each(function () {
+    const $field = $(this)
+    if (!$field.hasClass('datetime_field_enabled')) {
+      $field.addClass('datetime_field_enabled')
+      new DatetimeField($field, options)
+    }
+  })
+  return $fields
 }
 
 // adds datepicker and suggest functionality to the specified $field
@@ -324,8 +338,8 @@ export default class DatetimeField {
     if (this.datetime && !this.showDate && this.implicitDate) {
       this.datetime = tz.mergeTimeAndDate(this.datetime, this.implicitDate)
     }
-    this.fudged = $.fudgeDateForProfileTimezone(this.datetime)
-    this.showTime = this.alwaysShowTime || (this.allowTime && !tz.isMidnight(this.datetime))
+    this.fudged = fudgeDateForProfileTimezone(this.datetime)
+    this.showTime = this.alwaysShowTime || (this.allowTime && !isMidnight(this.datetime))
   }
 
   setFormattedDatetime(datetime, format) {
@@ -333,7 +347,7 @@ export default class DatetimeField {
       this.blank = false
       this.$field.data('inputdate', datetime.toISOString())
       this.datetime = datetime
-      this.fudged = $.fudgeDateForProfileTimezone(this.datetime)
+      this.fudged = fudgeDateForProfileTimezone(this.datetime)
       const fmtr = formatter(ENV.TIMEZONE, format)
       this.$field.val(fmtr.format(this.datetime))
     } else {
@@ -343,7 +357,7 @@ export default class DatetimeField {
       this.$field.val('')
     }
     this.valid = PARSE_RESULTS.VALID
-    this.showTime = this.alwaysShowTime || (this.allowTime && !tz.isMidnight(this.datetime))
+    this.showTime = this.alwaysShowTime || (this.allowTime && !isMidnight(this.datetime))
     this.update()
     this.updateSuggest(false)
   }

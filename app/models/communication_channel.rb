@@ -283,7 +283,13 @@ class CommunicationChannel < ActiveRecord::Base
   def validate_email
     # this is not perfect and will allow for invalid emails, but it mostly works.
     # This pretty much allows anything with an "@"
-    errors.add(:email, :invalid, value: path) unless EmailAddressValidator.valid?(path)
+    if EmailAddressValidator.valid?(path)
+      domain = Mail::Address.new(path).domain
+      accounts = user.new_record? ? user.pseudonyms.map(&:account) : user.associated_root_accounts
+      errors.add(:email, :forbidden, value: path) if accounts.any? { |a| a.banned_email_domains.include?(domain.downcase) }
+    else
+      errors.add(:email, :invalid, value: path)
+    end
   end
 
   def not_otp_communication_channel
@@ -481,7 +487,7 @@ class CommunicationChannel < ActiveRecord::Base
     if build_pseudonym_on_confirm && active?
       self.build_pseudonym_on_confirm = false
       pseudonym = Account.default.pseudonyms.build(unique_id: path, user:)
-      existing_pseudonym = Account.default.pseudonyms.active.where(user_id: user).take
+      existing_pseudonym = Account.default.pseudonyms.active.find_by(user_id: user)
       if existing_pseudonym
         pseudonym.password_salt = existing_pseudonym.password_salt
         pseudonym.crypted_password = existing_pseudonym.crypted_password

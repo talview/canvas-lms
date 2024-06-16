@@ -18,11 +18,13 @@
 
 import moment from 'moment'
 import type React from 'react'
-import {useState, useCallback, useEffect, type SyntheticEvent} from 'react'
+import {useState, useCallback, useEffect} from 'react'
 import {useScope as useI18nScope} from '@canvas/i18n'
 import type {FormMessage} from '@instructure/ui-form-field'
 
 const I18n = useI18nScope('differentiated_modules')
+
+const fancyMidnightDueTime = '23:59:00'
 
 type UseDatesHookArgs = {
   due_at: string | null
@@ -46,9 +48,17 @@ type UseDatesHookResult = [
 
 function setTimeToStringDate(time: string, date: string | undefined): string | undefined {
   const [hour, minute, second] = time.split(':').map(Number)
-  const chosenDate = moment.tz(date, ENV.TIMEZONE)
+  const chosenDate = moment.tz(date, ENV.TIMEZONE || 'UTC')
   chosenDate.set({hour, minute, second})
   return chosenDate.isValid() ? chosenDate.utc().toISOString() : date
+}
+
+function isFancyMidnightNeeded(value: string | undefined) {
+  const chosenDueTime = moment
+    .utc(value)
+    .tz(ENV.TIMEZONE || 'UTC')
+    .format('HH:mm:00')
+  return chosenDueTime === '00:00:00' && chosenDueTime !== fancyMidnightDueTime
 }
 
 export function generateMessages(
@@ -139,6 +149,13 @@ export function useDates({
       } else {
         setTimeout(() => setDueDate(newDueDate || null), 0)
       }
+
+      if (isFancyMidnightNeeded(newDueDate)) {
+        setTimeout(
+          () => setDueDate(setTimeToStringDate(fancyMidnightDueTime, newDueDate) || null),
+          200
+        )
+      }
     },
     [dueDate]
   )
@@ -196,4 +213,89 @@ export function arrayEquals(a: any[], b: any[]) {
 
 export function setEquals(a: Set<any>, b: Set<any>) {
   return a.size === b.size && Array.from(a).every(x => b.has(x))
+}
+
+export const generateCardActionLabels = (selected: string[]) => {
+  switch (selected?.length) {
+    case 0: {
+      return {
+        removeCard: I18n.t('Remove card'),
+        clearDueAt: I18n.t('Clear due date/time'),
+        clearAvailableFrom: I18n.t('Clear available from date/time'),
+        clearAvailableTo: I18n.t('Clear until date/time'),
+      }
+    }
+    case 1:
+      return {
+        removeCard: I18n.t('Remove card for %{pillA}', {pillA: selected[0]}),
+        clearDueAt: I18n.t('Clear due date/time for %{pillA}', {pillA: selected[0]}),
+        clearAvailableFrom: I18n.t('Clear available from date/time for %{pillA}', {
+          pillA: selected[0],
+        }),
+        clearAvailableTo: I18n.t('Clear until date/time for %{pillA}', {pillA: selected[0]}),
+      }
+    case 2:
+      return {
+        removeCard: I18n.t('Remove card for %{pillA} and %{pillB}', {
+          pillA: selected[0],
+          pillB: selected[1],
+        }),
+        clearDueAt: I18n.t('Clear due date/time for %{pillA} and %{pillB}', {
+          pillA: selected[0],
+          pillB: selected[1],
+        }),
+        clearAvailableFrom: I18n.t('Clear available from date/time for %{pillA} and %{pillB}', {
+          pillA: selected[0],
+          pillB: selected[1],
+        }),
+        clearAvailableTo: I18n.t('Clear until date/time for %{pillA} and %{pillB}', {
+          pillA: selected[0],
+          pillB: selected[1],
+        }),
+      }
+    case 3:
+      return {
+        removeCard: I18n.t('Remove card for %{pillA}, %{pillB}, and %{pillC}', {
+          pillA: selected[0],
+          pillB: selected[1],
+          pillC: selected[2],
+        }),
+        clearDueAt: I18n.t('Clear due date/time for %{pillA}, %{pillB}, and %{pillC}', {
+          pillA: selected[0],
+          pillB: selected[1],
+          pillC: selected[2],
+        }),
+        clearAvailableFrom: I18n.t(
+          'Clear available from date/time for %{pillA}, %{pillB}, and %{pillC}',
+          {pillA: selected[0], pillB: selected[1], pillC: selected[2]}
+        ),
+        clearAvailableTo: I18n.t('Clear until date/time for %{pillA}, %{pillB}, and %{pillC}', {
+          pillA: selected[0],
+          pillB: selected[1],
+          pillC: selected[2],
+        }),
+      }
+    default:
+      return {
+        removeCard: I18n.t('Remove card for %{pillA}, %{pillB}, and %{n} others', {
+          pillA: selected[0],
+          pillB: selected[1],
+          n: selected.length - 2,
+        }),
+        clearDueAt: I18n.t('Clear due date/time for %{pillA}, %{pillB}, and %{n} others', {
+          pillA: selected[0],
+          pillB: selected[1],
+          n: selected.length - 2,
+        }),
+        clearAvailableFrom: I18n.t(
+          'Clear available from date/time for %{pillA}, %{pillB}, and %{n} others',
+          {pillA: selected[0], pillB: selected[1], n: selected.length - 2}
+        ),
+        clearAvailableTo: I18n.t('Clear until date/time for %{pillA}, %{pillB}, and %{n} others', {
+          pillA: selected[0],
+          pillB: selected[1],
+          n: selected.length - 2,
+        }),
+      }
+  }
 }

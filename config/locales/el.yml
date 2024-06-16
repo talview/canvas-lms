@@ -197,6 +197,7 @@ el:
     root_account_cant_have_sis_id: "τα SIS IDs δεν μπορούν  να ρυθμιστούν για λογαριασμούς ρίζας -root-"
     sis_id_in_use: "To SIS ID \"%{sis_id}\" χρησιμοποιείται ήδη"
     tab_admin_tools: "Εργαλεία Διαχειριστή"
+    tab_apps: Εφαρμογές
     tab_authentication: Aυθεντικοποίηση
     tab_brand_configs: Θέματα
     tab_courses: Μαθήματα
@@ -1201,6 +1202,7 @@ el:
       turnitin_pledge_help: "οι φοιτητές πρέπει να τσεκάρουν ένα κουτί αναγνωρίζοντας ότι συμφωνούν με αυτή τη δέσμευση"
       turnitin_settings_title: "Ρυθμίσεις Turnitin"
       update_settings_button: "Ενημέρωση Ρυθμίσεων"
+    settings_crumb: Ρυθμίσεις
     show: 
       courses_crumb: Μαθήματα
       no_courses_account_message: "Δεν υπάρχουν μαθήματα σε αυτόν τον λογαριασμό"
@@ -1634,6 +1636,7 @@ el:
   add_new_set_of_due_dates_e8e240f: "Προσθέστε νέο σύνολο απο καταληκτικές ημερομηνίες"
   add_new_term_d2217c0d: "Προσθήκη Νέου Εξαμήνου"
   add_people_7ee4b2ec: "Προσθήκη Ατόμων"
+  add_prerequisite_6409bd9: "Προσθήκη Προαπαιτούμενου"
   add_quiz_cebfa28b: "Προσθήκη Κουίζ"
   add_quiz_ip_filter_c7b37dc5: "Πρόσθεση φίλτου IP Διεύθυνσης για Κουίζ"
   add_recipient_ff135ed7: "Προσθήκη Παραλήπτη"
@@ -1657,6 +1660,7 @@ el:
   address_3159962f: "Διεύθυνση:"
   adjust_events_and_due_dates_879744fc: "Προσαρμογή γεγονότων και καταληκτικών ημερομηνιών"
   admin_4d3ba42f: Διαχειριστής
+  admin_tools_9e2c9268: "Εργαλεία Διαχειριστή"
   admins_3e1dce15: Διαχειριστές
   after_48b9d69: Έπειτα...
   after_4c71e718: Έπειτα
@@ -1838,7 +1842,7 @@ el:
   announcements_a4b8ed4a: Ανακοινώσεις
   anonymous_e1b8ad27: Ανώνυμο
   anonymous_grading_ccb5045c: "Ανώνυμη Βαθμολόγηση"
-  anonymous_grading_forces_student_names_to_be_hidde_8b46d7e7: "Η ανώνυμη βαθμολόγηση συνεπάγεται την υποχρεωτική απόκρυψη ονομάτων φοιτητών/τριών στο SpeedGrader™"
+  anonymous_grading_forces_student_names_to_be_hidde_8b46d7e7: "Η ανώνυμη βαθμολόγηση συνεπάγεται την υποχρεωτική απόκρυψη ονομάτων φοιτητών/τριών στο SpeedGrader"
   anonymous_user: "Ανώνυμος Χρήστης"
   anonymous_user_d984b9ce: "Ανώνυμος Χρήστης"
   anonymously_graded_59149570: "Ανώνυμα βαθμολογημένα"
@@ -2223,7 +2227,7 @@ el:
       resubmission_count: 
         one: "1 Μη Βαθμολογημένη Επανυποβολή"
         other: "%{count} Μη Βαθμολογημένες Επανυποβολές"
-      speed_grader: SpeedGrader™
+      speed_grader: SpeedGrader
       titles: 
         related_items: "Σχετικά Στοιχεία"
     grade_gpa_scale_screenreader: "Βαθμός: %{grade}"
@@ -2710,6 +2714,7 @@ el:
       discovery_url_description: "<mrk mid=\"3545\" mtype=\"seg\">Αν έχει οριστεί διεύθυνση εντοπισμού URL, το Canvas θα παραπέμπει όλους τους χρήστες σε αυτό το URL όταν θα πρέπει να επαληθευτούν.</mrk> <mrk mid=\"3546\" mtype=\"seg\">Αυτή η σελίδα θα πρέπει στη συνέχεια να βοηθήσει τον χρήστη να καταλάβει πού πρέπει να πάει για να συνδεθεί. Αν δεν έχει οριστεί διεύθυνση εντοπισμού URL, η πρώτη ρύθμιση θα χρησιμοποιηθεί για να προσπαθήσει να επαληθεύσει τον χρήστη.</mrk>"
       login_handle_name_description: "Η ετικέτα που χρησιμοποιείται για μοναδικά αναγνωριστικά εισόδου. Παραδείγματα: Σύνδεση, Όνομα χρήστη, Αριθμός ταυτότητας Σπουδαστή/ιας κτλ"
       unknown_user_url_description: "Το url στο οποίο θα γίνει ανακατεύθυνση όταν ένας αυθεντικοποιημένος χρήστης δεν βρεθεί στο Canvas"
+  authentication_settings_5c2078a3: "Ρυθμίσεις αυθεντικοποίησης"
   authnrequest_sent_to_idp_74e030fc: "AuthnRequest που στάλθηκε στο ldP"
   authnresponse_from_idp_185037e9: "AuthnResponse απο το ldP"
   author_215203d2: Συγγραφέας
@@ -3285,6 +3290,7 @@ el:
   canvas_error_report_ff678539: "Αναφορά Σφάλματος Canvas"
   canvas_id_f42f6ad: "Canvas ID"
   canvas_introduction_video_2d81f3ad: "Εισαγωγικό Βίντεο στο Canvas"
+  canvas_lms_6ce68514: "Σύστημα Διαχείρισης Εκπαιδευτικού Περιεχομένου Canvas"
   canvas_login_failure_message_4c922f2f: "Μήνυμα απο το Canvas σχετικά με την αποτυχία σύνδεσης"
   canvas_revision_unknown: Άγνωστο
   canvas_thinks_response_is_valid_8cc4a67d: "το Canvas πιστεύει πως η απάντηση είναι έγκυρη"
@@ -6638,6 +6644,7 @@ el:
       select_an_option: "Παρακαλώ διαλέξτε μια επιλογή"
     gradebook_header_menu: 
       assignment_details: "Λεπτομέρειες Εργασίας"
+      speedgrader: SpeedGrader™
     graded: βαθμολογήθηκε/αν
     graded_then_resubmitted: "βαθμολογήθηκε, κατόπιν επανυποβλήθηκε (%{when})"
     group: Ομάδα
@@ -10875,6 +10882,10 @@ el:
         upload_ui_conf: "ID Ρύθμισης Uploader UI"
         user_secret_key: "Μυστικό Χρήστη"
       ui_conf_ids: "<mrk mid=\"2397\" mtype=\"seg\">Για πελάτες που φιλοξενούνται στο Kaltura, μπορείτε να ζητήσετε από το Kaltura να σας δώσει αυτά τα id.</mrk> <mrk mid=\"2398\" mtype=\"seg\">Για αυτόνομες συνδέσεις, αυτά τα id μπορούν να βρεθούν στον πίνακα ui_confs.</mrk>"
+    learn_platform_settings: 
+      labels: 
+        base_url: "URL βάσης"
+        token: "Token Πρόσβασης"
     linked_in: 
       description: "Ενσωμάτωση LinkedIn"
     linked_in_settings: 
@@ -12555,6 +12566,7 @@ el:
       create_group: "Δημιουργία Ομάδας"
       create_question: "Δημιουργία Ερώτησης"
       creating_group: "Γίνεται δημιουργία Ομάδας..."
+      generate: Δημιουργία
       generating: Δημιουργία...
       generating_combinations_progress: "<mrk mid=\"2593\" mtype=\"seg\">Δημιουργία...</mrk> <mrk mid=\"2594\" mtype=\"seg\">(%{done}/%{total})</mrk>"
       save: Αποθήκευση
@@ -13531,6 +13543,8 @@ el:
       titles: 
         mastery_level: "ποσοστό πάνω από το οποίο ορίζεται το επίπεδο επιδεξιότητας"
         select_and_add_criterion: "Επιλογή και Προσθήκη Κριτηρίου"
+    flash_notices: 
+      close: Κλείσιμο
     footer_links: 
       facebook: Facebook
       privacy_policy: "Πολιτική Απορρήτου"
@@ -14076,7 +14090,7 @@ el:
       resubmitting: Επανυποβολή...
   speedgrader_d9a6fa90: Speedgrader
   speedgrader_de0affa6: SpeedGrader
-  speedgrader_tm_44688790: SpeedGrader™
+  speedgrader_tm_44688790: SpeedGrader
   spreadsheet_6d622119: "Λογιστικό φύλλο"
   sr_gradebook: 
     all_grading_periods: "Όλες οι περίοδοι βαθμολογήσεων"
@@ -14116,6 +14130,7 @@ el:
   start_link_validation_dc0ac99c: "Έναρξη Επικύρωσης Συνδέσμου"
   start_participating_f0c75256: "Έναρξη συμμετοχής"
   start_tls_26e4b0dc: "Έναρξη TLS"
+  started_5e138638: Εκκίνηση
   state_standards_c9b1affd: "Πρότυπα της Πολιτείας"
   statistics: 
     csv_columns: 
@@ -14213,6 +14228,8 @@ el:
     sub_accounts_count: 
       one: "1 Υπο-λογαριασμός"
       other: "%{count} Υπο-λογαριασμοί"
+    titles: 
+      sub_accounts: Υπο-λογαρισμοί
   subaccount_91f4c279: Υπο-λογαριασμός
   subdomain_url_1e43b6f0: "URL υποτομέα"
   subject_reply_to: "<mrk mid=\"3085\" mtype=\"seg\">Απ:</mrk> <mrk mid=\"3086\" mtype=\"seg\">%{subject}</mrk>"
@@ -15423,6 +15440,8 @@ el:
   validate_links_in_content_b1630fba: "Επικύρωση Συνδέσμων στο Περιεχόμενο"
   validation_error_3b943100: "Λάθος στην Επικύρωση"
   vanity_url_76f93382: "Vanity URL"
+  verification_code_5acd64ef: "Κωδικός Επιβεβαίωσης"
+  version_5599c321: Έκδοση
   video_b9f27375: "Αρχείο Βίντεο"
   video_content_is_not_supported_by_your_device_or_a_25214f57: "Το περιεχόμενο του βίντεο δεν υποστηρίζεται από τη συσκευή ή την εφαρμογή σας."
   video_player_b371005: "Πρόγραμμα Αναπαραγωγής Βίντεο"

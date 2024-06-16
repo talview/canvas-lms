@@ -2684,7 +2684,7 @@ describe User do
     it "sums up associated root account quotas" do
       @user.associated_root_accounts << Account.create! << (a = Account.create!)
       a.update_attribute :default_user_storage_quota_mb, a.default_user_storage_quota_mb + 10
-      expect(@user.quota).to eql((2 * User.default_storage_quota) + 10.megabytes)
+      expect(@user.quota).to eql((2 * User.default_storage_quota) + 10.decimal_megabytes)
     end
   end
 
@@ -4576,6 +4576,22 @@ describe User do
       it "returns all subaccount ids" do
         expect(subject).to contain_exactly(*expected_adminable.map(&:id))
       end
+    end
+  end
+
+  describe "learning_object_visibilities" do
+    before :once do
+      student_in_course(active_all: true)
+    end
+
+    it "includes assignment and quiz ids with the selective_release_backend flag disabled" do
+      Account.site_admin.disable_feature!(:selective_release_backend)
+      expect(@user.learning_object_visibilities(@course).keys).to contain_exactly(:assignment_ids, :quiz_ids)
+    end
+
+    it "includes all learning object ids with the selective_release_backend flag enabled" do
+      Account.site_admin.enable_feature!(:selective_release_backend)
+      expect(@user.learning_object_visibilities(@course).keys).to contain_exactly(:assignment_ids, :quiz_ids, :context_module_ids, :discussion_topic_ids, :wiki_page_ids)
     end
   end
 end

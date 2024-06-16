@@ -59,6 +59,9 @@ describe UsersController do
     let_once(:user) { user_factory(active_all: true) }
     before do
       account.account_users.create!(user:)
+      allow(Lti::LogService).to receive(:new) do
+        double("Lti::LogService").tap { |s| allow(s).to receive(:call) }
+      end
       user_session(user)
     end
 
@@ -114,6 +117,18 @@ describe UsersController do
         get :external_tool, params: { id: tool.id, user_id: user.id }
         expect(assigns[:lti_launch].resource_url).to eq override_url + "?first=john&last=smith"
       end
+    end
+
+    it "logs the launch" do
+      get :external_tool, params: { id: tool.id, user_id: user.id }
+      expect(Lti::LogService).to have_received(:new).with(
+        tool:,
+        context: account,
+        user:,
+        session_id: nil,
+        placement: :user_navigation,
+        launch_type: :direct_link
+      )
     end
 
     context "using LTI 1.3 when specified" do
@@ -861,7 +876,7 @@ describe UsersController do
                                    user: { name: "happy gilmore", terms_of_use: "1", self_enrollment_code: @course.self_enrollment_code + " ", initial_enrollment_type: "student" },
                                    self_enrollment: "1" }
           expect(response).to be_successful
-          u = User.where(name: "happy gilmore").take
+          u = User.find_by(name: "happy gilmore")
           expect(u.root_account_ids).to eq [Account.default.id]
         end
 
@@ -2513,16 +2528,14 @@ describe UsersController do
       kaltura_client
     end
 
-    let(:media_source_fetcher) do
-      media_source_fetcher = instance_double(MediaSourceFetcher)
-      expect(MediaSourceFetcher).to receive(:new).with(kaltura_client).and_return(media_source_fetcher)
-      media_source_fetcher
-    end
+    let(:media_source_fetcher) { instance_double(MediaSourceFetcher) }
 
     before do
       account = Account.create!
       course_with_student(active_all: true, account:)
       user_session(@student)
+
+      expect(MediaSourceFetcher).to receive(:new).with(kaltura_client).and_return(media_source_fetcher)
     end
 
     it "passes type and media_type params down to the media fetcher" do

@@ -19,8 +19,10 @@
 #
 
 require_relative "../graphql_spec_helper"
+require_relative "../../helpers/selective_release_common"
 
 RSpec.describe Mutations::UpdateDiscussionTopic do
+  include SelectiveReleaseCommon
   before(:once) do
     course_with_teacher(active_all: true)
     @attachment = attachment_with_context(@teacher)
@@ -42,7 +44,9 @@ RSpec.describe Mutations::UpdateDiscussionTopic do
     assignment: nil,
     checkpoints: nil,
     set_checkpoints: nil,
-    group_category_id: nil
+    group_category_id: nil,
+    ungraded_discussion_overrides: nil,
+    anonymous_state: nil
   )
     <<~GQL
       mutation {
@@ -62,12 +66,27 @@ RSpec.describe Mutations::UpdateDiscussionTopic do
           #{assignment_str(assignment)}
           #{checkpoints_str(checkpoints)}
           #{"setCheckpoints: #{set_checkpoints}" unless set_checkpoints.nil?}
+          #{"ungradedDiscussionOverrides: #{ungraded_discussion_overrides_str(ungraded_discussion_overrides)}" unless ungraded_discussion_overrides.nil?}
+          #{"anonymousState: #{anonymous_state}" unless anonymous_state.nil?}
         }) {
           discussionTopic {
             _id
             published
             locked
             replyToEntryRequiredCount
+            ungradedDiscussionOverrides {
+              nodes {
+                _id
+                createdAt
+                dueAt
+                id
+                lockAt
+                title
+                unlockAt
+                updatedAt
+              }
+            }
+            anonymousState
             assignment {
               _id
               pointsPossible
@@ -75,6 +94,7 @@ RSpec.describe Mutations::UpdateDiscussionTopic do
               dueAt
               state
               gradingType
+              importantDates
               peerReviews {
                 anonymousReviews
                 automaticReviews
@@ -122,6 +142,7 @@ RSpec.describe Mutations::UpdateDiscussionTopic do
     return "" unless assignment
 
     args = []
+    args << "abGuid: #{assignment[:abGuid]}" if assignment[:abGuid]
     args << "pointsPossible: #{assignment[:pointsPossible]}" if assignment[:pointsPossible]
     args << "postToSis: #{assignment[:postToSis]}" if assignment.key?(:postToSis)
     args << "assignmentGroupId: \"#{assignment[:assignmentGroupId]}\"" if assignment[:assignmentGroupId]
@@ -131,6 +152,7 @@ RSpec.describe Mutations::UpdateDiscussionTopic do
     args << "onlyVisibleToOverrides: #{assignment[:onlyVisibleToOverrides]}" if assignment.key?(:onlyVisibleToOverrides)
     args << "setAssignment: #{assignment[:setAssignment]}" if assignment.key?(:setAssignment)
     args << "gradingType: #{assignment[:gradingType]}" if assignment[:gradingType]
+    args << "importantDates: #{assignment[:importantDates]}" if assignment[:importantDates]
     args << peer_reviews_str(assignment[:peerReviews]) if assignment[:peerReviews]
     args << assignment_overrides_str(assignment[:assignmentOverrides]) if assignment[:assignmentOverrides]
     args << "forCheckpoints: #{assignment[:forCheckpoints]}" if assignment[:forCheckpoints]
@@ -144,7 +166,7 @@ RSpec.describe Mutations::UpdateDiscussionTopic do
     checkpoints_out = []
     checkpoints.each do |checkpoint|
       args = []
-      args << "checkpointLabel: \"#{checkpoint[:checkpointLabel]}\""
+      args << "checkpointLabel: #{checkpoint[:checkpointLabel]}"
       args << "pointsPossible: #{checkpoint[:pointsPossible]}"
       args << "repliesRequired: #{checkpoint[:repliesRequired]}" if checkpoint[:repliesRequired]
       args << checkpoints_dates_str(checkpoint[:dates])
@@ -198,6 +220,17 @@ RSpec.describe Mutations::UpdateDiscussionTopic do
     # Add other override input fields if you want to test them
 
     "assignmentOverrides: { #{args.join(", ")} }"
+  end
+
+  def ungraded_discussion_overrides_str(overrides)
+    return "" unless overrides
+
+    args = []
+    args << "sectionId: \"#{overrides[:sectionId]}\"" if overrides[:sectionId]
+    args << "studentIds: [\"#{overrides[:studentIds].join('", "')}\"]" if overrides[:studentIds]
+    # Add other override input fields if you want to test them
+
+    "{ #{args.join(", ")} }"
   end
 
   def run_mutation(opts = {}, current_user = @teacher)
@@ -256,6 +289,45 @@ RSpec.describe Mutations::UpdateDiscussionTopic do
     end
   end
 
+  it "allow to update the anonymous state if there is no reply" do
+    @topic.anonymous_state = nil
+    @topic.save!
+    result = run_mutation({ id: @topic.id, anonymous_state: "full_anonymity" })
+    expect(result["errors"]).to be_nil
+    expect(result.dig("data", "updateDiscussionTopic", "discussionTopic", "anonymousState")).to eq "full_anonymity"
+    @topic.reload
+    expect(@topic.anonymous_state).to eq "full_anonymity"
+  end
+
+  it "should save the anonymous state as NULL when the input value is 'off'" do
+    @topic.anonymous_state = "full_anonymity"
+    @topic.save!
+    result = run_mutation({ id: @topic.id, anonymous_state: "off" })
+    expect(result["errors"]).to be_nil
+    expect(result.dig("data", "updateDiscussionTopic", "discussionTopic", "anonymousState")).to be_nil
+    @topic.reload
+    expect(@topic.anonymous_state).to be_nil
+  end
+
+  it "should keep the previous anonymous state if the input value is nil" do
+    @topic.anonymous_state = "full_anonymity"
+    @topic.save!
+    result = run_mutation({ id: @topic.id, anonymous_state: nil })
+    expect(result["errors"]).to be_nil
+    expect(result.dig("data", "updateDiscussionTopic", "discussionTopic", "anonymousState")).to eq "full_anonymity"
+    @topic.reload
+    expect(@topic.anonymous_state).to eq "full_anonymity"
+  end
+
+  it "does not allow to update the anonymous state if there is a reply" do
+    create_valid_discussion_entry
+    @topic.anonymous_state = nil
+    @topic.save!
+    result = run_mutation({ id: @topic.id, anonymous_state: "full_anonymity" })
+    expect(result.dig("data", "updateDiscussionTopic", "discussionTopic")).to be_nil
+    expect(@topic.anonymous_state).to be_nil
+  end
+
   it "publishes the discussion topic" do
     @topic.unpublish!
     expect(@topic.published?).to be false
@@ -308,7 +380,8 @@ RSpec.describe Mutations::UpdateDiscussionTopic do
         grading_type: "points",
         points_possible: 5,
         due_at: 3.months.from_now,
-        peer_reviews: false
+        peer_reviews: false,
+        ab_guid: ["1E20776E-7053-11DF-8EBF-BE719DFF4B22"]
       )
       @topic = @discussion_assignment.discussion_topic
     end
@@ -391,6 +464,12 @@ RSpec.describe Mutations::UpdateDiscussionTopic do
       # Check updated object
       new_assignment = Assignment.find(@discussion_assignment.id)
       expect(new_assignment.intra_group_peer_reviews).to be false
+    end
+
+    it "sets the important dates field on the assignment" do
+      result = run_mutation(id: @topic.id, assignment: { importantDates: true })
+      expect(result["errors"]).to be_nil
+      expect(Assignment.last.important_dates).to be(true)
     end
 
     it "sets just the due date" do
@@ -478,6 +557,7 @@ RSpec.describe Mutations::UpdateDiscussionTopic do
     end
 
     it "can turn graded topic into ungraded section-specific topic in one edit" do
+      differentiated_modules_off
       section1 = @course.course_sections.create!(name: "Section 1")
       @course.course_sections.create!(name: "Section 2")
 
@@ -505,6 +585,18 @@ RSpec.describe Mutations::UpdateDiscussionTopic do
       @topic.update!(group_category: group_category_old)
       result = run_mutation(id: @topic.id, group_category_id: group_category_new.id, assignment: { groupCategoryId: group_category_old.id })
       expect(result["errors"][0]["message"]).to eq "Assignment group category id and discussion topic group category id do not match"
+    end
+
+    it "updates the ab_guid on the assignment" do
+      result = run_mutation(id: @topic.id, assignment: { abGuid: ["1E20776E-7053-11DF-8EBF-BE719DFF4B22", "1e20776e-7053-11df-8eBf-Be719dff4b22"] })
+      expect(result["errors"]).to be_nil
+      expect(Assignment.last.ab_guid).to eq(["1E20776E-7053-11DF-8EBF-BE719DFF4B22", "1e20776e-7053-11df-8eBf-Be719dff4b22"])
+    end
+
+    it "preserves the current ab_guid value on the assignment if abGuid is not passed in from the mutation" do
+      result = run_mutation(id: @topic.id, assignment: {})
+      expect(result["errors"]).to be_nil
+      expect(Assignment.last.ab_guid).to eq(["1E20776E-7053-11DF-8EBF-BE719DFF4B22"])
     end
   end
 
@@ -683,6 +775,51 @@ RSpec.describe Mutations::UpdateDiscussionTopic do
       expect(assignment.sub_assignments.count).to eq 0
       expect(DiscussionTopic.last.reply_to_entry_required_count).to eq 0
       expect(@graded_topic.reload.assignment).to be_nil
+    end
+  end
+
+  context "with selective_release_ui_api flag ON" do
+    before do
+      Account.site_admin.enable_feature!(:selective_release_ui_api)
+    end
+
+    after do
+      Account.site_admin.disable_feature!(:selective_release_ui_api)
+    end
+
+    it "updates ungraded assignment overrides" do
+      student1 = @course.enroll_student(User.create!, enrollment_state: "active").user
+      student2 = @course.enroll_student(User.create!, enrollment_state: "active").user
+      @course.enroll_student(User.create!, enrollment_state: "active").user
+
+      ungraded_discussion_overrides = {
+        studentIds: [student1.id, student2.id]
+      }
+      result = run_mutation(id: @topic.id, ungraded_discussion_overrides:)
+      expect(result["errors"]).to be_nil
+
+      new_override = DiscussionTopic.last.active_assignment_overrides.first
+
+      expect(new_override.set_type).to eq("ADHOC")
+      expect(new_override.set_id).to be_nil
+      expect(new_override.set.map(&:id)).to match_array([student1.id, student2.id])
+    end
+
+    it "does not update ungraded assignment overrides if flag is off" do
+      Account.site_admin.disable_feature!(:selective_release_ui_api)
+
+      student1 = @course.enroll_student(User.create!, enrollment_state: "active").user
+      student2 = @course.enroll_student(User.create!, enrollment_state: "active").user
+      @course.enroll_student(User.create!, enrollment_state: "active").user
+
+      ungraded_discussion_overrides = {
+        studentIds: [student1.id, student2.id]
+      }
+      result = run_mutation(id: @topic.id, ungraded_discussion_overrides:)
+      expect(result["errors"]).to be_nil
+
+      new_override = DiscussionTopic.last.active_assignment_overrides.first
+      expect(new_override).to be_nil
     end
   end
 end

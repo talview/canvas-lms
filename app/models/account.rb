@@ -395,6 +395,12 @@ class Account < ActiveRecord::Base
   add_setting :enable_usage_metrics, boolean: true, root_only: true, default: false
 
   add_setting :allow_observers_in_appointment_groups, boolean: true, default: false, inheritable: true
+  add_setting :enable_name_pronunciation, boolean: true, root_only: true, default: false
+
+  add_setting :enable_inbox_signature_block, boolean: true, root_only: true, default: false
+  add_setting :disable_inbox_signature_block_for_students, boolean: true, root_only: true, default: false
+  add_setting :enable_inbox_auto_response, boolean: true, root_only: true, default: false
+  add_setting :disable_inbox_auto_response_for_students, boolean: true, root_only: true, default: false
 
   def settings=(hash)
     if hash.is_a?(Hash) || hash.is_a?(ActionController::Parameters)
@@ -891,7 +897,7 @@ class Account < ActiveRecord::Base
     end
   end
 
-  DEFAULT_STORAGE_QUOTA = 500.megabytes
+  DEFAULT_STORAGE_QUOTA = 500.decimal_megabytes
 
   def quota
     return storage_quota if read_attribute(:storage_quote)
@@ -916,11 +922,11 @@ class Account < ActiveRecord::Base
   end
 
   def default_storage_quota_mb
-    default_storage_quota / 1.megabyte
+    default_storage_quota / 1.decimal_megabytes
   end
 
   def default_storage_quota_mb=(val)
-    self.default_storage_quota = val.try(:to_i).try(:megabytes)
+    self.default_storage_quota = val.try(:to_i).try(:decimal_megabytes)
   end
 
   def default_storage_quota=(val)
@@ -946,11 +952,11 @@ class Account < ActiveRecord::Base
   end
 
   def default_user_storage_quota_mb
-    default_user_storage_quota / 1.megabyte
+    default_user_storage_quota / 1.decimal_megabytes
   end
 
   def default_user_storage_quota_mb=(val)
-    self.default_user_storage_quota = val.try(:to_i).try(:megabytes)
+    self.default_user_storage_quota = val.try(:to_i).try(:decimal_megabytes)
   end
 
   def default_group_storage_quota
@@ -974,11 +980,11 @@ class Account < ActiveRecord::Base
   end
 
   def default_group_storage_quota_mb
-    default_group_storage_quota / 1.megabyte
+    default_group_storage_quota / 1.decimal_megabytes
   end
 
   def default_group_storage_quota_mb=(val)
-    self.default_group_storage_quota = val.try(:to_i).try(:megabytes)
+    self.default_group_storage_quota = val.try(:to_i).try(:decimal_megabytes)
   end
 
   def turnitin_shared_secret=(secret)
@@ -1551,6 +1557,18 @@ class Account < ActiveRecord::Base
     Canvas::PasswordPolicy.default_policy.merge(settings[:password_policy] || {})
   end
 
+  def password_complexity_enabled?
+    return false unless root_account?
+
+    feature_enabled?(:password_complexity)
+  end
+
+  def allow_login_suspension?
+    return false unless password_complexity_enabled?
+
+    Canvas::Plugin.value_to_boolean(password_policy[:allow_login_suspension]) || false
+  end
+
   def delegated_authentication?
     authentication_providers.active.first.is_a?(AuthenticationProvider::Delegated)
   end
@@ -1902,7 +1920,7 @@ class Account < ActiveRecord::Base
   TAB_JOBS = 15
   TAB_DEVELOPER_KEYS = 16
   TAB_RELEASE_NOTES = 17
-  TAB_EXTENSIONS = 18
+  TAB_APPS = 18
 
   def external_tool_tabs(opts, user)
     tools = Lti::ContextToolFinder
@@ -1966,13 +1984,13 @@ class Account < ActiveRecord::Base
       tabs << { id: TAB_DEVELOPER_KEYS, label: t("#account.tab_developer_keys", "Developer Keys"), css_class: "developer_keys", href: :account_developer_keys_path, account_id: root_account.id }
     end
 
-    if Account.site_admin.feature_enabled?(:analytics_hub)
+    if user && grants_right?(user, :view_analytics_hub)
       tabs << { id: TAB_ANALYTICS_HUB, label: t("#account.tab_analytics_hub", "Analytics Hub"), css_class: "analytics_hub", href: :account_analytics_hub_path }
     end
 
     if root_account? && grants_right?(user, :manage_developer_keys) && root_account.feature_enabled?(:lti_registrations_page)
       registrations_path = root_account.feature_enabled?(:lti_registrations_discover_page) ? :account_lti_registrations_path : :account_lti_manage_registrations_path
-      tabs << { id: TAB_EXTENSIONS, label: t("#account.tab_extensions", "Extensions"), css_class: "extensions", href: registrations_path, account_id: root_account.id }
+      tabs << { id: TAB_APPS, label: t("#account.tab_apps", "Apps"), css_class: "apps", href: registrations_path, account_id: root_account.id }
     end
 
     tabs += external_tool_tabs(opts, user)
@@ -2479,5 +2497,9 @@ class Account < ActiveRecord::Base
     return false if Account.site_admin.feature_enabled?(:deprecate_faculty_journal)
 
     read_attribute(:enable_user_notes)
+  end
+
+  def banned_email_domains
+    settings[:banned_email_domains] || []
   end
 end

@@ -349,7 +349,7 @@ describe AssignmentsApiController, type: :request do
             a.due_at = due_at
             a.save!
           end
-          assignment_override_model(assignment: @course.assignments.where(title: "assignment4").take,
+          assignment_override_model(assignment: @course.assignments.find_by(title: "assignment4"),
                                     set: @section1,
                                     due_at: 2.months.from_now)
 
@@ -358,10 +358,10 @@ describe AssignmentsApiController, type: :request do
             a.due_at = due_at
             a.save!
           end
-          assignment_override_model(assignment: @course.assignments.where(title: "assignment3").take,
+          assignment_override_model(assignment: @course.assignments.find_by(title: "assignment3"),
                                     set: @section2,
                                     due_at: 2.months.ago)
-          assignment_override_model(assignment: @course.assignments.where(title: "assignment3").take,
+          assignment_override_model(assignment: @course.assignments.find_by(title: "assignment3"),
                                     set: @course.default_section,
                                     due_at: 3.months.from_now)
 
@@ -1643,6 +1643,13 @@ describe AssignmentsApiController, type: :request do
         expect(checkpoints.pluck("points_possible")).to match_array [@c1.points_possible, @c2.points_possible]
         expect(checkpoints.pluck("due_at")).to match_array [@c1.due_at.iso8601, @c2.due_at.iso8601]
         expect(checkpoints.pluck("only_visible_to_overrides")).to match_array [@c1.only_visible_to_overrides, @c2.only_visible_to_overrides]
+      end
+
+      it "excludes checkpointed assignments if exclude_checkpoints is enabled" do
+        json = api_get_assignments_user_index(@teacher, @course, @teacher, exclude_checkpoints: true)
+        expect(json.length).to eq 0
+        json = api_get_assignments_user_index(@teacher, @course, @teacher)
+        expect(json.length).to eq 1
       end
     end
 
@@ -5948,6 +5955,7 @@ describe AssignmentsApiController, type: :request do
                                                  "author" => {},
                                                  "id" => @topic.id,
                                                  "is_section_specific" => @topic.is_section_specific,
+                                                 "summary_enabled" => @topic.summary_enabled,
                                                  "title" => "assignment1",
                                                  "message" => nil,
                                                  "posted_at" => @topic.posted_at.as_json,
@@ -5982,7 +5990,7 @@ describe AssignmentsApiController, type: :request do
                                                  "html_url" =>
             "http://www.example.com/courses/#{@course.id}/discussion_topics/#{@topic.id}",
                                                  "attachments" => [],
-                                                 "permissions" => { "attach" => true, "update" => true, "reply" => true, "delete" => true },
+                                                 "permissions" => { "attach" => true, "update" => true, "reply" => true, "delete" => true, "manage_assign_to" => true },
                                                  "discussion_type" => "side_comment",
                                                  "group_category_id" => nil,
                                                  "can_group" => true,
@@ -6285,6 +6293,7 @@ describe AssignmentsApiController, type: :request do
                                                                "url" => tool.url,
                                                                "new_tab" => false,
                                                                "resource_link_id" => ContextExternalTool.opaque_identifier_for(content_tag, content_tag.context.shard),
+                                                               "resource_link_title" => nil,
                                                                "external_data" => nil,
                                                                "custom_params" => nil,
                                                                "content_id" => tool.id,

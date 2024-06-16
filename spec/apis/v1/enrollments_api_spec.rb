@@ -1142,7 +1142,8 @@ describe EnrollmentsApiController, type: :request do
 
     describe "temporary enrollments" do
       let_once(:start_at) { 1.day.ago }
-      let_once(:end_at) { 1.day.from_now }
+      let_once(:start_at_future) { 1.day.from_now }
+      let_once(:end_at) { 1.month.from_now }
 
       before(:once) do
         Account.default.enable_feature!(:temporary_enrollments)
@@ -1169,7 +1170,7 @@ describe EnrollmentsApiController, type: :request do
             role: teacher_role,
             temporary_enrollment_source_user_id: @provider.id,
             temporary_enrollment_pairing_id: temporary_enrollment_pairing.id,
-            start_at:,
+            start_at: start_at_future,
             end_at:
           }
         )
@@ -1636,7 +1637,7 @@ describe EnrollmentsApiController, type: :request do
             section = @course.course_sections.create!(name: "other_section")
             e = section.enroll_user(@teacher, "TeacherEnrollment")
             # generally these are populated from a sis_import
-            Enrollment.where(id: e).update_all(sis_pseudonym_id: @teacher.pseudonyms.where(sis_user_id: "1234").take.id)
+            Enrollment.where(id: e).update_all(sis_pseudonym_id: @teacher.pseudonyms.find_by(sis_user_id: "1234").id)
             @params[:sis_user_id] = "1234"
             @params[:created_for_sis_id] = true
             json = api_call(:get, @path, @params)

@@ -671,7 +671,7 @@ describe Assignment do
   describe "#visible_to_students_in_course_with_da" do
     let(:student_enrollment) { @course.enrollments.find_by(user: @student) }
     let(:visible_assignments) do
-      Assignment.visible_to_students_in_course_with_da(@student.id, @course.id)
+      Assignment.visible_to_students_in_course_with_da([@student.id], [@course.id])
     end
 
     it "excludes unpublished assignments" do
@@ -4465,34 +4465,34 @@ describe Assignment do
     end
 
     it "determines date from due_at's timezone" do
-      @assignment.due_at = Date.today.in_time_zone("Baghdad") + 1.hour # 01:00:00 AST +03:00 today
+      @assignment.due_at = Time.zone.today.in_time_zone("Baghdad") + 1.hour # 01:00:00 AST +03:00 today
       @assignment.time_zone_edited = "Baghdad"
       @assignment.save!
-      expect(@assignment.all_day_date).to eq Date.today
+      expect(@assignment.all_day_date).to eq Time.zone.today
 
       @assignment.due_at = @assignment.due_at.in_time_zone("Alaska") - 2.hours # 12:00:00 AKDT -08:00 previous day
       @assignment.time_zone_edited = "Alaska"
       @assignment.save!
-      expect(@assignment.all_day_date).to eq Date.today - 1.day
+      expect(@assignment.all_day_date).to eq Time.zone.today - 1.day
     end
 
     it "preserves all-day date when only changing time zone" do
-      @assignment.due_at = Date.today.in_time_zone("Baghdad") # 00:00:00 AST +03:00 today
+      @assignment.due_at = Time.zone.today.in_time_zone("Baghdad") # 00:00:00 AST +03:00 today
       @assignment.time_zone_edited = "Baghdad"
       @assignment.save!
       @assignment.due_at = @assignment.due_at.in_time_zone("Alaska") # 13:00:00 AKDT -08:00 previous day
       @assignment.time_zone_edited = "Alaska"
       @assignment.save!
-      expect(@assignment.all_day_date).to eq Date.today
+      expect(@assignment.all_day_date).to eq Time.zone.today
     end
 
     it "preserves non-all-day date when only changing time zone" do
-      @assignment.due_at = Date.today.in_time_zone("Alaska") - 11.hours # 13:00:00 AKDT -08:00 previous day
+      @assignment.due_at = Time.zone.today.in_time_zone("Alaska") - 11.hours # 13:00:00 AKDT -08:00 previous day
       @assignment.save!
       @assignment.due_at = @assignment.due_at.in_time_zone("Baghdad") # 00:00:00 AST +03:00 today
       @assignment.time_zone_edited = "Baghdad"
       @assignment.save!
-      expect(@assignment.all_day_date).to eq Date.today - 1.day
+      expect(@assignment.all_day_date).to eq Time.zone.today - 1.day
     end
   end
 
@@ -9245,7 +9245,7 @@ describe Assignment do
       )
     end
 
-    it "returns false when the course does not allow speed grader" do
+    it "returns false when the course does not allow SpeedGrader" do
       expect(@assignment.context).to receive(:allows_speed_grader?).and_return false
       expect(@assignment.can_view_speed_grader?(@teacher)).to be false
     end
@@ -9257,7 +9257,7 @@ describe Assignment do
       expect(@assignment.can_view_speed_grader?(@teacher)).to be false
     end
 
-    it "returns true when the course allows speed grader and user can manage grades" do
+    it "returns true when the course allows SpeedGrader and user can manage grades" do
       expect(@assignment.context).to receive(:allows_speed_grader?).and_return true
       expect(@assignment.can_view_speed_grader?(@teacher)).to be true
     end
@@ -9453,7 +9453,7 @@ describe Assignment do
 
       describe "refresh unread_count for content participation counts" do
         def student_unread_count_counts
-          @course.reload.content_participation_counts.where(user_id: student1.id, content_type: "Submission").take&.unread_count
+          @course.reload.content_participation_counts.find_by(user_id: student1.id, content_type: "Submission")&.unread_count
         end
 
         context "when posting submissions" do

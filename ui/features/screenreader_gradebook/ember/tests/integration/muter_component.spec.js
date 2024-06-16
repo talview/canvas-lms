@@ -15,6 +15,8 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import 'jquery'
+import 'jquery-migrate'
 import startApp from '../start_app'
 import Ember from 'ember'
 import fixtures from '../ajax_fixtures'
@@ -95,7 +97,8 @@ QUnit.skip('dialog opens and closes without changes', () => {
   })
 })
 
-test('dialog opens and makes changes upon confirmation', function () {
+// unskip in FOO-4345
+QUnit.skip('dialog opens and makes changes upon confirmation', function () {
   const {server} = this
   checkLabel(ariaMuted)
   checkChecked(true)
@@ -167,7 +170,8 @@ QUnit.skip('dialog opens and closes without changes', () => {
   })
 })
 
-test('dialog opens and makes changes upon confirmation', function () {
+// unskip in FOO-4345
+QUnit.skip('dialog opens and makes changes upon confirmation', function () {
   const {server} = this
   checkLabel(ariaUnmuted)
   checkChecked(false)

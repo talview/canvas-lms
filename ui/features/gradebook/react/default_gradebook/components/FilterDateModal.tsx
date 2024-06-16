@@ -23,7 +23,7 @@ import {Heading} from '@instructure/ui-heading'
 import CanvasDateInput from '@canvas/datetime/react/components/DateInput'
 import {MomentInput} from 'moment-timezone'
 import type {Moment} from 'moment-timezone'
-import * as tz from '@canvas/datetime'
+import * as tz from '@instructure/moment-utils'
 import {View} from '@instructure/ui-view'
 import {Button, CloseButton} from '@instructure/ui-buttons'
 import {useScope as useI18nScope} from '@canvas/i18n'
@@ -108,7 +108,7 @@ export default function FilterNavDateModal({
             messages={startDateMessages}
             onSelectedDateChange={(inputObj: MomentInput) => {
               if (inputObj instanceof Date) {
-                const startDate_ = isoDateFromInput('start-date', inputObj)
+                const startDate_ = isoDateFromInput('start-date', inputObj, ENV?.TIMEZONE)
                 if (endDateValue && startDate_ > endDateValue) {
                   setStartDateMessages([
                     {
@@ -142,7 +142,7 @@ export default function FilterNavDateModal({
             messages={endDateMessages}
             onSelectedDateChange={(inputObj: MomentInput) => {
               if (inputObj instanceof Date) {
-                const endDate_ = isoDateFromInput('end-date', inputObj)
+                const endDate_ = isoDateFromInput('end-date', inputObj, ENV?.TIMEZONE)
                 if (startDateValue && endDate_ < startDateValue) {
                   setEndDateMessages([
                     {

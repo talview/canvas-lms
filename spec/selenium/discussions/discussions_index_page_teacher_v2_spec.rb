@@ -21,12 +21,14 @@ require_relative "pages/discussions_index_page"
 require_relative "../helpers/discussions_common"
 require_relative "../helpers/context_modules_common"
 require_relative "../helpers/items_assign_to_tray"
+require_relative "../../helpers/selective_release_common"
 
 describe "discussions index" do
   include_context "in-process server selenium tests"
   include ContextModulesCommon
   include ItemsAssignToTray
   include DiscussionsCommon
+  include SelectiveReleaseCommon
 
   context "as a teacher" do
     discussion1_title = "Meaning of life"
@@ -312,6 +314,29 @@ describe "discussions index" do
 
         expected_overrides = generate_expected_overrides(graded_discussion.assignment)
         expect(displayed_overrides).to match_array(expected_overrides)
+      end
+
+      it "does not render assign to tray on group discussions index" do
+        group = @course.groups.create!(name: "Group 1")
+        discussion = group.discussion_topics.create!(title: "group topic")
+        user_session(@teacher)
+        get("/groups/#{group.id}/discussion_topics/")
+        wait_for_ajaximations
+        DiscussionsIndex.discussion_menu(discussion.title).click
+        expect(DiscussionsIndex.manage_discussions_menu).to include_text("Delete")
+        expect(DiscussionsIndex.manage_discussions_menu).not_to include_text("Assign To")
+      end
+
+      it "does not show the option when the user does not have the moderate_forum permission" do
+        discussion = create_graded_discussion(@course)
+        login_and_visit_course(@teacher, @course)
+        DiscussionsIndex.discussion_menu(discussion.title).click
+        expect(DiscussionsIndex.manage_discussions_menu).to include_text("Assign To")
+
+        RoleOverride.create!(context: @course.account, permission: "moderate_forum", role: teacher_role, enabled: false)
+        login_and_visit_course(@teacher, @course)
+        DiscussionsIndex.discussion_menu(discussion.title).click
+        expect(DiscussionsIndex.manage_discussions_menu).not_to include_text("Assign To")
       end
     end
   end

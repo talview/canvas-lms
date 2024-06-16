@@ -65,6 +65,7 @@ export const addNewGroupCategoryToCache = (cache, newCategory) => {
 const getAssetCode = (assetType, assetId) => {
   if (assetType === ASSIGNMENT_OVERRIDE_GRAPHQL_TYPENAMES.SECTION)
     return `course_section_${assetId}`
+  if (assetType === ASSIGNMENT_OVERRIDE_GRAPHQL_TYPENAMES.COURSE) return `course_${assetId}`
   if (assetType === ASSIGNMENT_OVERRIDE_GRAPHQL_TYPENAMES.GROUP) return `group_${assetId}`
   return masteryPathsOption.assetCode
 }
@@ -87,25 +88,36 @@ export const buildDefaultAssignmentOverride = () => {
     },
   ]
 }
+export const buildAssignmentOverrides = discussion => {
+  const target = discussion.assignment || discussion
 
-export const buildAssignmentOverrides = assignment => {
-  if (!assignment) return buildDefaultAssignmentOverride()
+  if (!target) return buildDefaultAssignmentOverride()
 
-  const overrides =
-    assignment?.assignmentOverrides?.nodes?.map(override => ({
+  let overrides =
+    target === discussion.assignment
+      ? target.assignmentOverrides
+      : target.ungradedDiscussionOverrides
+
+  overrides =
+    overrides?.nodes?.map(override => ({
       dueDateId: override.id,
       assignedList: getAssignedList(override),
       dueDate: override.dueAt,
       availableFrom: override.unlockAt,
       availableUntil: override.lockAt,
+      unassignItem: override.unassignItem,
       ...(override.contextModule && {
         context_module_id: override.contextModule._id,
         context_module_name: override.contextModule.name,
       }),
     })) || []
 
+  const hasCourseOverride = overrides.some(obj =>
+    obj.assignedList.some(item => item.includes('course') && !item.includes('section'))
+  )
   // When this is true, then we do not have a everyone/everyone else option
-  if (assignment.onlyVisibleToOverrides || !assignment.visibleToEveryone) return overrides
+  if (target.onlyVisibleToOverrides || !target.visibleToEveryone || hasCourseOverride)
+    return overrides
 
   overrides.push({
     dueDateId: nanoid(),
@@ -113,9 +125,9 @@ export const buildAssignmentOverrides = assignment => {
       overrides.length > 0
         ? [defaultEveryoneElseOption.assetCode]
         : [defaultEveryoneOption.assetCode],
-    dueDate: assignment.dueAt,
-    availableFrom: assignment.unlockAt,
-    availableUntil: assignment.lockAt,
+    dueDate: target.dueAt,
+    availableFrom: target.unlockAt || target.delayedPostAt,
+    availableUntil: target.lockAt,
   })
 
   return overrides.length > 0 ? overrides : buildDefaultAssignmentOverride()

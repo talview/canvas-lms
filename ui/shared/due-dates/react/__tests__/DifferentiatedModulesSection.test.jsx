@@ -26,6 +26,7 @@ const SECTIONS_DATA = [
   {id: '1', course_id: '1', name: 'Course 1', start_at: null, end_at: null},
   {id: '2', course_id: '1', name: 'Section A', start_at: null, end_at: null},
 ]
+
 const COURSE_ID = 1
 const ASSIGNMENT_ID = '1'
 
@@ -50,17 +51,18 @@ describe('DifferentiatedModulesSection', () => {
   const props = {
     onSync: () => {},
     importantDates: false,
-    assignmentName: 'First Assignment',
+    getAssignmentName: () => 'First Assignment',
     assignmentId: ASSIGNMENT_ID,
     type: 'assignment',
-    pointsPossible: '10',
+    getPointsPossible: () => '10',
     overrides: assignmentcollection.models.map(model => model.toJSON().assignment_override),
     defaultSectionId: 0,
   }
 
-  const SECTIONS_URL = `/api/v1/courses/${COURSE_ID}/sections`
-  const STUDENTS_URL = `api/v1/courses/${COURSE_ID}/users?enrollment_type=student`
-  const DATE_DETAILS = `/api/v1/courses/${COURSE_ID}/assignments/${ASSIGNMENT_ID}/date_details`
+  const SECTIONS_URL = `/api/v1/courses/${COURSE_ID}/sections?per_page=100`
+  const STUDENTS_URL = `api/v1/courses/${COURSE_ID}/users?per_page=100&enrollment_type=student`
+  const DATE_DETAILS = `/api/v1/courses/${COURSE_ID}/assignments/${ASSIGNMENT_ID}/date_details?per_page=100`
+  const SETTINGS_URL = `/api/v1/courses/${COURSE_ID}/settings`
 
   beforeAll(() => {
     window.ENV ||= {}
@@ -74,7 +76,7 @@ describe('DifferentiatedModulesSection', () => {
   })
 
   beforeEach(() => {
-    fetchMock.get(STUDENTS_URL, []).get(SECTIONS_URL, SECTIONS_DATA).get(DATE_DETAILS, {})
+    fetchMock.get(STUDENTS_URL, []).get(SECTIONS_URL, SECTIONS_DATA).get(DATE_DETAILS, {}).get(SETTINGS_URL, {})
   })
 
   afterEach(() => {
@@ -171,10 +173,56 @@ describe('DifferentiatedModulesSection', () => {
       }
     })
 
-    it('does not render the option for non-assignment items', () => {
+    it('renders the option for assignment items', () => {
+      const {queryByTestId} = render(<DifferentiatedModulesSection {...props} type="assignment" />)
+      expect(queryByTestId('important_dates')).toBeInTheDocument()
+    })
+
+    it('renders the option for discussion items', () => {
+      const {queryByTestId} = render(<DifferentiatedModulesSection {...props} type="discussion" />)
+      expect(queryByTestId('important_dates')).toBeInTheDocument()
+    })
+
+    it('renders the option for quiz items', () => {
       const {queryByTestId} = render(<DifferentiatedModulesSection {...props} type="quiz" />)
+      expect(queryByTestId('important_dates')).toBeInTheDocument()
+    })
+
+    it('does not render the option for non-supported items', () => {
+      const {queryByTestId} = render(<DifferentiatedModulesSection {...props} type="module" />)
 
       expect(queryByTestId('important_dates')).not.toBeInTheDocument()
+    })
+
+    describe('if supportDueDates is false', () => {
+      it('does not render the option for assignment items', () => {
+        const {queryByTestId} = render(
+          <DifferentiatedModulesSection {...props} type="assignment" supportDueDates={false} />
+        )
+        expect(queryByTestId('important_dates')).not.toBeInTheDocument()
+      })
+
+      it('does not render the option for discussion items', () => {
+        const {queryByTestId} = render(
+          <DifferentiatedModulesSection {...props} type="discussion" supportDueDates={false} />
+        )
+        expect(queryByTestId('important_dates')).not.toBeInTheDocument()
+      })
+
+      it('does not render the option for quiz items', () => {
+        const {queryByTestId} = render(
+          <DifferentiatedModulesSection {...props} type="quiz" supportDueDates={false} />
+        )
+        expect(queryByTestId('important_dates')).not.toBeInTheDocument()
+      })
+
+      it('does not render the option for non-supported items', () => {
+        const {queryByTestId} = render(
+          <DifferentiatedModulesSection {...props} type="module" supportDueDates={false} />
+        )
+
+        expect(queryByTestId('important_dates')).not.toBeInTheDocument()
+      })
     })
 
     it('calls onSync with the importantDates flag when checking/unchecking the option', () => {
@@ -196,6 +244,37 @@ describe('DifferentiatedModulesSection', () => {
       )
 
       expect(getByTestId('important_dates')).toBeDisabled()
+    })
+  })
+
+  describe('required due dates', () => {
+    beforeAll(() => {
+      global.ENV = {
+        ...global.ENV,
+        POST_TO_SIS: true,
+        DUE_DATE_REQUIRED_FOR_ACCOUNT: true
+      }
+    })
+
+    it('validates if required due dates are set before applying changes', async () => {
+      const {getByTestId,queryByTestId, findAllByTestId, getByText, getAllByText} = render(
+        <DifferentiatedModulesSection {...props} />
+      )
+
+      act(() => getByTestId('manage-assign-to').click())
+      // wait until the cards are loaded
+      await findAllByTestId('item-assign-to-card');
+
+      const addCardBtn = getByTestId('add-card')
+      act(() => addCardBtn.click())
+
+      getByTestId('differentiated_modules_save_button').click()
+
+      // keep the tray open
+      expect(queryByTestId('pending_changes_pill')).not.toBeInTheDocument()
+
+      expect(getAllByText('Please add a due date')[0]).toBeInTheDocument()
+      expect(getByText('Please fix errors before continuing')).toBeInTheDocument()
     })
   })
 })

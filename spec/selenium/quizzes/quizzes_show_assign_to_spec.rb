@@ -21,12 +21,14 @@ require_relative "../../spec_helper"
 require_relative "page_objects/quizzes_landing_page"
 require_relative "../helpers/items_assign_to_tray"
 require_relative "../helpers/context_modules_common"
+require_relative "../../helpers/selective_release_common"
 
 describe "quiz show page assign to" do
   include_context "in-process server selenium tests"
   include QuizzesLandingPage
   include ItemsAssignToTray
   include ContextModulesCommon
+  include SelectiveReleaseCommon
 
   before :once do
     differentiated_modules_on
@@ -135,5 +137,14 @@ describe "quiz show page assign to" do
     keep_trying_until { expect(item_tray_exists?).to be_truthy }
 
     check_element_has_focus close_button
+  end
+
+  it "does not show the button when the user does not have the manage_assignments_edit permission" do
+    get "/courses/#{@course.id}/quizzes/#{@classic_quiz.id}"
+    expect(element_exists?(quiz_assign_to_button_selector)).to be_truthy
+
+    RoleOverride.create!(context: @course.account, permission: "manage_assignments_edit", role: teacher_role, enabled: false)
+    get "/courses/#{@course.id}/quizzes/#{@classic_quiz.id}"
+    expect(element_exists?(quiz_assign_to_button_selector)).to be_falsey
   end
 end

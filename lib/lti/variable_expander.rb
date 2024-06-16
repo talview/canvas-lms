@@ -160,6 +160,8 @@ module Lti
 
         if @tool.is_a?(ContextExternalTool) && @tool.use_1_3? && output.is_a?(Numeric)
           output&.to_s
+        elsif Account.site_admin.feature_enabled?(:disallow_null_custom_variables)
+          output.nil? ? v : output
         else
           output
         end
@@ -808,7 +810,6 @@ module Lti
                        -> { Shard.current.id }
 
     # returns the root account's global id for the current context.
-    # @duplicates Canvas.user.globalId
     # @example
     #   ```
     #   123400000000123
@@ -1365,7 +1366,6 @@ module Lti
                        -> { lti_helper.all_roles("lti1_3") }
 
     # Returns the Canvas global user_id of the launching user.
-    # @duplicates Canvas.root_account.global_id
     # @example
     #   ```
     #   420000000000042

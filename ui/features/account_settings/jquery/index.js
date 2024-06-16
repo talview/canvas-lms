@@ -26,13 +26,13 @@ import {setupCache} from 'axios-cache-adapter/src/index'
 import 'jqueryui/tabs'
 import globalAnnouncements from './global_announcements'
 import '@canvas/jquery/jquery.ajaxJSON'
-import '@canvas/datetime/jquery' // date_field, time_field, datetime_field, /\$\.datetime/
 import '@canvas/jquery/jquery.instructure_forms' // formSubmit, getFormData, validateForm
 import '@canvas/jquery/jquery.instructure_misc_helpers' // replaceTags
 import '@canvas/jquery/jquery.instructure_misc_plugins' // confirmDelete, showIf, /\.log/
 import '@canvas/loading-image'
-import 'date-js' // Date.parse
+import '@instructure/date-js' // Date.parse
 import 'jquery-scroll-to-visible/jquery.scrollTo'
+import {renderDatetimeField} from '@canvas/datetime/jquery/DatetimeField'
 
 const I18n = useI18nScope('account_settings')
 
@@ -164,7 +164,7 @@ $(document).ready(function () {
     }
   })
 
-  $('.datetime_field').datetime_field({
+  renderDatetimeField($('.datetime_field'), {
     addHiddenInput: true,
   })
 
@@ -201,7 +201,7 @@ $(document).ready(function () {
           .then(req => req.text())
           .then(html => {
             $('#tab-reports').html(html)
-            $('#tab-reports .datetime_field').datetime_field()
+            renderDatetimeField($('#tab-reports .datetime_field'))
 
             $('.open_report_description_link').click(openReportDescriptionLink)
 
@@ -642,6 +642,26 @@ $(document).ready(function () {
     }
     onTermsTypeChange()
   }
+
+  $('#account_settings_enable_inbox_signature_block').click(event => {
+    const lockbox = $('#account_settings_disable_inbox_signature_block_for_students')
+    if (event.target.checked) {
+      lockbox.prop('disabled', false)
+    } else {
+      lockbox.prop('checked', false)
+      lockbox.prop('disabled', true)
+    }
+  })
+
+  $('#account_settings_enable_inbox_auto_response').click(event => {
+    const lockbox = $('#account_settings_disable_inbox_auto_response_for_students')
+    if (event.target.checked) {
+      lockbox.prop('disabled', false)
+    } else {
+      lockbox.prop('checked', false)
+      lockbox.prop('disabled', true)
+    }
+  })
 
   window.addEventListener('popstate', () => {
     const openTab = window.location.hash

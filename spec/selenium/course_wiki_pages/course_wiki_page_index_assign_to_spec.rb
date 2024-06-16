@@ -20,6 +20,7 @@ require_relative "../common"
 require_relative "../helpers/context_modules_common"
 require_relative "../helpers/items_assign_to_tray"
 require_relative "page_objects/wiki_index_page"
+require_relative "../../helpers/selective_release_common"
 
 describe "wiki pages show page assign to" do
   include_context "in-process server selenium tests"
@@ -27,6 +28,7 @@ describe "wiki pages show page assign to" do
   include ContextModulesCommon
   include ItemsAssignToTray
   include CourseWikiIndexPage
+  include SelectiveReleaseCommon
 
   before :once do
     differentiated_modules_on
@@ -162,5 +164,26 @@ describe "wiki pages show page assign to" do
     keep_trying_until { expect(element_exists?(module_item_edit_tray_selector)).to be_falsey }
 
     check_element_has_focus manage_wiki_page_item_button(@page.title)
+  end
+
+  it "does not show assign to button for group pages" do
+    group = @course.groups.create!(name: "Group 1")
+    page = group.wiki_pages.create!(title: "group-page")
+    visit_group_wiki_index_page(group.id)
+    manage_wiki_page_item_button(page.title).click
+    expect(wiki_page_item_settings_menu).to include_text("Edit")
+    expect(wiki_page_item_settings_menu).not_to include_text("Assign To")
+  end
+
+  it "does not show the button when the user does not have the manage_wiki_update permission" do
+    visit_course_wiki_index_page(@course.id)
+    manage_wiki_page_item_button(@page.title).click
+    expect(fj(wiki_page_assign_to_menu_selector)).to be_truthy
+    expect(f("body")).to contain_jqcss(wiki_page_assign_to_menu_selector)
+
+    RoleOverride.create!(context: @course.account, permission: "manage_wiki_update", role: teacher_role, enabled: false)
+    visit_course_wiki_index_page(@course.id)
+    manage_wiki_page_item_button(@page.title).click
+    expect(f("body")).not_to contain_jqcss(wiki_page_assign_to_menu_selector)
   end
 end

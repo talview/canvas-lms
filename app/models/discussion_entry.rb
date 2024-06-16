@@ -254,11 +254,11 @@ class DiscussionEntry < ActiveRecord::Base
   def update_topic_submission
     if discussion_topic.for_assignment?
       entries = discussion_topic.discussion_entries.where(user_id:, workflow_state: "active")
-      submission = discussion_topic.assignment.submissions.where(user_id:).take
+      submission = discussion_topic.assignment.submissions.find_by(user_id:)
       return unless submission
 
       if entries.any?
-        submission_date = entries.order(:created_at).limit(1).pluck(:created_at).first
+        submission_date = entries.order(:created_at).limit(1).pick(:created_at)
         if submission_date > created_at
           submission.submitted_at = submission_date
           submission.save!
@@ -581,7 +581,7 @@ class DiscussionEntry < ActiveRecord::Base
   end
 
   def broadcast_report_notification(report_type)
-    return unless context.feature_enabled?(:react_discussions_post)
+    return unless root_account.feature_enabled?(:discussions_reporting)
 
     to_list = context.instructors_in_charge_of(user_id)
 

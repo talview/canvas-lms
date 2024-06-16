@@ -340,15 +340,27 @@ module CC
         @url_prefix += ":#{port}" if !host&.include?(":") && port.present?
       end
 
-      # after LF-232 is stable on master, we should be able to remove this, I think
+      # after LF-1335 has been run on prod, we should be able to remove this, I think
       def used_media_objects
         return @used_media_objects if @ensure_attachments_for_media_objects
 
+        course_media = @course.attachments.where.not(media_entry_id: nil)
         @used_media_objects.each do |obj|
-          unless obj.attachment
-            obj.attachment = Attachment.create!(context: obj.context, media_entry_id: obj.media_id, filename: obj.guaranteed_title, content_type: "unknown/unknown")
-            obj.save!
-          end
+          new_attachment = if (file = course_media.find { |cm| cm.media_entry_id == obj.media_id })
+                             file
+                           elsif obj.attachment
+                             attachment = obj.attachment.clone_for(@course)
+                             attachment.save
+                             attachment
+                           else
+                             obj.attachment = @course.attachments.create!(media_entry_id: obj.media_id, filename: obj.guaranteed_title, content_type: "unknown/unknown")
+                             obj.save!
+                             obj.attachment
+                           end
+
+          new_attachment.update! file_state: "available"
+          new_attachment.export_id = @key_generator.create_key(new_attachment)
+          @referenced_files[new_attachment.id] = new_attachment
         end
         @ensure_attachments_for_media_objects = true
         @used_media_objects
@@ -472,7 +484,7 @@ module CC
       end
       source_attachment = Attachment.find_by(id: obj.attachment_id) if obj.attachment_id
       related_attachment_ids = [source_attachment.id] + source_attachment.related_attachments.pluck(:id) if source_attachment
-      attachment = course && related_attachment_ids && course.attachments.not_deleted.where(id: related_attachment_ids).take
+      attachment = course && related_attachment_ids && course.attachments.not_deleted.find_by(id: related_attachment_ids)
       path = if attachment
                # if the media object is associated with a file in the course, use the file's path in the export, to avoid exporting it twice
                attachment.full_display_path.sub(/^#{Regexp.quote(Folder::ROOT_FOLDER_NAME)}/, "")

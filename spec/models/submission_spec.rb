@@ -52,7 +52,7 @@ describe Submission do
   describe "inferred values" do
     subject do
       submission.infer_values
-      submission.workflow_state
+      submission.state
     end
 
     let(:student) { @student }
@@ -61,20 +61,20 @@ describe Submission do
     describe "workflow_state" do
       context "when current state is unsubmitted and submitted_at is present" do
         before do
-          submission.workflow_state = Submission.workflow_states.unsubmitted
+          submission.workflow_state = "unsubmitted"
           submission.submission_type = "online_text_entry"
           submission.submitted_at = Time.zone.now
         end
 
-        it { is_expected.to eq Submission.workflow_states.submitted }
+        it { is_expected.to be :submitted }
       end
 
       context "when current state is submitted and has_submission is false" do
         before do
-          submission.workflow_state = Submission.workflow_states.submitted
+          submission.workflow_state = "submitted"
         end
 
-        it { is_expected.to eq Submission.workflow_states.unsubmitted }
+        it { is_expected.to be :unsubmitted }
       end
 
       context "when grade and score are present and grade matches current submission" do
@@ -87,23 +87,23 @@ describe Submission do
           allow(submission).to receive(:grade_matches_current_submission).and_return(true)
         end
 
-        it { is_expected.to eq Submission.workflow_states.graded }
+        it { is_expected.to be :graded }
       end
 
       context "when submission_type is online_quiz and latest submission is pending review" do
         before do
-          submission.workflow_state = Submission.workflow_states.pending_review
+          submission.workflow_state = "pending_review"
           submission.submission_type = "online_quiz"
 
           allow(submission).to receive(:quiz_submission).and_return(double("QuizSubmission", "pending_review?" => true))
         end
 
-        it { is_expected.to eq Submission.workflow_states.pending_review }
+        it { is_expected.to be :pending_review }
       end
 
       context "when workflow state is pending_review" do
         before do
-          submission.workflow_state = Submission.workflow_states.pending_review
+          submission.workflow_state = "pending_review"
         end
 
         context "and the submission was graded by quizzes" do
@@ -112,7 +112,7 @@ describe Submission do
             submission.cached_quiz_lti = true
           end
 
-          it { is_expected.to eq Submission.workflow_states.pending_review }
+          it { is_expected.to be :pending_review }
 
           context "and the submission was manually given a late policy status of missing" do
             before do
@@ -121,7 +121,7 @@ describe Submission do
               submission.late_policy_status = "missing"
             end
 
-            it { is_expected.to eq Submission.workflow_states.pending_review }
+            it { is_expected.to be :pending_review }
           end
 
           context "and the submission was manually given a late policy status of late" do
@@ -131,7 +131,7 @@ describe Submission do
               submission.late_policy_status = "late"
             end
 
-            it { is_expected.to eq Submission.workflow_states.pending_review }
+            it { is_expected.to be :pending_review }
           end
         end
       end
@@ -152,7 +152,7 @@ describe Submission do
 
         it "marks the submission as needing review" do
           submission.infer_values
-          expect(submission.workflow_state).to eq Submission.workflow_states.pending_review
+          expect(submission).to be_pending_review
         end
       end
     end
@@ -406,7 +406,7 @@ describe Submission do
 
   describe "update_quiz_submission" do
     before do
-      submission.workflow_state = Submission.workflow_states.pending_review
+      submission.workflow_state = "pending_review"
       submission.submission_type = "online_quiz"
     end
 
@@ -7045,7 +7045,7 @@ describe Submission do
     end
   end
 
-  describe "#comments_excluding_drafts_for" do
+  context "draft comments" do
     before do
       @teacher = course_with_user("TeacherEnrollment", course: @course, name: "Teacher", active_all: true).user
       ta = course_with_user("TaEnrollment", course: @course, name: "First Ta", active_all: true).user
@@ -7058,18 +7058,37 @@ describe Submission do
       @ta_comment = @submission.add_comment(author: ta, comment: "Ta comment")
     end
 
-    it "returns non-draft comments, filtering out draft comments" do
-      comments = @submission.comments_excluding_drafts_for(@teacher)
-      expect(comments).to include @student_comment, @ta_comment
-      expect(comments).not_to include @teacher_comment
-    end
-
-    context "when comments are preloaded" do
+    describe "#comments_excluding_drafts_for" do
       it "returns non-draft comments, filtering out draft comments" do
-        preloaded_submission = Submission.where(id: @submission.id).preload(:submission_comments).first
-        comments = preloaded_submission.comments_excluding_drafts_for(@teacher)
+        comments = @submission.comments_excluding_drafts_for(@teacher)
         expect(comments).to include @student_comment, @ta_comment
         expect(comments).not_to include @teacher_comment
+      end
+
+      context "when comments are preloaded" do
+        it "returns non-draft comments, filtering out draft comments" do
+          preloaded_submission = Submission.where(id: @submission.id).preload(:submission_comments).first
+          comments = preloaded_submission.comments_excluding_drafts_for(@teacher)
+          expect(comments).to include @student_comment, @ta_comment
+          expect(comments).not_to include @teacher_comment
+        end
+      end
+    end
+
+    describe "#comments_including_drafts_for" do
+      it "returns draft comments, filtering out draft comments" do
+        comments = @submission.comments_including_drafts_for(@teacher)
+        expect(comments).to include @student_comment, @ta_comment
+        expect(comments).to include @teacher_comment
+      end
+
+      context "when comments are preloaded" do
+        it "returns non-draft comments, filtering out draft comments" do
+          preloaded_submission = Submission.where(id: @submission.id).preload(:submission_comments).first
+          comments = preloaded_submission.comments_including_drafts_for(@teacher)
+          expect(comments).to include @student_comment, @ta_comment
+          expect(comments).to include @teacher_comment
+        end
       end
     end
   end

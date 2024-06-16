@@ -254,7 +254,7 @@ describe "threaded discussions" do
 
       delete_me = @topic.discussion_entries.create!(user: @student, message: "new threaded reply from student")
       Discussion.visit(@course, @topic)
-      fj('label[for="showDeleted"]').click
+      f('label[for="showDeleted"]').click
 
       delete_entry(delete_me)
       expect(f("#entry-#{delete_me.id} .discussion-title").text).to match("Deleted by #{@teacher.name} on")
@@ -938,7 +938,7 @@ describe "threaded discussions" do
 
     context "replies reporting" do
       it "lets users report replies" do
-        skip "FOO-3823"
+        @course.root_account.enable_feature! :discussions_reporting
         @topic.discussion_entries.create!(
           user: @student,
           message: "this is offensive content"
@@ -951,16 +951,16 @@ describe "threaded discussions" do
         expect(fj("h2:contains('Report Reply')")).to be_present
 
         # side test, click away from modal and make sure it closes
-        force_click("button[data-testid='discussion-topic-reply']")
+        move_to_click("input[data-testid='search-filter']")
         expect(f("body")).not_to contain_jqcss("h2:contains('Report Reply')")
 
         # resume main test
-        f("button[data-testid='thread-actions-menu']").click
+        move_to_click("button[data-testid='thread-actions-menu']")
         fj("li:contains('Report')").click
-        force_click("input[value='offensive']")
+        move_to_click("input[value='offensive']")
         f("button[data-testid='report-reply-submit-button']").click
         wait_for_ajaximations
-        f("button[data-testid='thread-actions-menu']").click
+        move_to_click("button[data-testid='thread-actions-menu']")
         expect(fj("li:contains('Reported')")).to be_present
       end
     end
@@ -1152,6 +1152,33 @@ describe "threaded discussions" do
         get "/courses/#{@course.id}/discussion_topics/#{@topic.id}"
         expect(fj("span:contains('#{@topic.message}')")).to be_present
       end
+    end
+
+    it "shows the correct entry counts for graded group discussions" do
+      topic = create_graded_discussion(@course)
+
+      group = @course.groups.create!(name: "Group 1")
+      group.add_user(@student)
+
+      topic.group_category = @course.group_categories.create!(name: "Group Category")
+      topic.save!
+
+      subtopic = topic.child_topics.build(title: "Subtopic 1", context: group)
+      subtopic_assignment = @course.assignments.build(submission_types: "discussion_topic", title: subtopic.title)
+      subtopic_assignment.infer_times
+      subtopic_assignment.saved_by = :discussion_topic
+      subtopic.assignment = subtopic_assignment
+      subtopic.group_category = topic.group_category
+      subtopic.save
+
+      root_entry = topic.discussion_entries.create!(user: @teacher, message: "root entry")
+      topic.discussion_entries.create!(user: @teacher, message: "sub entry", root_entry_id: root_entry.id, parent_id: root_entry.id)
+
+      user_session(@teacher)
+
+      get "/courses/#{@course.id}/discussion_topics/#{topic.id}"
+
+      expect(ff("div[data-testid='replies-counter']")[1]).to include_text("1 Reply")
     end
   end
 end

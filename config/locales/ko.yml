@@ -166,6 +166,7 @@ ko:
     root_account_cant_have_sis_id: "루트 계정에 SIS ID를 설정할 수 없음"
     sis_id_in_use: "SIS ID \"%{sis_id}\"이(가) 이미 사용 중임"
     tab_admin_tools: "관리 도구"
+    tab_apps: 확장
     tab_authentication: 인증
     tab_brand_configs: 테마
     tab_courses: 과목
@@ -1061,6 +1062,7 @@ ko:
       turnitin_pledge_help: "학생이 이 서약에 동의하는 것을 인정하는 상자에 체크해야 함"
       turnitin_settings_title: "Turnitin 설정"
       update_settings_button: "업데이트 설정"
+    settings_crumb: 설정
     show: 
       courses_crumb: 과목
       no_courses_account_message: "이 계정에 과목 없음"
@@ -1375,13 +1377,16 @@ ko:
   add_feed_49ed1cb2: "피드 추가"
   add_group_c84f9e9d: "그룹 추가"
   add_group_set_f9809e11: "그룹 집합 추가"
+  add_message_10cc308c: "메시지 추가"
   add_module_5ad6fee2: "모듈 추가"
+  add_prerequisite_6409bd9: "필수 조건 추가"
   add_quiz_cebfa28b: "퀴즈 추가"
   add_students_to_the_course_874be8fb: "과목에 학생 추가"
   add_tas_to_the_course_2aac6e02: "과목에 조교 추가"
   adding_efca307a: "추가 중..."
   adding_rss_feed_f1202567: "RSS 피드 추가하기"
   adjust_events_and_due_dates_879744fc: "행사와 기한 조정"
+  admin_tools_9e2c9268: "관리 도구"
   after_date_981cd41b: "%{date} 이후"
   after_last_attempt_c9168da2: "마지막 시도 이후"
   agenda_b010136d: 안건
@@ -1577,7 +1582,7 @@ ko:
       invalid_course_section: "유효하지 않은 과목 섹션"
       invalid_group_category: "유효하지 않은 그룹 범주"
       missing_group_category: "그룹 약속은 그룹 범주를 가지고 있어야 함"
-  apps_54d24a47: 앱
+  apps_54d24a47: 확장
   apps_are_an_easy_way_to_add_new_features_to_canvas_2cbc2531: "앱은 Canvas에 새 기능을 추가하는 쉬운 방법입니다. 개별 과목이나 계정에 있는 모든 과목에 추가할 수 있습니다. 구성을 마치면 과목 모듈을 통해 연결하거나고 평가 도구를 위한 과제를 만들 수 있습니다."
   appt_calendar_event_dialog: 
     invalid_participants: "한 명 이상의 참가자를 허용해야 함"
@@ -1903,7 +1908,7 @@ ko:
           학생이 제출물 파일에 대한 의견에서 변경된 파일을 볼 수 있습니다.
           
           *파일 이름을 인식할 수 있도록 제출물 파일의 이름을 바꾸지 마십시오.*
-      speed_grader: SpeedGrader™
+      speed_grader: SpeedGrader
       titles: 
         related_items: "관련 항목"
     grade_gpa_scale_screenreader: "평점: %{grade}"
@@ -2348,6 +2353,7 @@ ko:
     sso_settings_form: 
       change_password_url_help: "기본 Canvas 동작을 사용하려면 비워 둠"
       login_handle_name_description: "레이블은 고유한 로그인 식별자에 사용됩니다. 예: 로그인, 사용자 이름, 학생 ID 등."
+  authentication_settings_5c2078a3: "인증 설정"
   authnrequest_sent_to_idp_74e030fc: "IdP로 전송된 AuthnRequest"
   authnresponse_from_idp_185037e9: "IdP에서 반환된 AuthnResponse"
   author_215203d2: 작성자
@@ -2879,6 +2885,7 @@ ko:
   canvas_cartridge_name: "Canvas Cartridge 가져오기"
   canvas_did_not_recognize_your_identity_provider_cb0e50fc: "Canvas에서 ID 공급자를 인식할 수 없음"
   canvas_doesn_t_have_an_account_for_user_user_5bcae0dd: "Canvas에 다음 사용자를 위한 계정이 없습니다: %{user}"
+  canvas_lms_6ce68514: "Canvas LMS"
   canvas_login_failure_message_4c922f2f: "Canvas 로그인 실패 메시지"
   canvas_revision_unknown: "알 수 없음"
   canvas_thinks_response_is_valid_8cc4a67d: "Canvas가 응답이 유효하다고 간주"
@@ -6056,6 +6063,8 @@ ko:
     edit_view_rubric: "루브릭 보기"
     errors: 
       select_an_option: "옵션을 선택하시기 바랍니다."
+    gradebook_header_menu: 
+      speedgrader: SpeedGrader™
     graded: 평가됨
     graded_by_me: "%{graded_time}에 내가 평가"
     graded_then_resubmitted: "평가된 후 다시 제출됨 (%{when})"
@@ -7458,6 +7467,9 @@ ko:
       new_tab: "이 도구는 새 브라우저 창에 로드해야 함"
       new_tab_expired: "이 도구의 세션이 만료되었습니다. 도구를 다시 액세스하려면 페이지를 다시 로드하십시오."
       new_tab_loaded: "이 도구를 새 브라우저 창에 성공적으로 로드했습니다. 도구를 다시 액세스하려면 페이지를 다시 로드하십시오."
+    registrations: 
+      index: 
+        title: 확장
   lti_registrations: 
     index: 
       title: 확장
@@ -10149,6 +10161,10 @@ ko:
         upload_ui_conf: "업로더 UI 구성 ID"
         user_secret_key: "사용자 시크릿"
       ui_conf_ids: "Kaltura 호스팅 고객은 이 ID를 Kaltura에 요청할 수 있습니다. 자체 호스팅 인스턴스는 ui_confs 테이블에서 이 값을 찾을 수 있습니다."
+    learn_platform_settings: 
+      labels: 
+        base_url: "기준 URL"
+        token: "액세스 토큰"
     linked_in: 
       description: "LinkedIn 통합"
     linked_in_settings: 
@@ -11673,6 +11689,7 @@ ko:
       create_group: "그룹 만들기"
       create_question: "문제 만들기"
       creating_group: "그룹 만드는 중..."
+      generate: 생성
       generating: "만드는 중..."
       generating_combinations_progress: "만드는 중... (%{done}/%{total})"
       save: 저장
@@ -13040,7 +13057,8 @@ ko:
     not_submitted: "제출 안 됨"
     turnitin: 
       resubmitting: "다시 제출 중..."
-  speedgrader_tm_44688790: SpeedGrader™
+  speedgrader_de0affa6: SpeedGrader™
+  speedgrader_tm_44688790: SpeedGrader
   sr_gradebook: 
     all_sections: "모든 섹션"
     assignment_order_due_date: 기한으로
@@ -13052,6 +13070,7 @@ ko:
   start_5a4cfcd6: 시작
   start_a_new_course_57ae2480: "새 과목 시작하기"
   start_date_e937be8a: "시작 날짜"
+  started_5e138638: 시작됨
   state_66a67ba2: 상태
   state_standards_c9b1affd: "전국 표준"
   statistics: 
@@ -13128,6 +13147,8 @@ ko:
     sub_accounts_count: 
       one: "하위 계정 %{count}개"
       other: "하위 계정 %{count}개"
+    titles: 
+      sub_accounts: "하위 계정"
   subject_reply_to: "Re: %{subject}"
   submission: 
     atom_no_author: "작성자 없음"
@@ -14159,6 +14180,8 @@ ko:
   validate: 
     is_required: "이 필드가 필요함"
   validation_error_3b943100: "유효성 검사 오류"
+  verification_code_5acd64ef: "인증 코드"
+  version_5599c321: 버전
   view_app_center_6c89a3fe: "앱 센터 보기"
   view_app_configurations_52b52441: "앱 구성 보기"
   view_edit_grading_scheme_238d3028: "평가 구성표 보기/편집"

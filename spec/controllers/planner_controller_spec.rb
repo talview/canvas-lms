@@ -152,7 +152,7 @@ describe PlannerController do
         json = json_parse(response.body)
         event_ids = json.select { |thing| thing["plannable_type"] == "calendar_event" }.pluck("plannable_id")
 
-        my_event_id = @course.default_section.calendar_events.where(parent_calendar_event_id: event).pluck(:id).first
+        my_event_id = @course.default_section.calendar_events.where(parent_calendar_event_id: event).pick(:id)
         expect(event_ids).not_to include event.id
         expect(event_ids).to include my_event_id
 
@@ -178,6 +178,22 @@ describe PlannerController do
         a1 = @course.announcements.create!(message: "for the defaults", is_section_specific: true, course_sections: [@course.default_section])
         sec2 = @course.course_sections.create!
         @course.announcements.create!(message: "for my favorites", is_section_specific: true, course_sections: [sec2])
+
+        get :index
+        response_json = json_parse(response.body)
+        expect(response_json.select { |i| i["plannable_type"] == "announcement" }.pluck("plannable_id")).to eq [a1.id]
+      end
+
+      it "differentiated modules: only shows section specific announcements to students who can view them" do
+        Account.site_admin.enable_feature! :selective_release_backend
+        a1 = @course.announcements.create!(message: "for the defaults")
+        a1.update!(only_visible_to_overrides: true)
+        a1.assignment_overrides.create!(set: @course.default_section)
+        sec2 = @course.course_sections.create!
+        a2 = @course.announcements.create!(message: "for my favorites")
+        a2.update!(only_visible_to_overrides: true)
+
+        a2.assignment_overrides.create!(set: sec2)
 
         get :index
         response_json = json_parse(response.body)

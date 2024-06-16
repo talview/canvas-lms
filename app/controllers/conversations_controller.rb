@@ -300,7 +300,13 @@ class ConversationsController < ApplicationController
           MAX_GROUP_CONVERSATION_SIZE: Conversation.max_group_conversation_size
         }
 
-        hash[:INBOX_SETTINGS_ENABLED] = Account.site_admin.feature_enabled?(:inbox_settings)
+        is_student = inbox_settings_student?(user: @current_user, account: @domain_root_account)
+        hash[:INBOX_SIGNATURE_BLOCK_ENABLED] = Account.site_admin.feature_enabled?(:inbox_settings) &&
+                                               @domain_root_account.enable_inbox_signature_block? &&
+                                               (!is_student || (is_student && !@domain_root_account.disable_inbox_signature_block_for_students?))
+        hash[:INBOX_AUTO_RESPONSE_ENABLED] = Account.site_admin.feature_enabled?(:inbox_settings) &&
+                                             @domain_root_account.enable_inbox_auto_response? &&
+                                             (!is_student || (is_student && !@domain_root_account.disable_inbox_auto_response_for_students?))
 
         notes_enabled_accounts = @current_user.associated_accounts.having_user_notes_enabled
 
@@ -318,7 +324,9 @@ class ConversationsController < ApplicationController
                  CONVERSATIONS: hash,
                  apollo_caching: Account.site_admin.feature_enabled?(:apollo_caching),
                  conversation_cache_key: Base64.encode64("#{@current_user.uuid}jamDN74lLSmfnmo74Hb6snyBnmc6q"),
-                 react_inbox_labels: Account.site_admin.feature_enabled?(:react_inbox_labels)
+                 react_inbox_labels: Account.site_admin.feature_enabled?(:react_inbox_labels),
+                 inbox_translation_languages: @current_user.feature_enabled?(:translate_inbox_messages) ? Translation.languages : [],
+                 inbox_translation_enabled: @current_user.feature_enabled?(:translate_inbox_messages)
                })
         if @domain_root_account.feature_enabled?(:react_inbox)
           @page_title = t("Inbox")
