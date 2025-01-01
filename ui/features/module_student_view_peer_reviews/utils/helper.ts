@@ -26,7 +26,7 @@ import type {
 } from '../types'
 import ASSIGNMENT_QUERY from '../graphql/Queries'
 import $ from 'jquery'
-import {createClient} from '@canvas/apollo'
+import {createClient} from '@canvas/apollo-v3'
 import type {ReactElement} from 'react'
 
 export function formatAssessmentRequest({
@@ -64,8 +64,7 @@ export function formatAssignment(
 } | null {
   if (assessmentRequests.length === 0 || ENV.course_id == null) return null
 
-  // @ts-expect-error
-  const container: ReactElement | undefined = $(
+  const container: Element | undefined = $(
     `#module_student_view_peer_reviews_${assignmentId}_${moduleId}`
   )[0]
 

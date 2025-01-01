@@ -88,6 +88,7 @@ describe "Outcome Reports" do
     @rubric.save!
     @a = @rubric.associate_with(@assignment, @course1, purpose: "grading")
     @assignment.reload
+    @assignment.sub_assignments.create!(title: "sub assignment", context: @assignment.context, sub_assignment_tag: CheckpointLabels::REPLY_TO_TOPIC)
     @submission = @assignment.grade_student(@user1, grade: "10", grader: @teacher).first
     @submission.submission_type = "online_url"
     @submission.submitted_at = 1.week.ago
@@ -300,7 +301,7 @@ describe "Outcome Reports" do
 
       it "includes deleted enrollments when include_deleted is set" do
         report_record = run_report(report_type, account: @root_account, params: { "include_deleted" => true })
-        expect(report_record.parameters["extra_text"]).to eq "Term: All Terms; Include Deleted Objects;"
+        expect(report_record.parameters["extra_text"]).to eq "Term: All Terms; Include Deleted/Concluded Objects;"
 
         report = parse_report(report_record, order:, parse_header: true)
         verify_all(report, all_values)
@@ -618,8 +619,8 @@ describe "Outcome Reports" do
 
           report_record = run_report(report_type, account: @root_account, params: { "include_deleted" => true })
           expect(report_record.workflow_state).to eq "complete"
-          expect(report_record.message).to eq "Outcome Results report successfully generated with the following settings. Account: New Account; Term: All Terms; Include Deleted Objects;"
-          expect(report_record.parameters["extra_text"]).to eq "Term: All Terms; Include Deleted Objects;"
+          expect(report_record.message).to eq "Outcome Results report successfully generated with the following settings. Account: New Account; Term: All Terms; Include Deleted/Concluded Objects;"
+          expect(report_record.parameters["extra_text"]).to eq "Term: All Terms; Include Deleted/Concluded Objects;"
         end
 
         it "errors if not valid json" do

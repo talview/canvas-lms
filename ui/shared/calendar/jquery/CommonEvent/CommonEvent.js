@@ -16,15 +16,16 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import fcUtil from '../fcUtil'
 import '@canvas/jquery/jquery.ajaxJSON'
 import 'jquery-tinypubsub'
+import {datetimeString, dateString} from '@canvas/datetime/date-functions'
 import splitAssetString from '@canvas/util/splitAssetString'
 import {showFlashAlert} from '@canvas/alerts/react/FlashAlert'
 
-const I18n = useI18nScope('calendar')
+const I18n = createI18nScope('calendar')
 
 const EVENT_TYPES = {
   todo_item: 'todo_item',
@@ -224,9 +225,9 @@ Object.assign(CommonEvent.prototype, {
     }
     datetime = fcUtil.unwrap(datetime)
     if (allDay) {
-      formattedHtml = $.dateString(datetime)
+      formattedHtml = dateString(datetime)
     } else {
-      formattedHtml = $.datetimeString(datetime)
+      formattedHtml = datetimeString(datetime)
     }
     return `<time datetime='${datetime.toISOString()}'>${formattedHtml}</time>`
   },

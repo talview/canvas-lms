@@ -22,7 +22,7 @@ import {Discussion} from '../../../../graphql/Discussion'
 import {DiscussionEntry} from '../../../../graphql/DiscussionEntry'
 import {fireEvent, render, waitFor} from '@testing-library/react'
 import {SplitScreenThreadsContainer} from '../SplitScreenThreadsContainer'
-import {MockedProvider} from '@apollo/react-testing'
+import {MockedProvider} from '@apollo/client/testing'
 import {PageInfo} from '../../../../graphql/PageInfo'
 import React from 'react'
 import {updateDiscussionEntryParticipantMock} from '../../../../graphql/Mocks'
@@ -210,7 +210,7 @@ describe('SplitScreenThreadsContainer', () => {
       expect(onDelete).toHaveBeenCalled()
     })
 
-    it('only shows the speed grader option if you have permission', async () => {
+    it('only shows the SpeedGrader option if you have permission', async () => {
       const props = defaultProps({overrides: {onOpenInSpeedGrader: jest.fn()}})
       props.discussionTopic.permissions.speedGrader = false
       const {queryByTestId, findAllByTestId} = setup(props)
@@ -243,6 +243,10 @@ describe('SplitScreenThreadsContainer', () => {
   })
 
   describe('Report Reply', () => {
+    beforeAll(() => {
+      window.ENV.discussions_reporting = true
+    })
+
     it('show Report', () => {
       const {getByTestId, queryByText} = setup(defaultProps())
 
@@ -333,6 +337,14 @@ describe('SplitScreenThreadsContainer', () => {
       expect(window.IntersectionObserver).toHaveBeenCalledTimes(0)
     })
 
+    it('observer is not created when entry is deleted', () => {
+      const props = defaultProps()
+      props.discussionEntry.discussionSubentriesConnection.nodes[0].deleted = true
+      const container = setup(props)
+      expect(container).toBeTruthy()
+      expect(window.IntersectionObserver).toHaveBeenCalledTimes(0)
+    })
+
     it('observer is created for unread entries', () => {
       const props = defaultProps()
       props.discussionEntry.discussionSubentriesConnection.nodes[0].entryParticipant.read = false
@@ -349,7 +361,7 @@ describe('SplitScreenThreadsContainer', () => {
         rootEntryId: '50',
         quotedEntry: {
           ...DiscussionEntry.mock({_id: '100'}),
-          previewMessage: '<p>This is the quoted reply</p>',
+          message: '<p>This is the quoted reply</p>',
         },
       },
       overrides: {onOpenSplitScreenView},

@@ -76,6 +76,7 @@ module Lti::IMS
       :verify_line_item_in_context,
       :verify_user_in_context,
       :verify_required_params,
+      :verify_assignment_published,
       :verify_valid_timestamp,
       :verify_valid_score_maximum,
       :verify_valid_score_given,
@@ -261,8 +262,7 @@ module Lti::IMS
         # 5xx and other unexpected errors
         return render_error(err_message, :internal_server_error)
       end
-
-      submit_homework(attachments) if new_submission?
+      submit_homework(attachments) if new_submission? && activity_started?
       update_or_create_result
       json[:resultUrl] = result_url
 
@@ -272,7 +272,7 @@ module Lti::IMS
     private
 
     def old_create
-      submit_homework if new_submission? && !has_content_items?
+      submit_homework if new_submission? && !has_content_items? && activity_started?
       update_or_create_result
       json = { resultUrl: result_url }
 
@@ -404,6 +404,12 @@ module Lti::IMS
       return if submission.attempts_left.nil? || submission.attempts_left > 0
 
       render_error("The maximum number of allowed attempts has been reached for this submission", :unprocessable_entity)
+    end
+
+    def verify_assignment_published
+      return if line_item.assignment.published?
+
+      render_error("This assignment is still unpublished", :unprocessable_entity)
     end
 
     def prioritize_non_tool_grade?
@@ -620,9 +626,17 @@ module Lti::IMS
     def parse_timestamp(t)
       return nil unless t.present?
 
-      parsed = Time.zone.iso8601(t) rescue nil
-      parsed ||= (Time.zone.parse(t) rescue nil) if Setting.get("enforce_iso8601_for_lti_scores", "false") == "false"
+      begin
+        parsed = Time.zone.iso8601(t)
+      rescue ArgumentError
+        # ignore
+      end
+      parsed ||= Time.zone.parse(t) if Setting.get("enforce_iso8601_for_lti_scores", "false") == "false"
       parsed
+    end
+
+    def activity_started?
+      params[:activityProgress] != "Initialized"
     end
   end
 end

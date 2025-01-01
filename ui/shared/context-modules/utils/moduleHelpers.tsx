@@ -107,11 +107,13 @@ export function addModuleElement(
   const module_dnd = $module.find('.module_dnd')[0]
   if (module_dnd) {
     const contextModules = document.getElementById('context_modules')
+    // eslint-disable-next-line no-restricted-properties
     ReactDOM.render(
       <ModuleFileDrop
         courseId={ENV.course_id}
         moduleId={data.context_module.id}
         contextModules={contextModules}
+        moduleName={data.context_module.name}
       />,
       module_dnd
     )

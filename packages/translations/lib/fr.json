@@ -38,6 +38,12 @@
     "afrikaans_da0fe6ee": {
         "message": "Afrikaans"
     },
+    "ai_response_9624e8e8": {
+        "message": "Réponse générée par l’IA"
+    },
+    "ai_tools_fda01177": {
+        "message": "Outils basés sur l’IA"
+    },
     "albanian_21ed929e": {
         "message": "Albanais"
     },
@@ -76,6 +82,9 @@
     },
     "an_error_occurred_making_a_network_request_d1bda348": {
         "message": "Une erreur est survenue lors de la réalisation d''une requête réseau"
+    },
+    "an_error_occurred_processing_your_request_a3a38d84": {
+        "message": "Une erreur s’est produite lors du traitement de votre demande"
     },
     "an_error_occurred_uploading_your_media_71f1444d": {
         "message": "Une erreur est survenue lors de l’envoi de votre média."
@@ -158,6 +167,9 @@
     "available_folders_694d0436": {
         "message": "Dossiers disponibles"
     },
+    "background_1bc88842": {
+        "message": "Arrière-plan"
+    },
     "backslash_b2d5442d": {
         "message": "Barre oblique inverse"
     },
@@ -190,6 +202,9 @@
     },
     "blue_daf8fea9": {
         "message": "Bleu"
+    },
+    "border_5b08b06d": {
+        "message": "Bordure"
     },
     "bottom_15a2a9be": {
         "message": "Bas"
@@ -332,11 +347,23 @@
     "collapse_to_hide_types_1ab46d2e": {
         "message": "Réduisez pour masquer { types }"
     },
+    "color_a363e1b0": {
+        "message": "Couleur"
+    },
+    "color_contrast_4c418add": {
+        "message": "Contraste de couleurs"
+    },
+    "color_contrast_ratio_687782f0": {
+        "message": "Bouton radio Contraste de couleurs"
+    },
     "color_picker_6b359edf": {
         "message": "Nuancier"
     },
     "color_picker_colorname_selected_ad4cf400": {
         "message": "Nuancier ({ colorName } sélectionné)"
+    },
+    "color_popup_af39810f": {
+        "message": "Fenêtre contextuelle Couleurs"
     },
     "column_e1ae5c64": {
         "message": "Colonne"
@@ -346,6 +373,9 @@
     },
     "complex_numbers_a543d004": {
         "message": "Nombres complexes"
+    },
+    "compose_44c904f4": {
+        "message": "Rédiger"
     },
     "computer_1d7dfa6f": {
         "message": "Ordinateur"
@@ -359,6 +389,9 @@
     "content_1440204b": {
         "message": "Contenu"
     },
+    "content_in_the_editor_will_be_changed_press_cancel_d5bf3357": {
+        "message": "Le contenu sera modifié dans l''éditeur. Cliquez sur Annuler pour conserver le contenu d’origine."
+    },
     "content_is_still_being_uploaded_if_you_continue_it_8f06d0cb": {
         "message": "Le contenu est toujours en cours de téléchargement, si vous continuez, il ne sera pas intégré correctement."
     },
@@ -370,6 +403,9 @@
     },
     "coproduct_e7838082": {
         "message": "Coproduit"
+    },
+    "copy_9748f9f": {
+        "message": "Copier"
     },
     "copyright_holder_66ee111": {
         "message": "Détenteur des droits d’auteur :"
@@ -548,6 +584,9 @@
     "disjoint_union_e74351a8": {
         "message": "Union disjointe"
     },
+    "dislike_14befc48": {
+        "message": "Désapprouver"
+    },
     "display_options_315aba85": {
         "message": "Afficher les options"
     },
@@ -626,8 +665,8 @@
     "edit_link_7f53bebb": {
         "message": "Modifier lien"
     },
-    "editor_statusbar_26ac81fc": {
-        "message": "Barre d''état de l''éditeur"
+    "editor_status_bar_653f44ee": {
+        "message": "Barre d’état de l’Éditeur"
     },
     "element_starting_with_start_91bf4c3b": {
         "message": "Élément commençant par { start }"
@@ -692,6 +731,9 @@
     "enter_search_text_26cb4459": {
         "message": "Saisir le texte à rechercher"
     },
+    "enter_text_8b35c65b": {
+        "message": "Saisissez du texte"
+    },
     "epsilon_54bb8afa": {
         "message": "Epsilon"
     },
@@ -755,8 +797,14 @@
     "f_function_fe422d65": {
         "message": "F (fonction)"
     },
+    "fail_544e5dde": {
+        "message": "ÉCHEC"
+    },
     "failed_getting_file_contents_e9ea19f4": {
         "message": "Échec de la récupération des contenus de fichiers"
+    },
+    "failed_to_copy_response_d3def551": {
+        "message": "Impossible de copier la réponse"
     },
     "failed_to_retrieve_content_from_external_tool_5899c213": {
         "message": "Impossible de récupérer le contenu de l’outil externe"
@@ -869,6 +917,9 @@
     "grades_a61eba0a": {
         "message": "Notes"
     },
+    "graphics_text_bc9568bc": {
+        "message": "Texte des éléments graphiques"
+    },
     "greater_than_e98af662": {
         "message": "Supérieur à"
     },
@@ -959,6 +1010,12 @@
     "height_69b03e15": {
         "message": "Hauteur"
     },
+    "hello_please_describe_the_modifications_you_would__49b19837": {
+        "message": "Bonjour. Veuillez décrire les modifications que vous souhaitez apporter à votre rédaction."
+    },
+    "hello_please_describe_the_modifications_you_would__600dbbf0": {
+        "message": "Bonjour. Veuillez décrire les modifications que vous souhaitez apporter à votre sélection."
+    },
     "hexagon_d8468e0d": {
         "message": "Hexagone"
     },
@@ -991,6 +1048,9 @@
     },
     "i_hold_the_copyright_71ee91b1": {
         "message": "Je détiens les droits d’auteur"
+    },
+    "i_m_sorry_but_i_cannot_find_the_ai_s_answer_67569d19": {
+        "message": "Désolé, je ne trouve pas la réponse générée par l’IA"
     },
     "icelandic_9d6d35de": {
         "message": "Islandais"
@@ -1085,6 +1145,18 @@
     "infinity_7a10f206": {
         "message": "Infini"
     },
+    "input_field_for_alpha_678265fd": {
+        "message": "Champ de saisie pour alpha"
+    },
+    "input_field_for_blue_561e020a": {
+        "message": "Champ de saisie pour bleu"
+    },
+    "input_field_for_green_67f8b2b6": {
+        "message": "Champ de saisie pour vert"
+    },
+    "input_field_for_red_86a84615": {
+        "message": "Champ de saisie pour rouge"
+    },
     "insert_593145ef": {
         "message": "Insérer"
     },
@@ -1153,6 +1225,9 @@
     },
     "large_9c5e80e7": {
         "message": "Grand"
+    },
+    "large_text_e7ba08cd": {
+        "message": "Texte de grande taille"
     },
     "latvian_2bbb6aab": {
         "message": "Letton"
@@ -1258,6 +1333,9 @@
     },
     "links_to_an_external_site_de74145d": {
         "message": "Connexions vers un site externe."
+    },
+    "lists_cd1336fc": {
+        "message": "Listes"
     },
     "lists_should_be_formatted_as_lists_f862de8d": {
         "message": "Les listes doivent être présentées sous forme de listes."
@@ -1379,6 +1457,9 @@
     "miscellaneous_e9818229": {
         "message": "Divers"
     },
+    "modify_6b0b13e3": {
+        "message": "Modifier"
+    },
     "module_90d9fd32": {
         "message": "Module"
     },
@@ -1399,12 +1480,6 @@
     },
     "music_icon_4db5c972": {
         "message": "Icône musique"
-    },
-    "must_be_at_least_percentage_22e373b6": {
-        "message": "Doit être au moins égal à { percentage }%"
-    },
-    "must_be_at_least_width_x_height_px_41dc825e": {
-        "message": "Doit faire au moins { width } x { height } px"
     },
     "my_files_2f621040": {
         "message": "Mes fichiers"
@@ -1444,6 +1519,9 @@
     },
     "next_40e12421": {
         "message": "Suivant"
+    },
+    "next_findtext_9d69f0fe": {
+        "message": "Occurrence suivante de { findText }"
     },
     "no_accessibility_issues_were_detected_f8d3c875": {
         "message": "Aucun problème d''accessibilité n’a été détecté."
@@ -1516,6 +1594,9 @@
     },
     "none_selected_b93d56d2": {
         "message": "Aucun sélectionné"
+    },
+    "normal_text_7b03da48": {
+        "message": "Texte normal"
     },
     "norwegian_53f391ec": {
         "message": "Norvégien"
@@ -1595,9 +1676,6 @@
     "outline_size_a6059a21": {
         "message": "Taille du contour"
     },
-    "p_is_not_a_valid_protocol_which_must_be_ftp_http_h_adf13fc2": {
-        "message": "{ p } n''est pas un protocole valable qui doit être ftp, http, https, mailto, skype, tel ou peut être omis"
-    },
     "page_50c4823d": {
         "message": "Page"
     },
@@ -1616,6 +1694,9 @@
     "partial_derivative_4a9159df": {
         "message": "Dérivée partielle"
     },
+    "pass_1c19a2b3": {
+        "message": "RÉUSSITE"
+    },
     "paste_5963d1c1": {
         "message": "Coller"
     },
@@ -1633,6 +1714,9 @@
     },
     "percentage_must_be_a_number_8033c341": {
         "message": "Le pourcentage doit être un nombre"
+    },
+    "percentage_must_be_at_least_percentage_a98ca8fc": {
+        "message": "Le pourcentage doit être d’au moins { percentage }%"
     },
     "performing_arts_icon_f3497486": {
         "message": "Icône arts du spectacle"
@@ -1658,11 +1742,17 @@
     "pi_variant_10f5f520": {
         "message": "Pi (variante)"
     },
+    "pick_a_color_557abfb0": {
+        "message": "Choisissez une couleur"
+    },
     "pink_68ad45cb": {
         "message": "Rose"
     },
     "pixels_52ece7d1": {
         "message": "Pixels"
+    },
+    "pixels_must_be_at_least_width_x_height_px_e965edd5": {
+        "message": "Le nombre de pixels doit être d’au moins { width } x { height }px"
     },
     "play_1a47eaa7": {
         "message": "Lecture"
@@ -1675,6 +1765,9 @@
     },
     "please_allow_canvas_to_access_your_microphone_and__dc2c3079": {
         "message": "Veuillez autoriser Canvas à accéder à votre microphone et à votre webcam."
+    },
+    "please_decribe_what_you_would_like_to_compose_27a51be5": {
+        "message": "Veuillez décrire ce que vous souhaitez rédiger."
     },
     "plus_d43cd4ec": {
         "message": "Plus"
@@ -1703,6 +1796,9 @@
     "preformatted_d0670862": {
         "message": "Préformaté"
     },
+    "prepend_findtext_append_8e0e769a": {
+        "message": "{ prepend }{ findText }{ append }"
+    },
     "prev_f82cbc48": {
         "message": "Précédent"
     },
@@ -1720,6 +1816,12 @@
     },
     "previous_bd2ac015": {
         "message": "Précédent"
+    },
+    "previous_findtext_8dfbfd30": {
+        "message": "Occurrence précédente de { findText }"
+    },
+    "previously_chosen_colors_f1338315": {
+        "message": "Couleurs précédemment choisies"
     },
     "prime_917ea60e": {
         "message": "Prime"
@@ -1796,11 +1898,23 @@
     "replace_all_d3d68b3": {
         "message": "Tout remplacer"
     },
+    "replace_all_findtext_with_replacetext_da574b32": {
+        "message": "Remplacer toutes les occurrences de { findText } par { replaceText }"
+    },
     "replace_e61834a7": {
         "message": "Remplacer"
     },
+    "replace_findtext_with_replacetext_7b5c7fb3": {
+        "message": "Remplacer { findText } par { replaceText }"
+    },
     "replace_with_eeff01ad": {
         "message": "Remplacer par"
+    },
+    "replaced_alertfindtext_with_alertreplacetext_de5c1795": {
+        "message": "Remplacement de { alertFindText } par { alertReplaceText }"
+    },
+    "replaced_all_alertfindtext_with_alertreplacetext_83fdfe59": {
+        "message": "Remplacement de toutes les occurrences de { alertFindText } par { alertReplaceText }"
     },
     "reset_95a81614": {
         "message": "Réinitialiser"
@@ -1808,8 +1922,17 @@
     "resize_ec83d538": {
         "message": "Redimensionner"
     },
+    "response_copied_to_clipboard_130d66cd": {
+        "message": "Réponse copiée sur le presse-papiers"
+    },
     "restore_auto_save_deccd84b": {
         "message": "Restaurer l’enregistrement auto ?"
+    },
+    "result_index_of_max_7db5ad8b": {
+        "message": "Résultats { index } sur { max }."
+    },
+    "retry_ebd5f8ba": {
+        "message": "Réessayer"
     },
     "reverse_turnstile_does_not_yield_7558be06": {
         "message": "Taquet gauche (ne fournit pas)"
@@ -1970,6 +2093,9 @@
     "shortcut_911d6255": {
         "message": "Raccourci"
     },
+    "show_all_967a90f0": {
+        "message": "Tout afficher"
+    },
     "show_audio_options_b489926b": {
         "message": "Afficher les options audio"
     },
@@ -2101,6 +2227,9 @@
     },
     "submit_a3cc6859": {
         "message": "Soumettre"
+    },
+    "submitting_b90fac62": {
+        "message": "Envoi..."
     },
     "subscript_59744f96": {
         "message": "En indice"
@@ -2525,6 +2654,9 @@
     "view_word_and_character_counts_a743dd0c": {
         "message": "Voir le nombre de mots et de caractères"
     },
+    "waiting_for_response_1efd0c50": {
+        "message": "Réponse en attente"
+    },
     "we_couldn_t_detect_a_working_microphone_connected__ceb71c40": {
         "message": "Nous n''avons pas pu détecter un microphone fonctionnel connecté à votre appareil."
     },
@@ -2545,6 +2677,9 @@
     },
     "welsh_42ab94b1": {
         "message": "Gallois"
+    },
+    "what_would_you_like_to_do_6dc0d541": {
+        "message": "Que souhaitez-vous faire ?"
     },
     "when_markup_is_used_that_visually_formats_items_as_f941fc1b": {
         "message": "Lorsqu''on utilise des balises qui formatent visuellement les éléments sous forme de liste, mais qui n''indiquent pas la relation entre les listes, les utilisateurs peuvent avoir de la difficulté à naviguer dans l''information."
@@ -2576,6 +2711,9 @@
     "wreath_product_200b38ef": {
         "message": "Produit couronne"
     },
+    "writing_assistant_a30ac16a": {
+        "message": "Assistant de rédaction"
+    },
     "xi_149681d0": {
         "message": "Xi"
     },
@@ -2584,6 +2722,15 @@
     },
     "yiddish_f96986df": {
         "message": "Yiddish"
+    },
+    "you_are_on_a_color_palette_to_navigate_on_the_pale_227fc3a6": {
+        "message": "Vous utilisez une palette de couleurs. Pour naviguer vers le haut, la gauche, le bas ou la droite de la palette, utilisez les boutons « W », « A », « S » et « D » respectivement."
+    },
+    "you_are_on_a_color_slider_to_navigate_the_slider_l_e800f68a": {
+        "message": "Vous utilisez un curseur de couleurs. Pour déplacer le curseur vers la gauche ou la droite, utilisez les boutons « A » et « D» respectivement."
+    },
+    "you_are_on_an_alpha_slider_to_navigate_the_slider__3a014dc5": {
+        "message": "Vous utilisez un curseur alpha. Pour déplacer le curseur vers la gauche ou la droite, utilisez les boutons « A » et « D» respectivement."
     },
     "you_can_replace_by_uploading_a_new_caption_file_6c88ce00": {
         "message": "Pour effectuer un remplacement, téléchargez un nouveau fichier de sous-titres."

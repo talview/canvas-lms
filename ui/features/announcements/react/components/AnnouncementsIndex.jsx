@@ -16,7 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import React, {Component} from 'react'
 import {func, bool, number} from 'prop-types'
 import {connect} from 'react-redux'
@@ -30,7 +30,6 @@ import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import {Pagination} from '@instructure/ui-pagination'
 
 import AnnouncementRow from '@canvas/announcements/react/components/AnnouncementRow'
-import {ConnectedIndexHeader} from './IndexHeader'
 import AnnouncementEmptyState from './AnnouncementEmptyState'
 import {showConfirmDelete} from './ConfirmDeleteModal'
 
@@ -40,8 +39,10 @@ import {announcementList} from '@canvas/announcements/react/proptypes/announceme
 import masterCourseDataShape from '@canvas/courses/react/proptypes/masterCourseData'
 import actions from '../actions'
 import propTypes from '../propTypes'
+import {ConnectedIndexHeader} from './IndexHeader'
+import TopNavPortalWithDefaults from '@canvas/top-navigation/react/TopNavPortalWithDefaults'
 
-const I18n = useI18nScope('announcements_v2')
+const I18n = createI18nScope('announcements_v2')
 
 export default class AnnouncementsIndex extends Component {
   static propTypes = {
@@ -108,10 +109,7 @@ export default class AnnouncementsIndex extends Component {
     if (condition) {
       return (
         <div style={{textAlign: 'center'}}>
-          <Spinner size="small" renderTitle={title} />
-          <Text size="small" as="p">
-            {title}
-          </Text>
+          <Spinner size="small" delay={500} renderTitle={title} />
         </div>
       )
     } else {
@@ -181,20 +179,28 @@ export default class AnnouncementsIndex extends Component {
 
   render() {
     return (
-      <div className="announcements-v2__wrapper">
-        <ScreenReaderContent>
-          <Heading level="h1">{I18n.t('Announcements')}</Heading>
-        </ScreenReaderContent>
-        <ConnectedIndexHeader
-          searchInputRef={c => {
-            this.searchInput = c
-          }}
-        />
-        {this.renderSpinner(this.props.isLoadingAnnouncements, I18n.t('Loading Announcements'))}
-        {this.renderEmptyAnnouncements()}
-        {this.renderAnnouncements()}
-        {this.renderPagination()}
-      </div>
+      <>
+        {window.ENV.FEATURES?.instui_nav && (
+          <TopNavPortalWithDefaults
+            currentPageName={I18n.t('Announcements')}
+            useStudentView={true}
+          />
+        )}
+        <div className="announcements-v2__wrapper">
+          <ScreenReaderContent>
+            <Heading level="h1">{I18n.t('Announcements')}</Heading>
+          </ScreenReaderContent>
+          <ConnectedIndexHeader
+            searchInputRef={c => {
+              this.searchInput = c
+            }}
+          />
+          {this.renderSpinner(this.props.isLoadingAnnouncements, I18n.t('Loading Announcements'))}
+          {this.renderEmptyAnnouncements()}
+          {this.renderAnnouncements()}
+          {this.renderPagination()}
+        </div>
+      </>
     )
   }
 }

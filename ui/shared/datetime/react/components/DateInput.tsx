@@ -16,10 +16,10 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import React, {useRef, useCallback, useEffect, useState} from 'react'
 import moment, {type Moment} from 'moment-timezone'
-import * as tz from '../../index'
+import * as tz from '@instructure/moment-utils'
 import {AccessibleContent} from '@instructure/ui-a11y-content'
 import {Calendar} from '@instructure/ui-calendar'
 import {DateInput} from '@instructure/ui-date-input'
@@ -47,7 +47,7 @@ type Messages = DateInputProps['messages']
 // making use of the onBlur callback is paying any attention to the actual event anyway.
 type BlurReturn = SyntheticEvent<Element, Event> | KeyboardEvent<DateInputProps>
 
-const I18n = useI18nScope('app_shared_components_canvas_date_time')
+const I18n = createI18nScope('app_shared_components_canvas_date_time')
 
 const EARLIEST_YEAR = 1980 // do not allow any manually entered year before this
 
@@ -148,6 +148,10 @@ export type CanvasDateInputProps = {
    *     and call onSelectedDateChange(null, 'error')
    */
   defaultToToday?: boolean
+  /**
+   * Provides a ref to the underlying input element.
+   */
+  inputRef?: (element: HTMLInputElement | null) => void
 }
 
 /**
@@ -178,6 +182,7 @@ export default function CanvasDateInput({
   timezone = ENV?.TIMEZONE || Intl.DateTimeFormat().resolvedOptions().timeZone,
   width,
   withRunningValue,
+  inputRef,
 }: CanvasDateInputProps) {
   const todayMoment = moment().tz(timezone)
 
@@ -238,7 +243,6 @@ export default function CanvasDateInput({
 
   function generateMonthMoments() {
     const firstMoment = moment.tz(renderedMoment, timezone).startOf('month').startOf('week')
-    // @ts-ignore DAY_COUNT is not included in instructure-ui 7 types
     return [...Array(Calendar.DAY_COUNT).keys()].map(index =>
       firstMoment.clone().add(index, 'days')
     )
@@ -246,7 +250,7 @@ export default function CanvasDateInput({
 
   function renderDays() {
     // This is expensive, so only do it if the calendar is open
-    if (!isShowingCalendar) return undefined
+    if (!isShowingCalendar) return []
 
     const locale = specifiedLocale || ENV?.LOCALE || navigator.language
 
@@ -412,7 +416,7 @@ export default function CanvasDateInput({
 
   function renderWeekdayLabels() {
     // This is expensive, so only do it if the calendar is open
-    if (!isShowingCalendar) return []
+    if (!isShowingCalendar) return undefined
 
     const firstOfWeek = renderedMoment.clone().startOf('week')
     return [...Array(7).keys()].map(index => {
@@ -445,6 +449,7 @@ export default function CanvasDateInput({
   }
 
   return (
+    // @ts-expect-error
     <DateInput
       renderLabel={renderLabel}
       assistiveText={I18n.t('Type a date or use arrow keys to navigate date picker.')}
@@ -481,6 +486,7 @@ export default function CanvasDateInput({
       data-testid={dataTestid}
       size={size}
       placeholder={placeholder}
+      inputRef={inputRef}
     >
       {renderDays()}
     </DateInput>

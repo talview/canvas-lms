@@ -25,8 +25,7 @@ describe SmartSearchable do
     before do
       skip "not available" unless ActiveRecord::Base.connection.table_exists?("wiki_page_embeddings")
 
-      allow(SmartSearch).to receive(:generate_embedding).and_return([1] * 1536)
-      expect(SmartSearch).to receive(:api_key).at_least(:once).and_return("fake_api_key")
+      allow(SmartSearch).to receive_messages(generate_embedding: [1] * 1024, bedrock_client: double)
     end
 
     before :once do
@@ -40,12 +39,28 @@ describe SmartSearchable do
       expect(@page.reload.embeddings.count).to eq 1
     end
 
+    it "does not generate an embedding for objects in group context" do
+      group = @course.groups.create! name: "gorp"
+      dt = group.discussion_topics.create! title: "test", message: "foo"
+      run_jobs
+      expect(dt.reload.embeddings.count).to eq 0
+    end
+
     it "replaces an embedding if it already exists" do
       wiki_page_model(title: "test", body: "foo")
       run_jobs
       @page.update body: "bar"
       run_jobs
       expect(@page.reload.embeddings.count).to eq 1
+    end
+
+    it "doesn't delete old-version embeddings when creating new ones" do
+      wiki_page_model(title: "test", body: "foo")
+      run_jobs
+      @page.embeddings.first.update! version: 1
+      @page.update body: "bar"
+      run_jobs
+      expect(@page.reload.embeddings.count).to eq 2
     end
 
     it "strips HTML from the body before indexing" do
@@ -66,15 +81,15 @@ describe SmartSearchable do
     end
 
     it "generates multiple embeddings for a page with long content" do
-      wiki_page_model(title: "test", body: "foo" * 2000)
+      wiki_page_model(title: "test", body: "foo" * 600)
       run_jobs
       expect(@page.reload.embeddings.count).to eq 2
     end
 
     it "generates multiple embeddings and doesn't split words" do
-      # 7997 bytes in total, would fit into two 4000-byte pages,
+      # 2997 bytes in total, would fit into two 1500-byte pages,
       # but word splitting will push it into 3
-      wiki_page_model(title: "test", body: "testing123 " * 727)
+      wiki_page_model(title: "test", body: "foo12345 " * 333)
       run_jobs
       expect(@page.reload.embeddings.count).to eq 3
     end

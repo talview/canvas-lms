@@ -17,8 +17,10 @@
  */
 
 import React, {useCallback, useEffect, useState} from 'react'
-import AssigneeSelector, {type AssigneeOption} from './AssigneeSelector'
+import AssigneeSelector from './AssigneeSelector'
 import type {FormMessage} from '@instructure/ui-form-field'
+import type {AssigneeOption} from './Item/types'
+import {QueryProvider} from '@canvas/query'
 
 export interface ModuleAssignmentsProps {
   courseId: string
@@ -30,7 +32,7 @@ export interface ModuleAssignmentsProps {
   inputRef?: (inputElement: HTMLInputElement | null) => void
 }
 
-export type {AssigneeOption} from './AssigneeSelector'
+export type {AssigneeOption} from './Item/types'
 
 export default function ModuleAssignments({
   courseId,
@@ -56,16 +58,18 @@ export default function ModuleAssignments({
   }, [defaultValues, handleSelect])
 
   return (
-    <AssigneeSelector
-      courseId={courseId}
-      onSelect={handleSelect}
-      defaultValues={defaultValues}
-      selectedOptionIds={selectedOptions.map(({id}) => id)}
-      onError={onDismiss}
-      showVisualLabel={false}
-      inputRef={inputRef}
-      onBlur={onBlur}
-      messages={messages}
-    />
+    <QueryProvider>
+      <AssigneeSelector
+        courseId={courseId}
+        onSelect={handleSelect}
+        defaultValues={defaultValues}
+        selectedOptionIds={selectedOptions.map(({id}) => id)}
+        onError={onDismiss}
+        showVisualLabel={false}
+        inputRef={inputRef}
+        onBlur={onBlur}
+        messages={messages}
+      />
+    </QueryProvider>
   )
 }

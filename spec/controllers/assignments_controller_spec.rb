@@ -683,48 +683,45 @@ describe AssignmentsController do
       subject { get "show", params: { course_id: assignment.course.id, id: assignment.id } }
 
       let(:assignment) { assignment_model }
+      let(:launch_url) { "https://www.my-tool.com/login" }
+      let(:key) do
+        DeveloperKey.create!(
+          scopes: [
+            TokenScopes::LTI_AGS_LINE_ITEM_SCOPE,
+            TokenScopes::LTI_AGS_LINE_ITEM_READ_ONLY_SCOPE,
+            TokenScopes::LTI_AGS_RESULT_READ_ONLY_SCOPE,
+            TokenScopes::LTI_AGS_SCORE_SCOPE
+          ]
+        )
+      end
+      let(:external_tool) do
+        external_tool_1_3_model(
+          context: assignment.course,
+          opts: {
+            url: launch_url,
+            developer_key: key
+          }
+        )
+      end
 
-      before { user_session(assignment.course.teachers.first) }
+      before do
+        # For this context, the assignment and tag must
+        # be created before the tool
+        user_session(assignment.course.teachers.first)
+        assignment.update!(
+          external_tool_tag: content_tag,
+          submission_types: "external_tool"
+        )
+        external_tool
+      end
 
       context "and a default line item was never created" do
-        let(:launch_url) { "https://www.my-tool.com/login" }
         let(:content_tag) do
           ContentTag.create!(
             context: assignment,
             content_type: "ContextExternalTool",
             url: launch_url
           )
-        end
-
-        let(:key) do
-          DeveloperKey.create!(
-            scopes: [
-              TokenScopes::LTI_AGS_LINE_ITEM_SCOPE,
-              TokenScopes::LTI_AGS_LINE_ITEM_READ_ONLY_SCOPE,
-              TokenScopes::LTI_AGS_RESULT_READ_ONLY_SCOPE,
-              TokenScopes::LTI_AGS_SCORE_SCOPE
-            ]
-          )
-        end
-
-        let(:external_tool) do
-          external_tool_1_3_model(
-            context: assignment.course,
-            opts: {
-              url: launch_url,
-              developer_key: key
-            }
-          )
-        end
-
-        before do
-          # For this context, the assignment and tag must
-          # be created before the tool
-          assignment.update!(
-            external_tool_tag: content_tag,
-            submission_types: "external_tool"
-          )
-          external_tool
         end
 
         it { is_expected.to be_successful }
@@ -735,6 +732,27 @@ describe AssignmentsController do
           end.to change {
             Lti::LineItem.where(assignment:).count
           }.from(0).to(1)
+        end
+      end
+
+      context "when the assignment is an external tool opened in a new tab" do
+        render_views
+
+        let(:content_tag) do
+          ContentTag.create!(
+            context: assignment,
+            content_type: "ContextExternalTool",
+            url: launch_url,
+            new_tab: true
+          )
+        end
+
+        it { is_expected.to be_successful }
+
+        it "creates a new tab iframe" do
+          subject
+          expect(assignment.external_tool_tag.new_tab).to be true
+          expect(response.body.scan('data-tool-launch-type="window"').count).to eq 1
         end
       end
     end
@@ -1203,6 +1221,37 @@ describe AssignmentsController do
           expect(assigns[:js_env][:OBSERVER_OPTIONS][:OBSERVED_USERS_LIST].is_a?(Array)).to be true
           expect(assigns[:js_env][:OBSERVER_OPTIONS][:CAN_ADD_OBSERVEE]).to be false
         end
+      end
+    end
+
+    describe "assignment_enhancements_teacher_view" do
+      before do
+        @course.root_account.enable_feature!(:assignment_enhancements_teacher_view)
+        @course.save!
+      end
+
+      it "does not render the 'old' assignment page layout" do
+        get :show, params: { course_id: @course.id, id: @assignment.id }
+        expect(response).not_to render_template("assignments/show")
+      end
+    end
+
+    describe "assignment_edit_enhancements_teacher_view" do
+      before do
+        @course.root_account.enable_feature!(:assignment_edit_enhancements_teacher_view)
+        @course.save!
+      end
+
+      it "does not render the 'old' edit assignment page layout" do
+        user_session(@teacher)
+        get :edit, params: { course_id: @course.id, id: @assignment.id }
+        expect(response).not_to render_template("assignments/edit")
+      end
+
+      it "does not render the 'old' create assignment page layout" do
+        user_session(@teacher)
+        get :new, params: { course_id: @course.id }
+        expect(response).not_to render_template("assignments/edit")
       end
     end
 
@@ -1695,6 +1744,65 @@ describe AssignmentsController do
         get :show, params: { course_id: @course.id, id: @assignment.id }
         expect(assigns[:js_env][:PERMISSIONS]).not_to include :can_edit_grades
       end
+
+      context "with default_due_time feature flag disabled" do
+        before do
+          Account.site_admin.disable_feature!(:default_due_time)
+          user_session(@teacher)
+        end
+
+        it "does not set DEFAULT_DUE_TIME in the ENV" do
+          get :show, params: { course_id: @course.id, id: @assignment.id }
+          expect(assigns[:js_env][:DEFAULT_DUE_TIME]).to be_nil
+        end
+      end
+
+      context "with default_due_time feature flag enabled" do
+        before do
+          Account.site_admin.enable_feature!(:default_due_time)
+          Account.default.update(settings: { default_due_time: { value: "22:00:00" } })
+          user_session(@teacher)
+        end
+
+        it "sets DEFAULT_DUE_TIME in the ENV" do
+          get :show, params: { course_id: @course.id, id: @assignment.id }
+          expect(assigns[:js_env][:DEFAULT_DUE_TIME]).to eq "22:00:00"
+        end
+      end
+
+      context "assigned_rubric and rubric_association" do
+        before do
+          Account.site_admin.enable_feature!(:enhanced_rubrics_assignments)
+          @course.enable_feature!(:enhanced_rubrics)
+          rubric = @course.rubrics.create! { |r| r.user = @teacher }
+          rubric_association_params = ActiveSupport::HashWithIndifferentAccess.new({
+                                                                                     hide_score_total: "0",
+                                                                                     purpose: "grading",
+                                                                                     skip_updating_points_possible: false,
+                                                                                     update_if_existing: true,
+                                                                                     use_for_grading: "1",
+                                                                                     association_object: @assignment
+                                                                                   })
+          rubric_assoc = RubricAssociation.generate(@teacher, rubric, @course, rubric_association_params)
+          @assignment.rubric_association = rubric_assoc
+          @assignment.save!
+        end
+
+        it "sets assigned_rubric and rubric_association in the ENV when FF is ON" do
+          get :show, params: { course_id: @course.id, id: @assignment.id }
+          expect(assigns[:js_env][:assigned_rubric][:id]).to eq @assignment.rubric_association.rubric_id
+          expect(assigns[:js_env][:assigned_rubric][:title]).to eq "Unnamed Course Rubric"
+          expect(assigns[:js_env][:assigned_rubric][:can_update]).to be_truthy
+          expect(assigns[:js_env][:rubric_association][:id]).to eq @assignment.rubric_association.id
+        end
+
+        it "does not set assigned_rubric and rubric_association in the ENV when FF is OFF" do
+          Account.site_admin.disable_feature!(:enhanced_rubrics_assignments)
+          get :show, params: { course_id: @course.id, id: @assignment.id }
+          expect(assigns[:js_env][:assigned_rubric]).to be_nil
+          expect(assigns[:js_env][:rubric_association]).to be_nil
+        end
+      end
     end
   end
 
@@ -1814,7 +1922,7 @@ describe AssignmentsController do
 
         it "fails if grades are not published, and status is false" do
           put "toggle_mute", params: { course_id: @course.id, assignment_id: @assignment.id, status: false }, format: "json"
-          assert_unauthorized
+          assert_forbidden
         end
 
         it "mutes if grades are not published, and status is true" do
@@ -2004,6 +2112,23 @@ describe AssignmentsController do
         post "new", params: { course_id: @course.id, id: @assignment.id, quiz_lti: true }
         expect(assigns[:_crumbs]).to include(["Quizzes", "/courses/#{@course.id}/quizzes", {}])
       end
+    end
+
+    it "js_env GROUP_CATEGORIES excludes non_collaborative and student_organized categories regardless of :differentiation_tags ff state" do
+      Account.site_admin.enable_feature!(:differentiation_tags)
+
+      user_session(@teacher)
+      @course.group_categories.create!(name: "non_colaborative_category", non_collaborative: true)
+      @course.group_categories.create!(name: "student_organized_category", role: "student_organized")
+      regular_category = @course.group_categories.create!(name: "regular_category")
+
+      get :new, params: { course_id: @course.id }
+      expect(assigns[:js_env][:GROUP_CATEGORIES].pluck(:id)).to match_array [regular_category.id]
+
+      Account.site_admin.disable_feature!(:differentiation_tags)
+
+      get :new, params: { course_id: @course.id }
+      expect(assigns[:js_env][:GROUP_CATEGORIES].pluck(:id)).to match_array [regular_category.id]
     end
   end
 
@@ -2273,22 +2398,27 @@ describe AssignmentsController do
         let(:domain) { "justanexamplenotarealwebsite.com" }
 
         let(:tool) do
-          factory_with_protected_attributes(@course.context_external_tools,
-                                            domain:,
-                                            url: "http://www.justanexamplenotarealwebsite.com/tool1",
-                                            shared_secret: "test123",
-                                            consumer_key: "test123",
-                                            name: tool_settings[:base_title],
-                                            settings: {
-                                              submission_type_selection: tool_settings
-                                            })
+          @course.context_external_tools.create!(
+            domain:,
+            url: "http://www.justanexamplenotarealwebsite.com/tool1",
+            shared_secret: "test123",
+            consumer_key: "test123",
+            name: tool_settings[:base_title],
+            settings: {
+              submission_type_selection: tool_settings
+            }
+          )
+        end
+
+        let(:tool_in_js_env) do
+          Setting.set("submission_type_selection_allowed_launch_domains", domain)
+          tool
+          subject
+          assigns[:js_env][:SUBMISSION_TYPE_SELECTION_TOOLS][0]
         end
 
         it "is correctly set" do
-          tool
-          Setting.set("submission_type_selection_allowed_launch_domains", domain)
-          subject
-          expect(assigns[:js_env][:SUBMISSION_TYPE_SELECTION_TOOLS][0]).to include(
+          expect(tool_in_js_env).to include(
             base_title: tool_settings[:base_title],
             title: tool_settings[:base_title],
             selection_width: tool_settings[:selection_width],
@@ -2296,20 +2426,36 @@ describe AssignmentsController do
           )
         end
 
-        context "the tool includes a description propery" do
-          let(:description) { "This is a description" }
-          let(:tool_settings) do
-            res = super()
-            res[:description] = description
-            res
+        describe "require_resourse_selection property" do
+          context "when not given in the settings" do
+            it "is not set in the js_env tool" do
+              expect(tool_in_js_env).to_not include(:require_resource_selection)
+            end
           end
 
+          context "when set if set to false in the settings" do
+            let(:tool_settings) { super().merge(require_resource_selection: false) }
+
+            it "is set in the js_env tool" do
+              expect(tool_in_js_env).to include(require_resource_selection: false)
+            end
+          end
+
+          context "when set if set to true in the settings" do
+            let(:tool_settings) { super().merge(require_resource_selection: true) }
+
+            it "is set in the js_env tool" do
+              expect(tool_in_js_env).to include(require_resource_selection: true)
+            end
+          end
+        end
+
+        context "the tool includes a description propery" do
+          let(:description) { "This is a description" }
+          let(:tool_settings) { super().merge(description:) }
+
           it "includes the launch points" do
-            tool
-            Setting.set("submission_type_selection_allowed_launch_domains", domain)
-            subject
-            expect(assigns[:js_env][:SUBMISSION_TYPE_SELECTION_TOOLS][0])
-              .to include(description:)
+            expect(tool_in_js_env).to include(description:)
           end
         end
       end
@@ -2556,19 +2702,19 @@ describe AssignmentsController do
       end
     end
 
-    describe "js_env UPDATE_ASSIGNMENT_SUBMISSION_TYPE_LAUNCH_BUTTON_ENABLED" do
-      it "sets UPDATE_ASSIGNMENT_SUBMISSION_TYPE_LAUNCH_BUTTON_ENABLED in js_env as true if enabled" do
+    describe "js_env ASSIGNMENT_SUBMISSION_TYPE_CARD_ENABLED" do
+      it "sets ASSIGNMENT_SUBMISSION_TYPE_CARD_ENABLED in js_env as true if enabled" do
         user_session(@teacher)
-        Account.site_admin.enable_feature!(:update_assignment_submission_type_launch_button)
+        Account.site_admin.enable_feature!(:assignment_submission_type_card)
         get "edit", params: { course_id: @course.id, id: @assignment.id }
-        expect(assigns[:js_env][:UPDATE_ASSIGNMENT_SUBMISSION_TYPE_LAUNCH_BUTTON_ENABLED]).to be(true)
+        expect(assigns[:js_env][:ASSIGNMENT_SUBMISSION_TYPE_CARD_ENABLED]).to be(true)
       end
 
-      it "sets UPDATE_ASSIGNMENT_SUBMISSION_TYPE_LAUNCH_BUTTON_ENABLED in js_env as false if disabled" do
+      it "sets ASSIGNMENT_SUBMISSION_TYPE_CARD_ENABLED in js_env as false if disabled" do
         user_session(@teacher)
-        Account.site_admin.disable_feature!(:update_assignment_submission_type_launch_button)
+        Account.site_admin.disable_feature!(:assignment_submission_type_card)
         get "edit", params: { course_id: @course.id, id: @assignment.id }
-        expect(assigns[:js_env][:UPDATE_ASSIGNMENT_SUBMISSION_TYPE_LAUNCH_BUTTON_ENABLED]).to be(false)
+        expect(assigns[:js_env][:ASSIGNMENT_SUBMISSION_TYPE_CARD_ENABLED]).to be(false)
       end
     end
 
@@ -2586,6 +2732,30 @@ describe AssignmentsController do
         get "edit", params: { course_id: @course.id, id: @assignment.id }
         expect(assigns[:js_env][:HIDE_ZERO_POINT_QUIZZES_OPTION_ENABLED]).to be(false)
       end
+    end
+
+    it "sets COURSE_ID in js_env if assignment_edit_enhancements_teacher_view FF is enabled" do
+      user_session(@teacher)
+      @course.root_account.enable_feature!(:assignment_edit_enhancements_teacher_view)
+      get "edit", params: { course_id: @course.id, id: @assignment.id }
+      expect(assigns[:js_env][:COURSE_ID]).to be(@course.id)
+    end
+
+    it "js_env GROUP_CATEGORIES excludes non_collaborative and student_organized categories regardless of :differentiation_tags ff state" do
+      Account.site_admin.enable_feature!(:differentiation_tags)
+
+      user_session(@teacher)
+      @course.group_categories.create!(name: "non_colaborative_category", non_collaborative: true)
+      @course.group_categories.create!(name: "student_organized_category", role: "student_organized")
+      regular_category = @course.group_categories.create!(name: "regular_category")
+
+      get :edit, params: { course_id: @course.id, id: @assignment.id }
+      expect(assigns[:js_env][:GROUP_CATEGORIES].pluck(:id)).to match_array [regular_category.id]
+
+      Account.site_admin.disable_feature!(:differentiation_tags)
+
+      get :edit, params: { course_id: @course.id, id: @assignment.id }
+      expect(assigns[:js_env][:GROUP_CATEGORIES].pluck(:id)).to match_array [regular_category.id]
     end
   end
 

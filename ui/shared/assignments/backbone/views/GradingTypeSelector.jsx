@@ -16,11 +16,11 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* eslint-disable no-void */
+ 
 
 import {extend} from '@canvas/backbone/utils'
 import {includes} from 'lodash'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import Backbone from '@canvas/backbone'
 import $ from 'jquery'
 import template from '../../jst/GradingTypeSelector.handlebars'
@@ -30,7 +30,7 @@ import React from 'react'
 import ReactDOM from 'react-dom'
 import {GradingSchemesSelector} from '@canvas/grading-scheme'
 
-const I18n = useI18nScope('assignment_grading_type')
+const I18n = createI18nScope('assignment_grading_type')
 
 const GRADING_TYPE = '#assignment_grading_type'
 const VIEW_GRADING_LEVELS = '#view-grading-levels'
@@ -192,7 +192,10 @@ GradingTypeSelector.prototype.renderGradingSchemeSelector = function () {
     contextId: ENV.COURSE_ID,
     contextType: 'Course',
     archivedGradingSchemesEnabled: ENV.ARCHIVED_GRADING_SCHEMES_ENABLED,
-    assignmentId: ENV.ASSIGNMENT?.id ?? ENV.ASSIGNMENT_ID ?? this.parentModel.id ? String(this.parentModel.id) : undefined,
+    assignmentId:
+      ENV.ASSIGNMENT?.id ?? ENV.ASSIGNMENT_ID ?? this.parentModel.id
+        ? String(this.parentModel.id)
+        : undefined,
   }
   const mountPoint = document.querySelector('#grading_scheme_selector-target')
   // eslint-disable-next-line react/no-render-return-value

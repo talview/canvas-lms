@@ -19,9 +19,8 @@
 import React from 'react'
 import ReactDOM from 'react-dom'
 import PropTypes from 'prop-types'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import TimeBlockListManager from '@canvas/calendar/TimeBlockListManager'
-import '@canvas/datetime/jquery'
 import {FormFieldGroup} from '@instructure/ui-form-field'
 import {NumberInput} from '@instructure/ui-number-input'
 import {ScreenReaderContent} from '@instructure/ui-a11y-content'
@@ -29,7 +28,7 @@ import {Button} from '@instructure/ui-buttons'
 import TimeBlockSelectRow from './TimeBlockSelectRow'
 import NumberHelper from '@canvas/i18n/numberHelper'
 
-const I18n = useI18nScope('appointment_groups')
+const I18n = createI18nScope('appointment_groups')
 
 const uniqueId = (() => {
   let count = 0
@@ -201,6 +200,7 @@ export default class TimeBlockSelector extends React.Component {
           messages={this.state.slotMessage}
         >
           <NumberInput
+            allowStringValue={true}
             renderLabel={I18n.t('Divide into equal slots (value is in minutes)')}
             value={this.state.slotValue}
             onChange={this.handleSlotValueChange}

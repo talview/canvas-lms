@@ -15,18 +15,20 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import {debounce} from 'lodash'
-import * as tz from '../index'
+import './datepicker'
+import * as tz from '@instructure/moment-utils'
 import fallbacks from 'translations/en.json'
-import datePickerFormat from '../datePickerFormat'
+import datePickerFormat from '@instructure/moment-utils/datePickerFormat'
+import {fudgeDateForProfileTimezone, isMidnight} from '@instructure/moment-utils'
 import {isRTL} from '@canvas/i18n/rtlHelper'
 
 import moment from 'moment'
 import '@canvas/rails-flash-notifications'
 
-const I18n = useI18nScope('datepicker')
+const I18n = createI18nScope('datepicker')
 
 const TIME_FORMAT_OPTIONS = {
   hour: 'numeric',
@@ -89,7 +91,7 @@ function computeDatepickerDefaults() {
       try {
         return I18n.lookup('date.formats.medium_month').slice(0, 2) === '%Y'
       } catch {
-        // eslint-disable-next-line no-console
+         
         console.warn('WARNING Missing required datepicker keys in locale file')
         return false // Assume English
       }
@@ -107,7 +109,7 @@ function computeDatepickerDefaults() {
     datepickerDefaults.dayNamesShort = I18n.lookup('date.abbr_day_names') // title text for column headings
     datepickerDefaults.dayNamesMin = I18n.lookup('date.datepicker.column_headings') // column headings for days (Sunday = 0)
   } catch {
-    // eslint-disable-next-line no-console
+     
     console.warn(
       'WARNING Missing required datepicker keys in locale file, using US English datepicker'
     )
@@ -120,6 +122,18 @@ function computeDatepickerDefaults() {
   }
 }
 
+export function renderDatetimeField($fields, options) {
+  options = {...options}
+  $fields.each(function () {
+    const $field = $(this)
+    if (!$field.hasClass('datetime_field_enabled')) {
+      $field.addClass('datetime_field_enabled')
+      new DatetimeField($field, options)
+    }
+  })
+  return $fields
+}
+
 // adds datepicker and suggest functionality to the specified $field
 export default class DatetimeField {
   constructor($field, options = {}) {
@@ -129,6 +143,7 @@ export default class DatetimeField {
     let $wrapper
     this.$field = $field
     this.$field.data({instance: this})
+    this.$options = options
 
     this.processTimeOptions(options)
     if (this.showDate) $wrapper = this.addDatePicker(options)
@@ -171,13 +186,13 @@ export default class DatetimeField {
     // showDate || showTime will always be true; i.e. not showDate implies
     // showTime, and vice versa. that's a nice property, so let's enforce it
     // (treating the provision as both as the provision of neither)
-    /* eslint-disable no-console */
+     
     if (timeOnly && dateOnly) {
       console.warn('DatetimeField instantiated with both timeOnly and dateOnly true.')
       console.warn('Treating both as false instead.')
       timeOnly = dateOnly = false
     }
-    /* eslint-enable no-console */
+     
 
     this.showDate = !timeOnly
     this.allowTime = !dateOnly
@@ -324,8 +339,8 @@ export default class DatetimeField {
     if (this.datetime && !this.showDate && this.implicitDate) {
       this.datetime = tz.mergeTimeAndDate(this.datetime, this.implicitDate)
     }
-    this.fudged = $.fudgeDateForProfileTimezone(this.datetime)
-    this.showTime = this.alwaysShowTime || (this.allowTime && !tz.isMidnight(this.datetime))
+    this.fudged = fudgeDateForProfileTimezone(this.datetime)
+    this.showTime = this.alwaysShowTime || (this.allowTime && !isMidnight(this.datetime))
   }
 
   setFormattedDatetime(datetime, format) {
@@ -333,7 +348,7 @@ export default class DatetimeField {
       this.blank = false
       this.$field.data('inputdate', datetime.toISOString())
       this.datetime = datetime
-      this.fudged = $.fudgeDateForProfileTimezone(this.datetime)
+      this.fudged = fudgeDateForProfileTimezone(this.datetime)
       const fmtr = formatter(ENV.TIMEZONE, format)
       this.$field.val(fmtr.format(this.datetime))
     } else {
@@ -343,7 +358,7 @@ export default class DatetimeField {
       this.$field.val('')
     }
     this.valid = PARSE_RESULTS.VALID
-    this.showTime = this.alwaysShowTime || (this.allowTime && !tz.isMidnight(this.datetime))
+    this.showTime = this.alwaysShowTime || (this.allowTime && !isMidnight(this.datetime))
     this.update()
     this.updateSuggest(false)
   }
@@ -400,11 +415,52 @@ export default class DatetimeField {
       }
       this.$contextSuggest.text(contextText).show()
     }
+
+    if (this.$options.newSuggestionDesign) return this.newSuggestion(show, localText)
+    this.defaultSuggestion(show, localText)
+  }
+
+  defaultSuggestion(show, localText) {
     this.$suggest.toggleClass('invalid_datetime', this.invalid()).text(localText)
     if (show || this.$contextSuggest || this.invalid()) {
       this.$suggest.show()
       return
     }
+    this.$suggest.hide()
+    if (this.$contextSuggest) this.$contextSuggest.hide()
+    this.screenreaderAlert = ''
+  }
+
+  newSuggestion(show, localText) {
+    this.$suggest.toggleClass('invalid_datetime', this.invalid())
+
+    if ((show || this.$contextSuggest || this.invalid()) && localText.length > 0) {
+      const errorContainer = document.createElement('span')
+      errorContainer.className = 'error-message'
+      errorContainer.setAttribute('tabindex', '-1')
+
+      const icon = document.createElement('i')
+      icon.className = 'icon-warning icon-Solid'
+      icon.setAttribute('tabindex', '-1')
+      icon.setAttribute('aria-hidden', 'true')
+
+      const text = document.createElement('span')
+      text.setAttribute('role', 'alert')
+      text.setAttribute('aria-live', 'polite')
+      text.setAttribute('tabindex', '-1')
+      text.textContent = localText // Safely set text content to avoid XSS
+
+      errorContainer.appendChild(icon)
+      errorContainer.appendChild(text)
+
+      this.$suggest[0].innerHTML = ''
+      this.$suggest[0].appendChild(errorContainer)
+
+      this.$field.addClass('error')
+      this.$suggest.show()
+      return
+    }
+    this.$field.removeClass('error')
     this.$suggest.hide()
     if (this.$contextSuggest) this.$contextSuggest.hide()
     this.screenreaderAlert = ''
@@ -454,6 +510,10 @@ export default class DatetimeField {
   }
 
   get parseError() {
+    if (this.$options.newSuggestionDesign) {
+      if (this.$options.dateOnly) return I18n.t('Not a valid date format')
+      if (this.$options.timeOnly) return I18n.t('Not a valid time format')
+    }
     if (this.valid === PARSE_RESULTS.BAD_YEAR) return I18n.t('Year is too far in the past.')
     return I18n.t('errors.not_a_date', "That's not a date!")
   }

@@ -201,6 +201,15 @@ describe WikiPage do
     expect(p2.url).to eq("apples-2")
   end
 
+  it "rescues a RecordNotUnique error and throws a 409 if create_lookup tries to create a duplicate lookup" do
+    course_factory(active_all: true)
+    p1 = @course.wiki_pages.create!(title: "bananas")
+    p2 = @course.wiki_pages.create!(title: "bananas")
+    p1.save!
+    p2.update_column(:url, "bananas")
+    expect { p2.create_lookup }.to raise_error("wiki page with that url already exists")
+  end
+
   it "lets you reuse the title/url of a deleted page when permanent_page_links is disabled" do
     Account.site_admin.disable_feature! :permanent_page_links
     course_with_teacher(active_all: true)
@@ -943,7 +952,7 @@ describe WikiPage do
       mod.add_item type: "wiki_page", id: page.id
       mod.workflow_state = "unpublished"
       mod.save!
-      expect(page.reload.locked_for?(@student)[:unlock_at]).to eq mod.unlock_at
+      expect(page.reload.locked_for?(@student)[:context_module]["unlock_at"]).to eq mod.unlock_at
     end
 
     it "doesn't reference an expired unlock-at date" do
@@ -954,6 +963,92 @@ describe WikiPage do
       mod.workflow_state = "unpublished"
       mod.save!
       expect(page.reload.locked_for?(@student)).not_to have_key :unlock_at
+    end
+
+    context "with selective_release_backend enabled" do
+      before(:once) do
+        Account.site_admin.enable_feature! :selective_release_backend
+        course_with_student(active_all: true)
+        @page = @course.wiki_pages.create!(title: "page")
+      end
+
+      shared_examples_for "locking pages" do
+        it "is unlocked by default" do
+          expect(learning_object.locked_for?(@student)).to be_falsey
+        end
+
+        it "is unlocked for past unlock_at date" do
+          timestamp = 1.week.ago
+          differentiable.update(unlock_at: timestamp)
+          expect(learning_object.locked_for?(@student)).to be_falsey
+        end
+
+        it "is unlocked for future lock_at date" do
+          timestamp = 1.week.from_now
+          differentiable.update(lock_at: timestamp)
+          expect(learning_object.locked_for?(@student)).to be_falsey
+        end
+
+        it "is locked for future unlock_at date" do
+          timestamp = 1.week.from_now
+          differentiable.update(unlock_at: timestamp)
+          lock_info = learning_object.locked_for?(@student)
+          expect(lock_info).to be_truthy
+          expect(lock_info[:unlock_at]).to eq timestamp
+        end
+
+        it "is locked for past lock_at date" do
+          timestamp = 1.week.ago
+          differentiable.update(lock_at: timestamp)
+          lock_info = learning_object.locked_for?(@student)
+          expect(lock_info).to be_truthy
+          expect(lock_info[:lock_at]).to eq timestamp
+        end
+
+        it "locks for unpublished module" do
+          cm = @course.context_modules.create!(name: "module", workflow_state: "unpublished")
+          cm.add_item(type: "wiki_page", id: @page.id)
+          learning_object.update!(could_be_locked: true)
+          lock_info = learning_object.locked_for?(@student)
+          expect(lock_info).to be_truthy
+        end
+
+        it "locks for student with override" do
+          timestamp = 1.week.from_now
+          ao = differentiable.assignment_overrides.create!(unlock_at: timestamp, unlock_at_overridden: true)
+          ao.assignment_override_students.create!(user: @student)
+          lock_info = learning_object.locked_for?(@student)
+          expect(lock_info).to be_truthy
+          expect(lock_info[:unlock_at]).to eq timestamp
+        end
+
+        it "unlocks for student with override" do
+          differentiable.update(lock_at: 1.week.ago)
+          ao = differentiable.assignment_overrides.create!(lock_at: 1.week.from_now, lock_at_overridden: true)
+          ao.assignment_override_students.create!(user: @student)
+          lock_info = learning_object.locked_for?(@student)
+          expect(lock_info).to be_falsey
+        end
+      end
+
+      context "pages without an assignment" do
+        let(:learning_object) { @page }
+        let(:differentiable) { @page }
+
+        it_behaves_like "locking pages"
+      end
+
+      context "pages with an assignment" do
+        before :once do
+          @page.assignment = @course.assignments.create!(name: "My Page", submission_types: ["wiki_page"])
+          @page.save!
+        end
+
+        let(:learning_object) { @page }
+        let(:differentiable) { @page.assignment }
+
+        it_behaves_like "locking pages"
+      end
     end
   end
 
@@ -1165,7 +1260,7 @@ describe WikiPage do
     end
   end
 
-  describe "visible_ids_by_user" do
+  describe "visible_ids_by_user and visible_to_user_in_courses_and_groups" do
     before :once do
       @course1 = course_factory(active_all: true)
       @page1 = @course1.wiki_pages.create!(title: "page1")
@@ -1176,57 +1271,82 @@ describe WikiPage do
       @student2 = student_in_course(active_all: true).user
     end
 
-    let(:visible_ids) { WikiPage.visible_ids_by_user({ user_id: [@student1.id, @student2.id], course_id: [@course1.id] }) }
+    def assert_visible(user, pages)
+      visible_ids_by_user = WikiPage.visible_ids_by_user({ user_id: [user.id], course_id: [@course1.id] })
+      visible_to_user = WikiPage.visible_to_user_in_courses_and_groups(user.id, [@course1.id], []).pluck(:id)
+      expect(visible_ids_by_user[user.id]).to contain_exactly(*pages.map(&:id))
+      expect(visible_to_user).to contain_exactly(*pages.map(&:id))
+    end
 
     it "includes pages with no assignment by default" do
-      expect(visible_ids[@student1.id]).to contain_exactly(@page1.id)
-      expect(visible_ids[@student2.id]).to contain_exactly(@page1.id)
+      assert_visible(@student1, [@page1])
+      assert_visible(@student2, [@page1])
     end
 
     it "includes pages with assignment if the user has an override" do
       override = @assignment.assignment_overrides.create!
       override.assignment_override_students.create!(user: @student1)
-      expect(visible_ids[@student1.id]).to contain_exactly(@page1.id, @page2.id)
-      expect(visible_ids[@student2.id]).to contain_exactly(@page1.id)
+      assert_visible(@student1, [@page1, @page2])
+      assert_visible(@student2, [@page1])
     end
 
     it "includes pages with an assignment if the assignment has only_visible_to_overrides set to false" do
       @assignment.update!(only_visible_to_overrides: false)
-      expect(visible_ids[@student1.id]).to contain_exactly(@page1.id, @page2.id)
-      expect(visible_ids[@student2.id]).to contain_exactly(@page1.id, @page2.id)
+      assert_visible(@student1, [@page1, @page2])
+      assert_visible(@student2, [@page1, @page2])
     end
 
     it "does not include pages from another course" do
       course2 = course_factory(active_all: true)
       course2.wiki_pages.create!(title: "page3")
       student_in_course(course: course2, user: @student1, active_all: true)
-      expect(visible_ids[@student1.id]).to contain_exactly(@page1.id)
+      visible_ids_by_user = WikiPage.visible_ids_by_user({ user_id: [@student1.id], course_id: [@course1.id] })
+      expect(visible_ids_by_user[@student1.id]).to contain_exactly(@page1.id)
     end
 
-    context "with differentiated_modules disabled" do
-      it "does not consider WikiPageStudentVisibility" do
-        @page1.update!(only_visible_to_overrides: true)
-        expect(visible_ids[@student1.id]).to contain_exactly(@page1.id)
+    context "group pages" do
+      before :once do
+        @group = group_model(context: @course1)
+        @group_page = @group.wiki_pages.create!(title: "group page")
+      end
+
+      it "includes group pages" do
+        expect(WikiPage.visible_to_user_in_courses_and_groups(@student1.id, [@course1.id], [@group.id])).to include(@group_page)
+      end
+
+      it "does not include group pages not in group_ids" do
+        expect(WikiPage.visible_to_user_in_courses_and_groups(@student1.id, [@course1.id], [])).not_to include(@group_page)
       end
     end
 
-    context "with differentiated_modules enabled" do
+    context "with selective_release_backend disabled" do
       before :once do
-        Account.site_admin.enable_feature!(:differentiated_modules)
+        Account.site_admin.disable_feature!(:selective_release_backend)
+      end
+
+      it "does not consider WikiPageStudentVisibility" do
+        @page1.update!(only_visible_to_overrides: true)
+        assert_visible(@student1, [@page1])
+      end
+    end
+
+    context "with selective_release_backend enabled" do
+      before :once do
+        Account.site_admin.enable_feature!(:selective_release_backend)
       end
 
       it "does not include pages if the page does not have an assignment but has only_visible_to_overrides set to true" do
         @page1.update!(only_visible_to_overrides: true)
-        expect(visible_ids[@student1.id]).to eq []
-        expect(visible_ids[@student2.id]).to eq []
+        assert_visible(@student1, [])
+        assert_visible(@student2, [])
       end
 
       it "includes pages if the page does not have an assignment but the user has an override" do
         @page1.update!(only_visible_to_overrides: true)
         override = @page1.assignment_overrides.create!
         override.assignment_override_students.create!(user: @student1)
-        expect(visible_ids[@student1.id]).to contain_exactly(@page1.id)
-        expect(visible_ids[@student2.id]).to eq []
+        assert_visible(@student1, [@page1])
+        assert_visible(@student2, [])
       end
 
       it "includes all pages where the user has an override" do
@@ -1236,8 +1356,8 @@ describe WikiPage do
         page_override.assignment_override_students.create!(user: @student2)
         assignment_override = @assignment.assignment_overrides.create!
         assignment_override.assignment_override_students.create!(user: @student1)
-        expect(visible_ids[@student1.id]).to contain_exactly(@page1.id, @page2.id)
-        expect(visible_ids[@student2.id]).to contain_exactly(@page1.id)
+        assert_visible(@student1, [@page1, @page2])
+        assert_visible(@student2, [@page1])
       end
 
       it "does not include pages where the user has a page override if the page has an assignment" do
@@ -1245,8 +1365,87 @@ describe WikiPage do
         page_override.assignment_override_students.create!(user: @student1)
         assignment = @course1.assignments.create!(title: "assignment", only_visible_to_overrides: true)
         @page1.update!(assignment_id: assignment.id)
-        expect(visible_ids[@student1.id]).to eq []
-        expect(visible_ids[@student2.id]).to eq []
+        assert_visible(@student1, [])
+        assert_visible(@student2, [])
+      end
+
+      it "does not include pages from another course" do
+        course2 = course_factory(active_all: true)
+        course2.wiki_pages.create!(title: "page3")
+        student_in_course(course: course2, user: @student1, active_all: true)
+        page4 = course2.wiki_pages.create!(title: "page2")
+        assignment = course2.assignments.create!(title: "assignment")
+        page4.update!(assignment_id: assignment.id)
+        assert_visible(@student1, [@page1])
+      end
+    end
+  end
+
+  describe "show_in_search_for_user?" do
+    shared_examples_for "expected_values_for_teacher_student" do |teacher_expected, student_expected|
+      it "returns #{teacher_expected} for teacher" do
+        expect(@page.show_in_search_for_user?(@teacher)).to eq(teacher_expected)
+      end
+
+      it "returns #{student_expected} for student" do
+        expect(@page.show_in_search_for_user?(@student)).to eq(student_expected)
+      end
+    end
+
+    before(:once) do
+      course_with_teacher(active_all: true)
+      student_in_course(course: @course, active_all: true)
+      @page = @course.wiki_pages.create!(title: "page")
+    end
+
+    include_examples "expected_values_for_teacher_student", true, true
+
+    context "when pages tab is disabled" do
+      before do
+        @old_tab_config = @course.tab_configuration.deep_dup
+        @course.tab_configuration = [{ id: Course::TAB_PAGES, hidden: true }]
+        @course.save!
+      end
+
+      after do
+        @course.tab_configuration = @old_tab_config
+        @course.save!
+      end
+
+      include_examples "expected_values_for_teacher_student", true, false
+
+      context "and the page is in a module" do
+        before do
+          # We want to make sure that we check for _all_ modules, not just
+          # the first so we will also add the page to a locked module.
+          locked_context_module = @course.context_modules.create!(name: "module1", unlock_at: 1.day.from_now)
+          locked_context_module.add_item({ id: @page.id, type: "wiki_page" })
+
+          @context_module = @course.context_modules.create!(name: "module2")
+          @context_module.add_item({ id: @page.id, type: "wiki_page" })
+        end
+
+        after do
+          @course.context_modules.destroy_all
+        end
+
+        include_examples "expected_values_for_teacher_student", true, true
+
+        context "and the module is unpublished" do
+          before do
+            @context_module.unpublish!
+          end
+
+          include_examples "expected_values_for_teacher_student", true, false
+        end
+
+        context "and the module is locked" do
+          before do
+            @context_module.update!(unlock_at: 1.day.from_now)
+          end
+
+          include_examples "expected_values_for_teacher_student", true, false
+        end
       end
     end
   end

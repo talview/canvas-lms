@@ -18,12 +18,12 @@
 
 import React from 'react'
 import PropTypes from 'prop-types'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {Button, IconButton} from '@instructure/ui-buttons'
 import {IconMiniArrowEndSolid, IconMiniArrowDownSolid} from '@instructure/ui-icons'
 import {Grid} from '@instructure/ui-grid'
 
-const I18n = useI18nScope('appointment_groups')
+const I18n = createI18nScope('appointment_groups')
 
 class ContextSelector extends React.Component {
   static propTypes = {
@@ -220,7 +220,8 @@ class ContextSelector extends React.Component {
   }
 
   renderSections(context) {
-    const filteredSections = context.sections?.filter(section => section.can_create_appointment_groups) ?? []
+    const filteredSections =
+      context.sections?.filter(section => section.can_create_appointment_groups) ?? []
     return (
       <div
         id={`${context.asset_string}_sections`}
@@ -265,10 +266,11 @@ class ContextSelector extends React.Component {
   }
 
   renderListItems() {
-    const filteredContexts = this.props.contexts.filter(context => context
-      .can_create_appointment_groups ||
-      context.sections?.some(section => section
-          .can_create_appointment_groups))
+    const filteredContexts = this.props.contexts.filter(
+      context =>
+        context.can_create_appointment_groups ||
+        context.sections?.some(section => section.can_create_appointment_groups)
+    )
     return (
       <div>
         {filteredContexts.map(context => {

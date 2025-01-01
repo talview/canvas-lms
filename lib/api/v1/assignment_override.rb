@@ -23,8 +23,8 @@ module Api::V1::AssignmentOverride
 
   OVERRIDABLE_ID_FIELDS = %i[assignment_id quiz_id context_module_id discussion_topic_id wiki_page_id attachment_id].freeze
 
-  def assignment_override_json(override, visible_users = nil, student_names: nil, module_names: nil)
-    fields = %i[id title]
+  def assignment_override_json(override, visible_users = nil, student_names: nil, module_names: nil, include_child_override_due_dates: nil)
+    fields = %i[id title unassign_item]
     OVERRIDABLE_ID_FIELDS.each { |f| fields << f if override.send(f).present? }
     fields.push(:due_at, :all_day, :all_day_date) if override.due_at_overridden
     fields << :unlock_at if override.unlock_at_overridden
@@ -44,12 +44,16 @@ module Api::V1::AssignmentOverride
         json[:students] = student_ids.map { |id| { id:, name: student_names[id] } } if student_names
       when "Group"
         json[:group_id] = override.set_id
+        json[:group_category_id] = override.assignment.group_category_id
       when "CourseSection"
         json[:course_section_id] = override.set_id
       when "Course"
         json[:course_id] = override.set_id
       when "Noop"
         json[:noop_id] = override.set_id
+      end
+      if include_child_override_due_dates
+        json[:sub_assignment_due_dates] = override.sub_assignment_due_dates
       end
     end
   end
@@ -64,11 +68,12 @@ module Api::V1::AssignmentOverride
         json[:course_section_id] = section_visibility.course_section_id
         json[:unlock_at] = discussion.unlock_at if discussion.unlock_at
         json[:lock_at] = discussion.lock_at if discussion.lock_at
+        json[:unassign_item] = false
       end
     end
   end
 
-  def assignment_overrides_json(overrides, user = nil, include_names: false)
+  def assignment_overrides_json(overrides, user = nil, include_names: false, include_child_override_due_dates: false)
     visible_users_ids = ::AssignmentOverride.visible_enrollments_for(overrides.compact, user).select(:user_id)
     # we most likely already have the student_ids preloaded here because of overridden_for, but just in case
     if overrides.any? { |ov| ov.present? && ov.set_type == "ADHOC" && !ov.preloaded_student_ids }
@@ -80,7 +85,7 @@ module Api::V1::AssignmentOverride
       module_ids = overrides.select { |ov| ov.present? && ov.context_module_id.present? }.map(&:context_module_id).uniq
       module_names = ContextModule.where(id: module_ids).pluck(:id, :name).to_h
     end
-    overrides.map { |override| assignment_override_json(override, visible_users_ids, student_names:, module_names:) if override }
+    overrides.map { |override| assignment_override_json(override, visible_users_ids, student_names:, module_names:, include_child_override_due_dates:) if override }
   end
 
   def assignment_override_collection(learning_object, include_students: false)
@@ -174,8 +179,8 @@ module Api::V1::AssignmentOverride
             s.global_id.to_s,
             ("sis_login_id:#{s.pseudonym.unique_id}" if s.pseudonym),
             ("hex:sis_login_id:#{s.pseudonym.unique_id.to_s.unpack("H*")}" if s.pseudonym),
-            ("sis_user_id:#{s.pseudonym.sis_user_id}" if s.pseudonym && s.pseudonym.sis_user_id),
-            ("hex:sis_user_id:#{s.pseudonym.sis_user_id.to_s.unpack("H*")}" if s.pseudonym && s.pseudonym.sis_user_id)
+            ("sis_user_id:#{s.pseudonym.sis_user_id}" if s.pseudonym&.sis_user_id),
+            ("hex:sis_user_id:#{s.pseudonym.sis_user_id.to_s.unpack("H*")}" if s.pseudonym&.sis_user_id)
           ]
         end.flatten.compact
         bad_ids = student_ids.map(&:to_s) - found_ids
@@ -213,20 +218,24 @@ module Api::V1::AssignmentOverride
       override_data[:section] = section
     end
 
+    if !set_type && data.key?(:course_id) && data[:course_id].present?
+      set_type = "Course"
+      override_data[:course] = learning_object.context
+    end
+
     if !set_type && data.key?(:noop_id)
       set_type = "Noop"
       override_data[:noop_id] = data[:noop_id]
-    end
-
-    if !set_type && data.key?(:course_id)
-      set_type = "Course"
-      override_data[:course] = learning_object.context
     end
 
     errors << "one of student_ids, group_id, or course_section_id is required" if !set_type && errors.empty?
 
     if %w[ADHOC Noop].include?(set_type) && data.key?(:title)
       override_data[:title] = data[:title]
+    end
+
+    if data.key?(:unassign_item) && data[:unassign_item]
+      override_data[:unassign_item] = data[:unassign_item]
     end
 
     # collect override values
@@ -367,6 +376,10 @@ module Api::V1::AssignmentOverride
       override.set = override_data[:course]
     end
 
+    if override_data.key?(:unassign_item)
+      override.unassign_item = override_data[:unassign_item]
+    end
+
     if override.set_type == "ADHOC"
       override.title = override_data[:title] ||
                        (override_data[:students] && override.title_from_students(override_data[:students])) ||
@@ -503,8 +516,8 @@ module Api::V1::AssignmentOverride
 
     raise ActiveRecord::RecordInvalid, learning_object unless learning_object.valid?
 
-    prepared_overrides[:overrides_to_create].each(&:save!)
     prepared_overrides[:overrides_to_update].each(&:save!)
+    prepared_overrides[:overrides_to_create].each(&:save!)
 
     @overrides_affected = prepared_overrides[:overrides_to_delete].size +
                           prepared_overrides[:overrides_to_create].size + prepared_overrides[:overrides_to_update].size

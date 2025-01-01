@@ -31,10 +31,10 @@ import LockManager from '@canvas/blueprint-courses/react/components/LockManager/
 import SectionsAutocomplete from './react/SectionsAutocomplete'
 import {Alert} from '@instructure/ui-alerts'
 import {View} from '@instructure/ui-view'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {AnonymousPostSelector} from './react/AnonymousPostSelector/AnonymousPostSelector'
 
-const I18n = useI18nScope('discussions')
+const I18n = createI18nScope('discussions')
 
 const isAnnouncement =
   ENV.DISCUSSION_TOPIC.ATTRIBUTES != null
@@ -77,6 +77,7 @@ function renderSectionsAutocomplete(view) {
       }
 
       const sectionsAreDisabled = isGradedDiscussion || isGroupDiscussion
+       
       ReactDOM.render(
         <SectionsAutocomplete
           selectedSections={ENV.SELECTED_SECTION_LIST}
@@ -125,6 +126,8 @@ ready(() => {
     homeroomCourse: window.ENV.K5_HOMEROOM_COURSE,
     isEditing: model.id,
     anonymousState: ENV.DISCUSSION_TOPIC.ATTRIBUTES.anonymous_state,
+    allowAnonymousEdit:
+      !model.id || ENV.DISCUSSION_TOPIC.ATTRIBUTES.discussion_subentry_count === 0,
     react_discussions_post: ENV.REACT_DISCUSSIONS_POST,
     allow_student_anonymous_discussion_topics: ENV.allow_student_anonymous_discussion_topics,
     context_is_not_group: ENV.context_is_not_group,
@@ -163,6 +166,7 @@ ready(() => {
             'Users do not receive updated notifications when editing an announcement. If you wish to have users notified of this update via their notification settings, you will need to create a new announcement.'
           ),
         }
+     
     ReactDOM.render(
       <View display="block" id={alertProps.id} key={alertProps.key}>
         <Alert variant={alertProps.variant}>{alertProps.text}</Alert>
@@ -178,7 +182,6 @@ ready(() => {
   setTimeout(() => {
     const groupsNotAllowedRoot = document.querySelector('#sections_groups_not_allowed_root')
     const anonymousPostSelector = document.querySelector('#sections_anonymous_post_selector')
-    const gradingCheckbox = document.querySelector('#use_for_grading')
 
     const radioButtons = document.querySelectorAll('input[name=anonymous_state]')
     radioButtons.forEach(radioButton => {
@@ -191,8 +194,6 @@ ready(() => {
         const isFullyAnonymous = anonymousState === 'full_anonymity'
         const isAnonymous = isPartiallyAnonymous || isFullyAnonymous
 
-        if (isAnonymous && gradingCheckbox.checked) gradingCheckbox.click()
-        gradingCheckbox.disabled = isAnonymous
         document.querySelector('#group_category_options').hidden = isAnonymous
         groupsNotAllowedRoot.style.display = isAnonymous ? 'inline' : 'none'
 
@@ -206,6 +207,7 @@ ready(() => {
       })
     })
 
+     
     ReactDOM.render(
       <View width="580px" display="block" data-testid="groups_grading_not_allowed">
         <Alert variant="info" margin="small">
@@ -216,6 +218,7 @@ ready(() => {
     )
 
     if (anonymousPostSelector) {
+       
       ReactDOM.render(<AnonymousPostSelector />, anonymousPostSelector)
     }
   })

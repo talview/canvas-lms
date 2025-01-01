@@ -41,11 +41,12 @@ module BasicLTI
       url
     ].freeze
 
-    def initialize(assignment, user, prioritize_non_tool_grade: false, needs_additional_review: false)
+    def initialize(assignment, user, prioritize_non_tool_grade: false, needs_additional_review: false, submission: nil)
       @assignment = assignment
       @user = user
       @prioritize_non_tool_grade = prioritize_non_tool_grade
       @needs_additional_review = needs_additional_review
+      @_submission = submission
     end
 
     def active?
@@ -80,7 +81,7 @@ module BasicLTI
       self
     end
 
-    def grade_history
+    def grade_history(hide_history_scores_on_manual_posting: false)
       return @_grade_history unless @_grade_history.nil?
 
       # attempt submitted time should be submitted_at from the first version
@@ -88,7 +89,14 @@ module BasicLTI
         last = attempt.last
         first = attempt.first
         last[:submitted_at] = first[:submitted_at]
-        (last[:score].blank? && last[:workflow_state] != "graded") ? nil : last
+        edited_attempt = (last[:score].blank? && last[:workflow_state] != "graded") ? nil : last
+        # Keeping keys to not break API, but hiding the values if manually posted
+        if edited_attempt.present? && hide_history_scores_on_manual_posting
+          edited_attempt[:grade] = nil
+          edited_attempt[:score] = nil
+          edited_attempt[:points_deducted] = nil
+        end
+        edited_attempt
       end
       @_grade_history = attempts.compact
     end
@@ -99,13 +107,13 @@ module BasicLTI
       # Quizzes indicated the quiz session contains items that are not auto-
       # gradable. Set workflow state to pending_review to indicate manual
       # grading is needed
-      return Submission.workflow_states.pending_review if @needs_additional_review
+      return "pending_review" if @needs_additional_review
 
       # The submission previously was in a pending_review state, but all
       # items that required manual grading have been scored. Set workflow_state
       # to submitted and let the Submission#inferred_workflow_state method handle
       # selecting the correct state
-      return Submission.workflow_states.submitted if additional_review_complete?(submission_record)
+      return "submitted" if additional_review_complete?(submission_record)
 
       submission_record.workflow_state
     end
@@ -218,10 +226,11 @@ module BasicLTI
     def attempts_hash
       @_attempts_hash ||= begin
         attempts = submission.versions.sort_by(&:created_at).each_with_object({}) do |v, a|
-          h = YAML.safe_load(v.yaml).with_indifferent_access
-          url = v.model.url
+          sub = v.model
+          url = sub.url
           next if url.blank? # exclude invalid versions (url is actual attempt identifier)
 
+          h = sub.attributes.with_indifferent_access
           h[:url] = url
           (a[url] = (a[url] || [])) << h.slice(*JSON_FIELDS)
         end

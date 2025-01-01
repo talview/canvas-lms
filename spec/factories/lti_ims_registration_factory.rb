@@ -20,18 +20,13 @@
 module Factories
   LTI_IMS_REGISTRATION_BASE_ATTRS =
     {
-      application_type: "web",
       guid: "6378c81b-5996-4754-b850-5de78e6d22f4",
       client_name: "Test Dynamic Registration",
       client_uri: "https://example.com",
-      grant_types: %w[client_credentials implicit],
       jwks_uri: "https://example.com/api/registrations/3/jwks",
       initiate_login_uri: "https://example.com/api/registrations/3/login",
       redirect_uris: [
         "https://example.com/api/registrations/3/launch"
-      ],
-      response_types: [
-        "id_token"
       ],
       scopes: %w[
         https://purl.imsglobal.org/spec/lti-ags/scope/lineitem
@@ -39,11 +34,15 @@ module Factories
         https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly
         https://purl.imsglobal.org/spec/lti-ags/scope/score
         https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly
+        https://purl.imsglobal.org/spec/lti/scope/noticehandlers
+        https://purl.imsglobal.org/spec/lti/scope/asset.readonly
+        https://purl.imsglobal.org/spec/lti/scope/report
+        https://purl.imsglobal.org/spec/lti/scope/eula
+
         https://canvas.instructure.com/lti/public_jwk/scope/update
         https://canvas.instructure.com/lti/account_lookup/scope/show
         https://canvas.instructure.com/lti-ags/progress/scope/show
       ],
-      token_endpoint_auth_method: "private_key_jwt",
       logo_uri: "https://example.com/api/apps/1/icon.svg",
       lti_tool_configuration: {
         claims: %w[
@@ -83,7 +82,8 @@ module Factories
 
   def lti_ims_registration_model(**params)
     params = LTI_IMS_REGISTRATION_BASE_ATTRS.merge(params)
-    params[:developer_key] ||= developer_key_model(public_jwk_url: LTI_IMS_REGISTRATION_BASE_ATTRS[:jwks_uri], account: params.delete(:account) || account_model)
+    params[:developer_key] ||= developer_key_model(public_jwk_url: LTI_IMS_REGISTRATION_BASE_ATTRS[:jwks_uri], account: params.delete(:account) || account_model, is_lti_key: true)
+    params[:lti_registration] ||= params[:developer_key].lti_registration
     @ims_registration = Lti::IMS::Registration.create!(params)
   end
 end

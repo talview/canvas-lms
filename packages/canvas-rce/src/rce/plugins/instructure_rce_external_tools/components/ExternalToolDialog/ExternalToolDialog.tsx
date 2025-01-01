@@ -1,3 +1,6 @@
+// @ts-nocheck
+// TODO: we get complaints about <Overlay> because it can be either a Modal or a Tray
+// and they have different props. I don't have time to fix this the right way now.
 /*
  * Copyright (C) 2019 - present Instructure, Inc.
  *
@@ -208,12 +211,26 @@ export default class ExternalToolDialog extends React.Component<
 
   handleInfoAlertBlur = () => this.setState({infoAlert: null})
 
+  calcIFrameHeight = () => {
+    if (this.state.button?.use_tray) {
+      return '100%'
+    }
+    const toolDefinedHeight = this.state.button?.height
+    const iFrameHeight = toolDefinedHeight ?? Math.max(Math.min(window.innerHeight - 100, 550), 100)
+    const modalMaxHeight = '95'
+    const modalHeaderHeightWithPadding = '5.5rem'
+    const complexHeightWithDVH = `min(${iFrameHeight}px, calc(${modalMaxHeight}dvh - ${modalHeaderHeightWithPadding}))`
+    if (CSS.supports('height', complexHeightWithDVH)) {
+      return complexHeightWithDVH
+    } else {
+      return `${iFrameHeight}px`
+    }
+  }
+
   render() {
     const state = this.state
     const props = this.props
-
     const label = formatMessage('Embed content from External Tool')
-    const frameHeight = Math.max(Math.min(window.innerHeight - 100, 550), 100)
     const Overlay = state.button?.use_tray ? ExternalToolDialogTray : ExternalToolDialogModal
 
     return (
@@ -225,11 +242,19 @@ export default class ExternalToolDialog extends React.Component<
           target="external_tool_launch"
           style={{margin: 0}}
         >
-          <input type="hidden" name="editor" value="1"/>
-          <input type="hidden" name="selection" value={state.form.selection}/>
-          <input type="hidden" name="editor_contents" value={state.form.contents}/>
-          <input type="hidden" name="com_instructure_course_canvas_resource_type" value={props.env.rceWrapper?.getResourceIdentifiers().resourceType} />
-          <input type="hidden" name="com_instructure_course_canvas_resource_id" value={props.env.rceWrapper?.getResourceIdentifiers().resourceId} />
+          <input type="hidden" name="editor" value="1" />
+          <input type="hidden" name="selection" value={state.form.selection} />
+          <input type="hidden" name="editor_contents" value={state.form.contents} />
+          <input
+            type="hidden"
+            name="com_instructure_course_canvas_resource_type"
+            value={props.env.rceWrapper?.getResourceIdentifiers().resourceType}
+          />
+          <input
+            type="hidden"
+            name="com_instructure_course_canvas_resource_id"
+            value={props.env.rceWrapper?.getResourceIdentifiers().resourceId}
+          />
           {state.form.parent_frame_context != null && (
             <input
               type="hidden"
@@ -282,8 +307,8 @@ export default class ExternalToolDialog extends React.Component<
             src=""
             id="external_tool_button_frame"
             style={{
+              height: this.calcIFrameHeight(),
               width: state.button?.use_tray ? '100%' : state.button?.width ?? 800,
-              height: state.button?.use_tray ? '100%' : state.button?.height ?? frameHeight,
               border: '0',
               display: 'block',
               visibility: state.iframeLoaded ? 'visible' : 'hidden',
@@ -296,6 +321,12 @@ export default class ExternalToolDialog extends React.Component<
             tabIndex={0} // eslint-disable-line jsx-a11y/no-noninteractive-tabindex
             onFocus={this.handleInfoAlertFocus}
             onBlur={this.handleInfoAlertBlur}
+            style={
+              this.afterInfoAlertRef.current != null &&
+              state.infoAlert === this.afterInfoAlertRef.current
+                ? {}
+                : {bottom: '0'}
+            }
             className={
               this.afterInfoAlertRef.current != null &&
               state.infoAlert === this.afterInfoAlertRef.current

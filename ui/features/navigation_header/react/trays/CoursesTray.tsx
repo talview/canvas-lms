@@ -16,7 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import React from 'react'
 import {View} from '@instructure/ui-view'
 import {Text} from '@instructure/ui-text'
@@ -28,15 +28,20 @@ import {useQuery} from '@canvas/query'
 import {SplitCoursesList, CourseListItemContent} from '../lists/SplitCoursesList'
 import coursesQuery, {hideHomeroomCourseIfK5Student} from '../queries/coursesQuery'
 import type {Course} from '../../../../api.d'
+import type {GlobalEnv} from '@canvas/global/env/GlobalEnv.d'
 
-const I18n = useI18nScope('CoursesTray')
+declare const window: Window & {ENV: GlobalEnv}
+
+const I18n = createI18nScope('CoursesTray')
 
 export default function CoursesTray() {
   const showSplitList = (window.ENV.current_user_roles || []).includes('teacher')
   const {data, isLoading, isSuccess} = useQuery<Course[], Error>({
     queryKey: ['courses'],
     queryFn: coursesQuery,
-    fetchAtLeastOnce: true,
+    meta: {
+      fetchAtLeastOnce: true,
+    },
     refetchOnMount: false,
     select: courses => courses.filter(hideHomeroomCourseIfK5Student),
   })

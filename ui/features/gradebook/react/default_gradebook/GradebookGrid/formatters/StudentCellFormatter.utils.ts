@@ -1,4 +1,3 @@
-// @ts-nocheck
 /*
  * Copyright (C) 2021 - present Instructure, Inc.
  *
@@ -18,11 +17,11 @@
  */
 
 import htmlEscape from '@instructure/html-escape'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import listFormatterPolyfill from '@canvas/util/listFormatter'
 import type Gradebook from '../../Gradebook'
 
-const I18n = useI18nScope('gradebook')
+const I18n = createI18nScope('gradebook')
 
 const listFormatter = Intl.ListFormat
   ? new Intl.ListFormat(ENV.LOCALE || navigator.language)
@@ -37,6 +36,7 @@ export function getSecondaryDisplayInfo(
     integration_id?: string
   },
   secondaryInfo: string,
+  // @ts-expect-error
   options
 ) {
   if (options.shouldShowSections() && secondaryInfo === 'section') {
@@ -98,6 +98,7 @@ export function getOptions(gradebook: Gradebook) {
   }
 }
 
+// @ts-expect-error
 // xsslint safeString.property enrollmentLabel secondaryInfo studentId courseId url displayName
 export function renderCell(options) {
   let enrollmentStatus = ''

@@ -24,20 +24,7 @@ require_relative "../lti_1_3_spec_helper"
 RSpec.describe ApplicationController do
   context "group 1" do
     before do
-      request_double = double(
-        cookies_same_site_protection: proc { false },
-        host_with_port: "www.example.com",
-        host: "www.example.com",
-        url: "http://www.example.com",
-        method: "GET",
-        headers: {},
-        format: double(html?: true),
-        user_agent: nil,
-        remote_ip: "0.0.0.0",
-        base_url: "https://canvas.test",
-        referer: nil
-      )
-      allow(controller).to receive(:request).and_return(request_double)
+      @controller.instance_variable_set(:@domain_root_account, Account.default)
     end
 
     describe "#google_drive_connection" do
@@ -53,7 +40,7 @@ RSpec.describe ApplicationController do
         controller.instance_variable_set(:@real_current_user, mock_real_current_user)
         controller.instance_variable_set(:@current_user, mock_current_user)
         session[:oauth_gdrive_refresh_token] = "session_token"
-        session[:oauth_gdrive_access_token] = "sesion_secret"
+        session[:oauth_gdrive_access_token] = "session_secret"
 
         expect(Rails.cache).to receive(:fetch).with(["google_drive_tokens", mock_real_current_user].cache_key).and_return(["real_current_user_token", "real_current_user_secret"])
 
@@ -67,7 +54,7 @@ RSpec.describe ApplicationController do
         controller.instance_variable_set(:@real_current_user, nil)
         controller.instance_variable_set(:@current_user, mock_current_user)
         session[:oauth_gdrive_refresh_token] = "session_token"
-        session[:oauth_gdrive_access_token] = "sesion_secret"
+        session[:oauth_gdrive_access_token] = "session_secret"
 
         expect(Rails.cache).to receive(:fetch).with(["google_drive_tokens", mock_current_user].cache_key).and_return(["current_user_token", "current_user_secret"])
 
@@ -80,7 +67,7 @@ RSpec.describe ApplicationController do
         controller.instance_variable_set(:@real_current_user, nil)
         controller.instance_variable_set(:@current_user, mock_current_user)
         session[:oauth_gdrive_refresh_token] = "session_token"
-        session[:oauth_gdrive_access_token] = "sesion_secret"
+        session[:oauth_gdrive_access_token] = "session_secret"
 
         mock_user_services = double("mock_user_services")
         expect(mock_current_user).to receive(:user_services).and_return(mock_user_services)
@@ -94,9 +81,9 @@ RSpec.describe ApplicationController do
         controller.instance_variable_set(:@real_current_user, nil)
         controller.instance_variable_set(:@current_user, nil)
         session[:oauth_gdrive_refresh_token] = "session_token"
-        session[:oauth_gdrive_access_token] = "sesion_secret"
+        session[:oauth_gdrive_access_token] = "session_secret"
 
-        expect(GoogleDrive::Connection).to receive(:new).with("session_token", "sesion_secret", 30)
+        expect(GoogleDrive::Connection).to receive(:new).with("session_token", "session_secret", 30)
 
         controller.send(:google_drive_connection)
       end
@@ -108,7 +95,7 @@ RSpec.describe ApplicationController do
       end
 
       it "sets items" do
-        expect(HostUrl).to receive(:file_host).with(Account.default, "www.example.com").and_return("files.example.com")
+        expect(HostUrl).to receive(:file_host).with(Account.default, "test.host").and_return("files.example.com")
         controller.js_env FOO: "bar"
         expect(controller.js_env[:FOO]).to eq "bar"
         expect(controller.js_env[:files_domain]).to eq "files.example.com"
@@ -281,20 +268,23 @@ RSpec.describe ApplicationController do
 
       it "sets the contextual timezone from the context" do
         Time.use_zone("Mountain Time (US & Canada)") do
-          controller.instance_variable_set(:@context, double(time_zone: Time.zone, asset_string: "", class_name: nil))
+          controller.instance_variable_set(:@context, double(time_zone: Time.zone, asset_string: "", class_name: nil, grants_right?: false))
           controller.js_env({})
           expect(controller.js_env[:CONTEXT_TIMEZONE]).to eq "America/Denver"
         end
       end
 
       context "session_timezone url param is given" do
+        let(:context_double) { double(asset_string: "", class_name: nil, grants_right?: false) }
+
         before do
           allow(controller).to receive(:params).and_return({ session_timezone: "America/New_York" })
+          controller.instance_variable_set(:@context, context_double)
         end
 
         it "sets the timezone from the url" do
           Time.use_zone("Mountain Time (US & Canada)") do
-            controller.instance_variable_set(:@context, double(time_zone: Time.zone, asset_string: "", class_name: nil))
+            allow(context_double).to receive(:time_zone).and_return(Time.zone)
             controller.js_env({})
             expect(controller.js_env[:TIMEZONE]).to eq "America/New_York"
           end
@@ -302,7 +292,7 @@ RSpec.describe ApplicationController do
 
         it "sets the contextual timezone from the url" do
           Time.use_zone("Mountain Time (US & Canada)") do
-            controller.instance_variable_set(:@context, double(time_zone: Time.zone, asset_string: "", class_name: nil))
+            allow(context_double).to receive(:time_zone).and_return(Time.zone)
             controller.js_env({})
             expect(controller.js_env[:CONTEXT_TIMEZONE]).to eq "America/New_York"
           end
@@ -315,7 +305,7 @@ RSpec.describe ApplicationController do
 
           it "sets the contextual timezone from the context" do
             Time.use_zone("Mountain Time (US & Canada)") do
-              controller.instance_variable_set(:@context, double(time_zone: Time.zone, asset_string: "", class_name: nil))
+              allow(context_double).to receive(:time_zone).and_return(Time.zone)
               controller.js_env({})
               expect(controller.js_env[:CONTEXT_TIMEZONE]).to eq "America/Denver"
             end
@@ -323,7 +313,7 @@ RSpec.describe ApplicationController do
 
           it "sets the timezone from the context" do
             Time.use_zone("Mountain Time (US & Canada)") do
-              controller.instance_variable_set(:@context, double(time_zone: Time.zone, asset_string: "", class_name: nil))
+              allow(context_double).to receive(:time_zone).and_return(Time.zone)
               controller.js_env({})
               expect(controller.js_env[:TIMEZONE]).to eq "America/Denver"
             end
@@ -349,16 +339,18 @@ RSpec.describe ApplicationController do
       end
 
       it "gets appropriate settings from the root account" do
-        root_account = double(global_id: 1, id: 1, feature_enabled?: false, open_registration?: true, settings: {}, cache_key: "key", uuid: "bleh", salesforce_id: "blah")
+        root_account = double(global_id: 1, id: 1, feature_enabled?: false, open_registration?: true, can_add_pronouns?: true, show_sections_in_course_tray?: true, settings: {}, cache_key: "key", uuid: "bleh", salesforce_id: "blah")
         allow(root_account).to receive(:kill_joy?).and_return(false)
         allow(HostUrl).to receive_messages(file_host: "files.example.com")
         controller.instance_variable_set(:@domain_root_account, root_account)
         expect(controller.js_env[:SETTINGS][:open_registration]).to be_truthy
+        expect(controller.js_env[:SETTINGS][:can_add_pronouns]).to be_truthy
+        expect(controller.js_env[:SETTINGS][:show_sections_in_course_tray]).to be_truthy
         expect(controller.js_env[:KILL_JOY]).to be_falsey
       end
 
       it "disables fun when set" do
-        root_account = double(global_id: 1, id: 1, feature_enabled?: false, open_registration?: true, settings: {}, cache_key: "key", uuid: "blah", salesforce_id: "bleh")
+        root_account = double(global_id: 1, id: 1, feature_enabled?: false, open_registration?: true, can_add_pronouns?: true, show_sections_in_course_tray?: true, settings: {}, cache_key: "key", uuid: "blah", salesforce_id: "bleh")
         allow(root_account).to receive(:kill_joy?).and_return(true)
         allow(HostUrl).to receive_messages(file_host: "files.example.com")
         controller.instance_variable_set(:@domain_root_account, root_account)
@@ -373,22 +365,6 @@ RSpec.describe ApplicationController do
 
           it "populates js_env with elementary theme setting" do
             expect(controller.js_env[:FEATURES]).to include(:canvas_k6_theme)
-          end
-        end
-
-        context "usage_rights_discussion_topics" do
-          before do
-            controller.instance_variable_set(:@domain_root_account, Account.default)
-          end
-
-          it "is false if the feature flag is off" do
-            Account.default.disable_feature!(:usage_rights_discussion_topics)
-            expect(controller.js_env[:FEATURES][:usage_rights_discussion_topics]).to be_falsey
-          end
-
-          it "is true if the feature flag is on" do
-            Account.default.enable_feature!(:usage_rights_discussion_topics)
-            expect(controller.js_env[:FEATURES][:usage_rights_discussion_topics]).to be_truthy
           end
         end
       end
@@ -408,6 +384,67 @@ RSpec.describe ApplicationController do
 
       it "sets DEEP_LINKING_POST_MESSAGE_ORIGIN" do
         expect(@controller.js_env[:DEEP_LINKING_POST_MESSAGE_ORIGIN]).to eq @controller.request.base_url
+      end
+
+      context "top_navigation_tools are present" do
+        let(:developer_key) { DeveloperKey.create! }
+        let(:domain) { "example.net" }
+        let(:devkey_tool) { external_tool_1_3_model(developer_key:, opts: { settings: { top_navigation: {} } }) }
+        let(:domain_tool) { external_tool_1_3_model(opts: { domain:, settings: { top_navigation: {} } }) }
+        let(:unauth_tool) { external_tool_1_3_model(opts: { settings: { top_navigation: {} } }) }
+
+        def tool_hash_for(tool)
+          {
+            id: tool.id,
+            canvas_icon_class: nil,
+            icon_url: nil,
+            base_url: domain,
+            title: "a",
+            pinned: tool.top_nav_favorite_in_context?(controller.context)
+          }
+        end
+
+        before do
+          controller.instance_variable_set(:@context, Account.default)
+          Setting.set("top_navigation_allowed_dev_keys", developer_key.id.to_s)
+          Setting.set("top_navigation_allowed_launch_domains", domain)
+          allow(Lti::ContextToolFinder).to receive(:all_tools_for).and_return([devkey_tool, domain_tool, unauth_tool])
+          allow(controller).to receive(:polymorphic_url).and_return(domain)
+          Account.site_admin.disable_feature!(:top_navigation_placement)
+        end
+
+        it "does not populate tools" do
+          expect(@controller.js_env.keys).not_to include(:top_navigation_tools)
+        end
+
+        context "when the top_navigation placement is enabled" do
+          before do
+            Account.site_admin.enable_feature!(:top_navigation_placement)
+          end
+
+          context "lti_placement_restrictions FF on" do
+            before do
+              Account.site_admin.enable_feature!(:lti_placement_restrictions)
+            end
+
+            it "sets top_navigation_tools" do
+              expect(@controller.js_env[:top_navigation_tools]).to include(tool_hash_for(devkey_tool))
+              expect(@controller.js_env[:top_navigation_tools]).to include(tool_hash_for(domain_tool))
+            end
+          end
+
+          context "lti_placement_restrictions FF off" do
+            before do
+              Account.site_admin.disable_feature!(:lti_placement_restrictions)
+            end
+
+            it "sets top_navigation_tools" do
+              expect(@controller.js_env[:top_navigation_tools]).to include(tool_hash_for(devkey_tool))
+              expect(@controller.js_env[:top_navigation_tools]).to include(tool_hash_for(domain_tool))
+              expect(@controller.js_env[:top_navigation_tools]).to include(tool_hash_for(unauth_tool))
+            end
+          end
+        end
       end
 
       context "sharding" do
@@ -712,6 +749,17 @@ RSpec.describe ApplicationController do
         expect { locale = I18n.localizer.call }.to_not raise_error
         expect(locale).to eq("en") # default locale
       end
+
+      it "finds a deleted course if an access token is used" do
+        course_model
+        @course.delete
+
+        controller.instance_variable_set(:@domain_root_account, Account.default)
+        controller.instance_variable_set(:@token, "just some random thing here")
+        allow(controller).to receive_messages(params: { course_id: @course.id })
+        controller.send(:get_context)
+        expect(controller.instance_variable_get(:@context)).to eq @course
+      end
     end
 
     context "require_context" do
@@ -729,6 +777,40 @@ RSpec.describe ApplicationController do
         expect(controller.send(:require_course_context)).to be_truthy
         controller.instance_variable_set(:@context, Account.default)
         expect { controller.send(:require_course_context) }.to raise_error(ActiveRecord::RecordNotFound)
+      end
+    end
+
+    describe "#context_account" do
+      it "returns context if context is Account" do
+        controller.instance_variable_set(:@context, account_model)
+        expect(controller.send(:context_account)).to eq @account
+      end
+
+      it "returns course's account if context is Course" do
+        controller.instance_variable_set(:@context, course_model)
+        expect(controller.send(:context_account)).to eq @course.account
+      end
+
+      it "returns group's account if context is Group" do
+        controller.instance_variable_set(:@context, group_model)
+        expect(controller.send(:context_account)).to eq @group.account
+      end
+
+      it "returns course section if context is a CourseSection" do
+        course_model
+        add_section("section 1", { course: @course })
+        controller.instance_variable_set(:@context, @course_section)
+        expect(controller.send(:context_account)).to eq @course.account
+      end
+
+      it "raises error if context is a User" do
+        controller.instance_variable_set(:@context, user_model)
+        expect { controller.send(:context_account) }.to raise_error("Account can't be derived from a User context")
+      end
+
+      it "raises error if an account can't be derived from context" do
+        controller.instance_variable_set(:@context, assignment_model)
+        expect { controller.send(:context_account) }.to raise_error(ActiveRecord::RecordNotFound)
       end
     end
 
@@ -771,7 +853,7 @@ RSpec.describe ApplicationController do
         allow(controller).to receive(:params).and_return({ file_id: @attachment.id, id: @attachment.id })
         allow(controller.request).to receive(:path).and_return("/files/#{@attachment.id}")
         controller.send(:log_participation, @student)
-        expect(AssetUserAccess.where(user: @student, asset_code: @attachment.asset_string).take.context).to eq @course
+        expect(AssetUserAccess.find_by(user: @student, asset_code: @attachment.asset_string).context).to eq @course
       end
 
       it "does not error on non-standard context for file" do
@@ -885,8 +967,8 @@ RSpec.describe ApplicationController do
         let(:course) { course_model }
 
         before do
-          controller.instance_variable_set(:@context, course)
           allow(course).to receive(:grants_any_right?).and_return true
+          controller.instance_variable_set(:@context, course)
         end
 
         it "redirects for an assignment" do
@@ -1125,20 +1207,22 @@ RSpec.describe ApplicationController do
             end
 
             shared_examples_for "a placement that caches the launch" do
+              let(:subject) { controller.send(:content_tag_redirect, course, content_tag, nil) }
               let(:verifier) { "e5e774d015f42370dcca2893025467b414d39009dfe9a55250279cca16f5f3c2704f9c56fef4cea32825a8f72282fa139298cf846e0110238900567923f9d057" }
               let(:redis_key) { "#{course.class.name}:#{Lti::RedisMessageClient::LTI_1_3_PREFIX}#{verifier}" }
               let(:cached_launch) { JSON.parse(Canvas.redis.get(redis_key)) }
 
               before do
                 allow(SecureRandom).to receive(:hex).and_return(verifier)
-                controller.send(:content_tag_redirect, course, content_tag, nil)
               end
 
               it "caches the LTI 1.3 launch" do
-                expect(cached_launch["https://purl.imsglobal.org/spec/lti/claim/message_type"]).to eq "LtiResourceLinkRequest"
+                subject
+                expect(cached_launch["post_payload"]["https://purl.imsglobal.org/spec/lti/claim/message_type"]).to eq "LtiResourceLinkRequest"
               end
 
               it "creates a login message" do
+                subject
                 expect(assigns[:lti_launch].params.keys).to match_array %w[
                   iss
                   login_hint
@@ -1147,20 +1231,45 @@ RSpec.describe ApplicationController do
                   canvas_region
                   canvas_environment
                   client_id
-                  deployment_id
+                  lti_deployment_id
                   lti_storage_target
                 ]
               end
 
+              context "with lti_deployment_id_in_login_request FF off" do
+                before do
+                  @course.root_account.disable_feature!(:lti_deployment_id_in_login_request)
+                end
+
+                it "creates a login message that includes deployment_id" do
+                  subject
+                  expect(assigns[:lti_launch].params.keys).to match_array %w[
+                    iss
+                    login_hint
+                    target_link_uri
+                    lti_message_hint
+                    canvas_region
+                    canvas_environment
+                    client_id
+                    deployment_id
+                    lti_deployment_id
+                    lti_storage_target
+                  ]
+                end
+              end
+
               it 'sets the "login_hint" to the current user lti id' do
+                subject
                 expect(assigns[:lti_launch].params["login_hint"]).to eq Lti::Asset.opaque_identifier_for(user)
               end
 
               it "does not use the oidc_initiation_url as the resource_url" do
+                subject
                 expect(assigns[:lti_launch].resource_url).to eq tool.url
               end
 
               it 'sets the "canvas_domain" to the request domain' do
+                subject
                 message_hint = JSON::JWT.decode(assigns[:lti_launch].params["lti_message_hint"], :skip_verification)
                 expect(message_hint["canvas_domain"]).to eq "localhost"
               end
@@ -1168,12 +1277,12 @@ RSpec.describe ApplicationController do
               context "when the developer key has an oidc_initiation_url" do
                 before do
                   tool.developer_key.update!(oidc_initiation_url:)
-                  controller.send(:content_tag_redirect, course, content_tag, nil)
                 end
 
                 let(:oidc_initiation_url) { "https://www.test.com/oidc/login" }
 
                 it "does use the oidc_initiation_url as the resource_url" do
+                  subject
                   expect(assigns[:lti_launch].resource_url).to eq oidc_initiation_url
                 end
               end
@@ -1183,10 +1292,10 @@ RSpec.describe ApplicationController do
 
                 before do
                   content_tag.update!(url: custom_url)
-                  controller.send(:content_tag_redirect, course, content_tag, nil)
                 end
 
                 it "uses the custom url as the target_link_uri" do
+                  subject
                   expect(assigns[:lti_launch].params["target_link_uri"]).to eq custom_url
                 end
               end
@@ -1200,7 +1309,7 @@ RSpec.describe ApplicationController do
 
                 before do
                   # assignments configured with LTI 1.1 will not have
-                  # LineItem or ResouceLink records prior to the LTI 1.3
+                  # LineItem or ResourceLink records prior to the LTI 1.3
                   # launch.
                   assignment.line_items.destroy_all
 
@@ -1235,7 +1344,8 @@ RSpec.describe ApplicationController do
 
               it_behaves_like "a placement that caches the launch" do
                 it "sets link-level custom parameters" do
-                  expect(cached_launch["https://purl.imsglobal.org/spec/lti/claim/custom"]).to include("abc" => "def")
+                  subject
+                  expect(cached_launch["post_payload"]["https://purl.imsglobal.org/spec/lti/claim/custom"]).to include("abc" => "def")
                 end
               end
             end
@@ -1453,8 +1563,10 @@ RSpec.describe ApplicationController do
             tool:,
             context: course,
             user:,
+            session_id: nil,
             placement: nil,
-            launch_type: :content_item
+            launch_type: :content_item,
+            launch_url: "http://www.example.com/basic_lti"
           )
         end
 
@@ -1699,6 +1811,7 @@ RSpec.describe ApplicationController do
 
         context "lti_placement_restrictions FF on" do
           before do
+            allow(Account.site_admin).to receive(:feature_enabled?).with(:instructure_identity_global_flag)
             expect(Account.site_admin).to receive(:feature_enabled?).with(:lti_placement_restrictions).and_return(true)
           end
 
@@ -1714,6 +1827,7 @@ RSpec.describe ApplicationController do
 
         context "lti_placement_restrictions FF off" do
           before do
+            allow(Account.site_admin).to receive(:feature_enabled?).with(:instructure_identity_global_flag)
             expect(Account.site_admin).to receive(:feature_enabled?).with(:lti_placement_restrictions).and_return(false)
           end
 
@@ -1828,7 +1942,7 @@ RSpec.describe ApplicationController do
 
           controller.external_tools_display_hashes(:account_navigation, @course)
 
-          expect(controller.js_env[:LTI_TOOL_SCOPES]).to eq("http://example.com" => [TokenScopes::LTI_PAGE_CONTENT_SHOW_SCOPE])
+          expect(controller.js_env[:LTI_TOOL_SCOPES]).to eq("http://example.com" => TokenScopes::LTI_POSTMESSAGE_SCOPES)
         end
       end
 
@@ -1876,6 +1990,43 @@ RSpec.describe ApplicationController do
         allow(controller.request).to receive(:path).and_return("/api/endpoint")
         controller.instance_variable_set(:@pseudonym_session, nil)
         expect { controller.send(:verify_authenticity_token) }.not_to raise_exception
+      end
+    end
+
+    describe "#check_limited_access_for_students" do
+      context "feature flag is enabled on root account" do
+        before do
+          @account = Account.default
+          @account.enable_feature!(:allow_limited_access_for_students)
+          controller.instance_variable_set(:@domain_root_account, @account)
+        end
+
+        it "renders unauthorized if context is a user and a student in account with limited access" do
+          user_factory
+          controller.instance_variable_set(:@context, @user)
+          allow(@user).to receive(:student_in_limited_access_account?).and_return(true)
+          expect(controller).to receive(:render_unauthorized_action)
+          controller.send(:check_limited_access_for_students)
+        end
+
+        it "renders unauthorized if context is account with limited access and user is a student in that account" do
+          controller.instance_variable_set(:@context, @account)
+          allow(@account).to receive(:limited_access_for_user?).and_return(true)
+          expect(controller).to receive(:render_unauthorized_action)
+          controller.send(:check_limited_access_for_students)
+        end
+
+        it "does nothing if context and current_user are not set" do
+          expect(controller).not_to receive(:render_unauthorized_action)
+          expect(controller.send(:check_limited_access_for_students)).to be_nil
+        end
+      end
+
+      context "feature flag is disabled on root account" do
+        it "does nothing" do
+          expect(controller).not_to receive(:render_unauthorized_action)
+          expect(controller.send(:check_limited_access_for_students)).to be_nil
+        end
       end
     end
   end
@@ -2629,6 +2780,70 @@ RSpec.describe ApplicationController do
       end
     end
   end
+
+  describe "#js_env_root_account_settings" do
+    subject { controller.js_env_root_account_settings }
+
+    before do
+      Account.default[:settings] = { calendar_contexts_limit: 5, open_registration: false }
+      Account.default.save!
+    end
+
+    context "when inbox settings feature is disabled" do
+      it "returns default settings" do
+        expect(subject).to match_array([:calendar_contexts_limit, :open_registration])
+      end
+    end
+
+    context "when inbox settings feature is enabled" do
+      before do
+        Account.site_admin.enable_feature!(:inbox_settings)
+      end
+
+      it "returns default settings and inbox settings" do
+        expect(subject).to match_array(
+          %i[
+            calendar_contexts_limit
+            open_registration
+            inbox_auto_response
+            inbox_signature_block
+            inbox_auto_response_for_students
+            inbox_signature_block_for_students
+          ]
+        )
+      end
+    end
+  end
+
+  describe "#cached_js_env_root_account_settings" do
+    subject { controller.cached_js_env_root_account_settings }
+
+    before do
+      Account.default[:settings] = { calendar_contexts_limit: 10, open_registration: true }
+      Account.default.save!
+      controller.instance_variable_set(:@domain_root_account, Account.default)
+    end
+
+    context "when domain root account has settings attribute" do
+      it "fetches settings from cache" do
+        js_env_settings_hash = Digest::SHA256.hexdigest([:calendar_contexts_limit, :open_registration].sort.join(","))
+        account_settings_hash = Digest::SHA256.hexdigest(Account.default[:settings].to_s)
+        cache_key = ["js_env_root_account_settings", js_env_settings_hash, account_settings_hash].cache_key
+
+        expect(MultiCache).to receive(:fetch).and_call_original
+        expect(MultiCache).to receive(:fetch).with(cache_key).and_yield
+        expect(subject).to match(hash_including(calendar_contexts_limit: 10, open_registration: true))
+      end
+
+      it "returns only the available settings if some domain root account settings are not set" do
+        Account.default[:settings].delete(:calendar_contexts_limit)
+        Account.default.save!
+
+        expect(subject).to have_key(:open_registration)
+        expect(subject).not_to have_key(:calendar_contexts_limit)
+      end
+    end
+  end
 end
 
 describe WikiPagesController do
@@ -2909,7 +3124,7 @@ RSpec.describe ApplicationController, "#render_unauthorized_action" do
     let(:format) { :json }
 
     specify { expect(response.headers["Content-Type"]).to match(%r{\Aapplication/json}) }
-    specify { expect(response).to have_http_status :unauthorized }
+    specify { expect(response).to have_http_status :forbidden }
     specify { expect(json_parse.fetch("status")).to eq "unauthorized" }
   end
 end
@@ -3070,10 +3285,10 @@ RSpec.describe ApplicationController, "#compute_http_cost" do
   it "has some cost for http actions (in seconds)" do
     stub_request(:get, "http://www.example.com/test")
       .to_return(status: 200, body: "", headers: {})
-    start_time = Time.now
+    start_time = Time.zone.now
     get :index, params: { do_http: 1, do_error: 0 }
     expect(response).to have_http_status :success
-    end_time = Time.now
+    end_time = Time.zone.now
     expect(CanvasHttp.cost > 0).to be_truthy
     expect(CanvasHttp.cost <= (end_time - start_time)).to be_truthy
     expect(controller.request.env["extra-request-cost"]).to eq(CanvasHttp.cost)
@@ -3086,5 +3301,37 @@ RSpec.describe ApplicationController, "#compute_http_cost" do
     expect(response).to have_http_status :internal_server_error
     expect(CanvasHttp.cost > 0).to be_truthy
     expect(controller.request.env["extra-request-cost"]).to eq(CanvasHttp.cost)
+  end
+end
+
+RSpec.describe ApplicationController, "#set_js_env" do
+  context "when a context is set" do
+    let(:context) { course_model }
+
+    before do
+      controller.instance_variable_set(:@context, context)
+      allow(controller).to receive(:request).and_return(request)
+    end
+
+    it "does not set current_context" do
+      expect(controller.js_env[:current_context]).to be_nil
+    end
+
+    context "when user has access to the context" do
+      before do
+        allow(context).to receive(:grants_right?).and_return(true)
+      end
+
+      it "sets current_context" do
+        expect(controller.js_env[:current_context]).to eq(
+          {
+            id: context.id,
+            url: "http://test.host/courses/#{context.id}",
+            name: context.name,
+            type: "Course"
+          }
+        )
+      end
+    end
   end
 end

@@ -24,50 +24,57 @@ class Account < ActiveRecord::Base
   include Pronouns
   include SearchTermHelper
 
+  self.ignored_columns += ["enable_user_notes"]
+
   INSTANCE_GUID_SUFFIX = "canvas-lms"
   CALENDAR_SUBSCRIPTION_TYPES = %w[manual auto].freeze
 
   include Workflow
   include BrandConfigHelpers
+  include Canvas::Security::PasswordPolicyAccountSettingValidator
   belongs_to :root_account, class_name: "Account"
   belongs_to :parent_account, class_name: "Account"
-
-  # temporary scope to allow us to deprecate the faculty journal feature. should be removed (along with all references) upon deprecation completion
-  scope :having_user_notes_enabled, -> { Account.site_admin.feature_enabled?(:deprecate_faculty_journal) ? Account.none : where(enable_user_notes: true) }
 
   has_many :courses
   has_many :custom_grade_statuses, inverse_of: :root_account, foreign_key: :root_account_id
   has_many :standard_grade_statuses, inverse_of: :root_account, foreign_key: :root_account_id
   has_many :favorites, inverse_of: :root_account
-  has_many :all_courses, class_name: "Course", foreign_key: "root_account_id"
+  has_many :all_courses, class_name: "Course", foreign_key: "root_account_id", inverse_of: :root_account
   has_one :terms_of_service, dependent: :destroy
   has_one :terms_of_service_content, dependent: :destroy
-  has_many :group_categories, -> { where(deleted_at: nil) }, as: :context, inverse_of: :context
-  has_many :all_group_categories, class_name: "GroupCategory", foreign_key: "root_account_id", inverse_of: :root_account
-  has_many :groups, as: :context, inverse_of: :context
-  has_many :all_groups, class_name: "Group", foreign_key: "root_account_id", inverse_of: :root_account
+  has_many :group_categories, -> { collaborative.where(deleted_at: nil) }, class_name: "GroupCategory", as: :context, inverse_of: :context
+  has_many :all_group_categories, -> { collaborative }, class_name: "GroupCategory", foreign_key: "root_account_id", inverse_of: :root_account
+  has_many :groups, -> { collaborative }, class_name: "Group", as: :context, inverse_of: :context
+  has_many :all_groups, -> { collaborative }, class_name: "Group", foreign_key: "root_account_id", inverse_of: :root_account
   has_many :all_group_memberships, source: "group_memberships", through: :all_groups
-  has_many :enrollment_terms, foreign_key: "root_account_id"
-  has_many :active_enrollment_terms, -> { where("enrollment_terms.workflow_state<>'deleted'") }, class_name: "EnrollmentTerm", foreign_key: "root_account_id"
+  has_many :differentiation_tag_categories, -> { non_collaborative.where(deleted_at: nil) }, class_name: "GroupCategory", as: :context, inverse_of: :context
+  has_many :all_differentiation_tag_categories, -> { non_collaborative }, class_name: "GroupCategory", foreign_key: "root_account_id", inverse_of: :root_account
+  has_many :differentiation_tags, -> { non_collaborative }, class_name: "Group", as: :context, inverse_of: :context
+  has_many :all_differentiation_tags, -> { non_collaborative }, class_name: "Group", foreign_key: "root_account_id", inverse_of: :root_account
+  has_many :all_differentiation_tag_memberships, source: "group_memberships", through: :all_differentiation_tags
+  has_many :combined_groups_and_differentiation_tags, class_name: "Group", as: :context, inverse_of: :context
+  has_many :active_combined_group_and_differentiation_tag_categories, -> { active }, class_name: "GroupCategory", as: :context, inverse_of: :context
+  has_many :enrollment_terms, foreign_key: "root_account_id", inverse_of: :root_account
+  has_many :active_enrollment_terms, -> { where("enrollment_terms.workflow_state<>'deleted'") }, class_name: "EnrollmentTerm", foreign_key: "root_account_id", inverse_of: false
   has_many :grading_period_groups, inverse_of: :root_account, dependent: :destroy
   has_many :grading_periods, through: :grading_period_groups
-  has_many :enrollments, -> { where("enrollments.type<>'StudentViewEnrollment'") }, foreign_key: "root_account_id"
-  has_many :all_enrollments, class_name: "Enrollment", foreign_key: "root_account_id"
+  has_many :enrollments, -> { where("enrollments.type<>'StudentViewEnrollment'") }, foreign_key: "root_account_id", inverse_of: :root_account
+  has_many :all_enrollments, class_name: "Enrollment", foreign_key: "root_account_id", inverse_of: :root_account
   has_many :temporary_enrollment_pairings, inverse_of: :root_account, foreign_key: "root_account_id"
-  has_many :sub_accounts, -> { where("workflow_state<>'deleted'") }, class_name: "Account", foreign_key: "parent_account_id"
-  has_many :all_accounts, -> { order(:name) }, class_name: "Account", foreign_key: "root_account_id"
+  has_many :sub_accounts, -> { where("workflow_state<>'deleted'") }, class_name: "Account", foreign_key: "parent_account_id", inverse_of: :parent_account
+  has_many :all_accounts, -> { order(:name) }, class_name: "Account", foreign_key: "root_account_id", inverse_of: :root_account
   has_many :account_users, dependent: :destroy
   has_many :active_account_users, -> { active }, class_name: "AccountUser"
-  has_many :course_sections, foreign_key: "root_account_id"
+  has_many :course_sections, foreign_key: "root_account_id", inverse_of: :root_account
   has_many :sis_batches
   has_many :abstract_courses, class_name: "AbstractCourse"
-  has_many :root_abstract_courses, class_name: "AbstractCourse", foreign_key: "root_account_id"
+  has_many :root_abstract_courses, class_name: "AbstractCourse", foreign_key: "root_account_id", inverse_of: :root_account
   has_many :user_account_associations
   has_many :all_users, -> { distinct }, through: :user_account_associations, source: :user
   has_many :users, through: :active_account_users
   has_many :user_past_lti_ids, as: :context, inverse_of: :context
   has_many :pseudonyms, -> { preload(:user) }, inverse_of: :account
-  has_many :deleted_users, -> { where(pseudonyms: { workflow_state: "deleted" }) }, through: :pseudonyms, source: :user
+  has_many :pseudonym_users, through: :pseudonyms, source: :user
   has_many :role_overrides, as: :context, inverse_of: :context
   has_many :course_account_associations
   has_many :child_courses, -> { where(course_account_associations: { depth: 0 }) }, through: :course_account_associations, source: :course
@@ -78,6 +85,9 @@ class Account < ActiveRecord::Base
   has_many :developer_keys
   has_many :developer_key_account_bindings, inverse_of: :account, dependent: :destroy
   has_many :lti_registration_account_bindings, class_name: "Lti::RegistrationAccountBinding", inverse_of: :account, dependent: :destroy
+  has_many :lti_overlays, class_name: "Lti::Overlay", inverse_of: :account, dependent: :destroy
+  has_many :lti_overlay_versions, class_name: "Lti::OverlayVersion", inverse_of: :account, dependent: :destroy
+  has_many :lti_notice_handlers, class_name: "Lti::NoticeHandler", inverse_of: :account, dependent: :destroy
   has_many :authentication_providers,
            -> { ordered },
            inverse_of: :account,
@@ -89,13 +99,15 @@ class Account < ActiveRecord::Base
   has_many :assessment_question_banks, -> { preload(:assessment_questions, :assessment_question_bank_users) }, as: :context, inverse_of: :context
   has_many :assessment_questions, through: :assessment_question_banks
   has_many :roles
-  has_many :all_roles, class_name: "Role", foreign_key: "root_account_id"
+  has_many :all_roles, class_name: "Role", foreign_key: "root_account_id", inverse_of: :root_account
   has_many :progresses, as: :context, inverse_of: :context
   has_many :content_migrations, as: :context, inverse_of: :context
   has_many :sis_batch_errors, foreign_key: :root_account_id, inverse_of: :root_account
   has_many :canvadocs_annotation_contexts
   has_one :outcome_proficiency, -> { preload(:outcome_proficiency_ratings) }, as: :context, inverse_of: :context, dependent: :destroy
   has_one :outcome_calculation_method, as: :context, inverse_of: :context, dependent: :destroy
+  has_many :rubric_imports, inverse_of: :root_account, foreign_key: :root_account_id
+  has_many :rubric_assessment_imports, inverse_of: :root_account, foreign_key: :root_account_id
 
   has_many :auditor_authentication_records,
            class_name: "Auditors::ActiveRecord::AuthenticationRecord",
@@ -129,6 +141,7 @@ class Account < ActiveRecord::Base
            class_name: "Lti::ResourceLink",
            dependent: :destroy
   has_many :lti_registrations, class_name: "Lti::Registration", inverse_of: :account, dependent: :destroy
+  has_many :block_editor_templates, class_name: "BlockEditorTemplate", as: :context, inverse_of: :context
   belongs_to :course_template, class_name: "Course", inverse_of: :templated_accounts
   belongs_to :grading_standard
 
@@ -154,7 +167,7 @@ class Account < ActiveRecord::Base
   has_many :report_snapshots
   has_many :external_integration_keys, as: :context, inverse_of: :context, dependent: :destroy
   has_many :shared_brand_configs
-  belongs_to :brand_config, foreign_key: "brand_config_md5"
+  belongs_to :brand_config, foreign_key: "brand_config_md5", inverse_of: :accounts
   has_many :blackout_dates, as: :context, inverse_of: :context
 
   before_validation :verify_unique_sis_source_id
@@ -179,7 +192,7 @@ class Account < ActiveRecord::Base
 
   time_zone_attribute :default_time_zone, default: "America/Denver"
   def default_time_zone
-    if read_attribute(:default_time_zone) || root_account?
+    if self["default_time_zone"] || root_account?
       super
     else
       root_account.default_time_zone
@@ -219,7 +232,7 @@ class Account < ActiveRecord::Base
   end
 
   def default_locale
-    result = read_attribute(:default_locale)
+    result = super
     result = nil unless I18n.locale_available?(result)
     result
   end
@@ -373,6 +386,7 @@ class Account < ActiveRecord::Base
   add_setting :disable_post_to_sis_when_grading_period_closed, boolean: true, root_only: true, default: false
 
   add_setting :rce_favorite_tool_ids, inheritable: true
+  add_setting :top_nav_favorite_tool_ids, inheritable: true
 
   add_setting :enable_as_k5_account, boolean: true, default: false, inheritable: true
   add_setting :use_classic_font_in_k5, boolean: true, default: false, inheritable: true
@@ -390,11 +404,34 @@ class Account < ActiveRecord::Base
   add_setting :enable_search_indexing, boolean: true, root_only: true, default: false
   add_setting :disable_login_search_indexing, boolean: true, root_only: true, default: false
   add_setting :allow_additional_email_at_registration, boolean: true, root_only: true, default: false
+  add_setting :limit_personal_access_tokens, boolean: true, root_only: true, default: false
+  add_setting :show_sections_in_course_tray, boolean: true, root_only: true, default: true
 
   # Allow enabling metrics like Heap for sandboxes and other accounts without Salesforce data
   add_setting :enable_usage_metrics, boolean: true, root_only: true, default: false
 
   add_setting :allow_observers_in_appointment_groups, boolean: true, default: false, inheritable: true
+  add_setting :enable_name_pronunciation, boolean: true, root_only: true, default: false
+  add_setting :allow_name_pronunciation_edit_for_admins, boolean: true, root_only: true, default: false
+  add_setting :allow_name_pronunciation_edit_for_students, boolean: true, root_only: true, default: false
+  add_setting :allow_name_pronunciation_edit_for_teachers, boolean: true, root_only: true, default: false
+
+  add_setting :enable_inbox_signature_block, boolean: true, root_only: true, default: false
+  add_setting :disable_inbox_signature_block_for_students, boolean: true, root_only: true, default: false
+  add_setting :enable_inbox_auto_response, boolean: true, root_only: true, default: false
+  add_setting :disable_inbox_auto_response_for_students, boolean: true, root_only: true, default: false
+
+  # Password Policy settings
+  add_setting :password_policy, root_only: true, hash: true, values: %i[allow_login_suspension
+                                                                        require_number_characters
+                                                                        require_symbol_characters
+                                                                        minimum_character_length
+                                                                        maximum_login_attempts
+                                                                        common_passwords_attachment_id
+                                                                        common_passwords_folder_id]
+
+  add_setting :enable_limited_access_for_students, boolean: true, root_only: false, default: false, inheritable: false
+  add_setting :allow_assign_to_differentiation_tags, boolean: true, root_only: false, default: false, inheritable: false
 
   def settings=(hash)
     if hash.is_a?(Hash) || hash.is_a?(ActionController::Parameters)
@@ -516,6 +553,14 @@ class Account < ActiveRecord::Base
     use_classic_font_in_k5[:value]
   end
 
+  def limited_access_for_students?
+    root_account.feature_enabled?(:allow_limited_access_for_students) && settings[:enable_limited_access_for_students]
+  end
+
+  def limited_access_for_user?(user)
+    limited_access_for_students? && user.active_student_enrollments_in_account?(self)
+  end
+
   def conditional_release?
     conditional_release[:value]
   end
@@ -534,6 +579,12 @@ class Account < ActiveRecord::Base
 
   def self_registration_captcha?
     canvas_authentication_provider.try(:enable_captcha)
+  end
+
+  def recaptcha_key
+    return nil unless root_account? && self_registration_captcha?
+
+    DynamicSettings.find(tree: "private")["recaptcha_client_key", failsafe: nil]
   end
 
   def self_registration_allowed_for?(type)
@@ -556,7 +607,7 @@ class Account < ActiveRecord::Base
     return false unless terms_required?
     return true if user.nil? || user.new_record?
 
-    soc2_start_date = Setting.get("SOC2_start_date", Time.new(2015, 5, 16, 0, 0, 0).utc).to_datetime
+    soc2_start_date = Setting.get("SOC2_start_date", Time.new(2015, 5, 16, 0, 0, 0).utc).to_time
     return false if user.created_at < soc2_start_date
 
     terms_changed_at = root_account.terms_of_service.terms_of_service_content&.terms_updated_at || settings[:terms_changed_at]
@@ -573,12 +624,14 @@ class Account < ActiveRecord::Base
       ips = []
       vals = str.split(",")
       vals.each do |val|
-        ip = IPAddr.new(val) rescue nil
+        IPAddr.new(val)
         # right now the ip_filter column on quizzes is just a string,
         # so it has a max length.  I figure whatever we set it to this
         # setter should at the very least limit stored values to that
         # length.
-        ips << val if ip && val.length <= 255
+        ips << val if val.length <= 255
+      rescue IPAddr::InvalidAddressError
+        # ignore
       end
       filters[key] = ips.join(",") unless ips.empty?
     end
@@ -656,7 +709,7 @@ class Account < ActiveRecord::Base
   def clear_downstream_caches(*keys_to_clear, xlog_location: nil, is_retry: false)
     shard.activate do
       if xlog_location && !self.class.wait_for_replication(start: xlog_location, timeout: 1.minute)
-        delay(run_at: Time.now + timeout, singleton: "Account#clear_downstream_caches/#{global_id}:#{keys_to_clear.join("/")}")
+        delay(run_at: Time.zone.now + timeout, singleton: "Account#clear_downstream_caches/#{global_id}:#{keys_to_clear.join("/")}")
           .clear_downstream_caches(*keys_to_clear, xlog_location:, is_retry: true)
         # we still clear, but only the first time; after that we just keep waiting
         return if is_retry
@@ -687,7 +740,7 @@ class Account < ActiveRecord::Base
 
     result = self[:settings]
     if result
-      @old_settings ||= result.dup
+      @old_settings ||= result.deep_dup
       return SettingsWrapper.new(self, result)
     end
     unless frozen?
@@ -696,12 +749,6 @@ class Account < ActiveRecord::Base
     end
 
     SettingsWrapper.new(self, {}.freeze)
-  end
-
-  def setting_enabled?(setting)
-    return false unless has_attribute?(:settings)
-
-    !!settings[setting.to_sym]
   end
 
   def domain(current_host = nil)
@@ -891,10 +938,10 @@ class Account < ActiveRecord::Base
     end
   end
 
-  DEFAULT_STORAGE_QUOTA = 500.megabytes
+  DEFAULT_STORAGE_QUOTA = 500.decimal_megabytes
 
   def quota
-    return storage_quota if read_attribute(:storage_quote)
+    return storage_quota if storage_quota
     return DEFAULT_STORAGE_QUOTA if root_account?
 
     shard.activate do
@@ -905,7 +952,7 @@ class Account < ActiveRecord::Base
   end
 
   def default_storage_quota
-    return super if read_attribute(:default_storage_quota)
+    return super if super
     return DEFAULT_STORAGE_QUOTA if root_account?
 
     shard.activate do
@@ -916,11 +963,11 @@ class Account < ActiveRecord::Base
   end
 
   def default_storage_quota_mb
-    default_storage_quota / 1.megabyte
+    default_storage_quota / 1.decimal_megabytes
   end
 
   def default_storage_quota_mb=(val)
-    self.default_storage_quota = val.try(:to_i).try(:megabytes)
+    self.default_storage_quota = val.try(:to_i).try(:decimal_megabytes)
   end
 
   def default_storage_quota=(val)
@@ -931,30 +978,29 @@ class Account < ActiveRecord::Base
     if parent_account && parent_account.default_storage_quota == val
       val = nil
     end
-    write_attribute(:default_storage_quota, val)
+    super
   end
 
   def default_user_storage_quota
-    read_attribute(:default_user_storage_quota) ||
-      User.default_storage_quota
+    super || User.default_storage_quota
   end
 
   def default_user_storage_quota=(val)
     val = val.to_i
     val = nil if val == User.default_storage_quota || val <= 0
-    write_attribute(:default_user_storage_quota, val)
+    super
   end
 
   def default_user_storage_quota_mb
-    default_user_storage_quota / 1.megabyte
+    default_user_storage_quota / 1.decimal_megabytes
   end
 
   def default_user_storage_quota_mb=(val)
-    self.default_user_storage_quota = val.try(:to_i).try(:megabytes)
+    self.default_user_storage_quota = val.try(:to_i).try(:decimal_megabytes)
   end
 
   def default_group_storage_quota
-    return super if read_attribute(:default_group_storage_quota)
+    return super if super
     return Group.default_storage_quota if root_account?
 
     shard.activate do
@@ -970,15 +1016,15 @@ class Account < ActiveRecord::Base
        (parent_account && parent_account.default_group_storage_quota == val)
       val = nil
     end
-    write_attribute(:default_group_storage_quota, val)
+    super
   end
 
   def default_group_storage_quota_mb
-    default_group_storage_quota / 1.megabyte
+    default_group_storage_quota / 1.decimal_megabytes
   end
 
   def default_group_storage_quota_mb=(val)
-    self.default_group_storage_quota = val.try(:to_i).try(:megabytes)
+    self.default_group_storage_quota = val.try(:to_i).try(:decimal_megabytes)
   end
 
   def turnitin_shared_secret=(secret)
@@ -1414,14 +1460,6 @@ class Account < ActiveRecord::Base
   end
 
   set_policy do
-    #################### Begin legacy permission block #########################
-    given do |user|
-      user && !root_account.feature_enabled?(:granular_permissions_manage_lti) &&
-        grants_right?(user, :lti_add_edit)
-    end
-    can :create_tool_manually
-    ##################### End legacy permission block ##########################
-
     RoleOverride.permissions.each_key do |permission|
       given do |user|
         results = cached_account_users_for(user).map do |au|
@@ -1501,6 +1539,11 @@ class Account < ActiveRecord::Base
         (account_calendar_visible || grants_right?(user, :manage_account_calendar_visibility))
     end
     can :view_account_calendar_details
+
+    given do |user|
+      limited_access_for_user?(user)
+    end
+    can :make_submission_comments
   end
 
   def reload(*)
@@ -1548,7 +1591,19 @@ class Account < ActiveRecord::Base
   attr_accessor :email_pseudonyms
 
   def password_policy
-    Canvas::PasswordPolicy.default_policy.merge(settings[:password_policy] || {})
+    Canvas::Security::PasswordPolicy.default_policy.merge(settings[:password_policy] || {})
+  end
+
+  def password_complexity_enabled?
+    return false unless root_account?
+
+    feature_enabled?(:password_complexity)
+  end
+
+  def allow_login_suspension?
+    return false unless password_complexity_enabled?
+
+    Canvas::Plugin.value_to_boolean(password_policy[:allow_login_suspension]) || false
   end
 
   def delegated_authentication?
@@ -1815,11 +1870,11 @@ class Account < ActiveRecord::Base
   end
 
   def course_count
-    courses.active.count
+    courses.active.size
   end
 
   def sub_account_count
-    sub_accounts.active.count
+    sub_accounts.active.size
   end
 
   def user_count
@@ -1827,7 +1882,7 @@ class Account < ActiveRecord::Base
   end
 
   def current_sis_batch
-    if (current_sis_batch_id = read_attribute(:current_sis_batch_id)) && current_sis_batch_id.present?
+    if current_sis_batch_id.present?
       sis_batches.where(id: current_sis_batch_id).first
     end
   end
@@ -1886,7 +1941,6 @@ class Account < ActiveRecord::Base
   TAB_OUTCOMES = 7
   TAB_RUBRICS = 8
   TAB_SETTINGS = 9
-  TAB_FACULTY_JOURNAL = 10
   TAB_SIS_IMPORT = 11
   TAB_GRADING_STANDARDS = 12
   TAB_QUESTION_BANKS = 13
@@ -1902,7 +1956,7 @@ class Account < ActiveRecord::Base
   TAB_JOBS = 15
   TAB_DEVELOPER_KEYS = 16
   TAB_RELEASE_NOTES = 17
-  TAB_EXTENSIONS = 18
+  TAB_APPS = 18
 
   def external_tool_tabs(opts, user)
     tools = Lti::ContextToolFinder
@@ -1949,7 +2003,6 @@ class Account < ActiveRecord::Base
       tabs << { id: TAB_QUESTION_BANKS, label: t("#account.tab_question_banks", "Question Banks"), css_class: "question_banks", href: :account_question_banks_path } if user && grants_any_right?(user, *RoleOverride::GRANULAR_MANAGE_ASSIGNMENT_PERMISSIONS)
       tabs << { id: TAB_SUB_ACCOUNTS, label: t("#account.tab_sub_accounts", "Sub-Accounts"), css_class: "sub_accounts", href: :account_sub_accounts_path } if manage_settings
       tabs << { id: TAB_ACCOUNT_CALENDARS, label: t("Account Calendars"), css_class: "account_calendars", href: :account_calendar_settings_path } if user && grants_right?(user, :manage_account_calendar_visibility)
-      tabs << { id: TAB_FACULTY_JOURNAL, label: t("#account.tab_faculty_journal", "Faculty Journal"), css_class: "faculty_journal", href: :account_user_notes_path } if enable_user_notes && user && grants_right?(user, :manage_user_notes)
       tabs << { id: TAB_TERMS, label: t("#account.tab_terms", "Terms"), css_class: "terms", href: :account_terms_path } if root_account? && manage_settings
       tabs << { id: TAB_AUTHENTICATION, label: t("#account.tab_authentication", "Authentication"), css_class: "authentication", href: :account_authentication_providers_path } if root_account? && manage_settings
       if root_account? && allow_sis_import && user && grants_any_right?(user, :manage_sis, :import_sis)
@@ -1966,13 +2019,13 @@ class Account < ActiveRecord::Base
       tabs << { id: TAB_DEVELOPER_KEYS, label: t("#account.tab_developer_keys", "Developer Keys"), css_class: "developer_keys", href: :account_developer_keys_path, account_id: root_account.id }
     end
 
-    if Account.site_admin.feature_enabled?(:analytics_hub)
+    if user && grants_right?(user, :view_analytics_hub)
       tabs << { id: TAB_ANALYTICS_HUB, label: t("#account.tab_analytics_hub", "Analytics Hub"), css_class: "analytics_hub", href: :account_analytics_hub_path }
     end
 
     if root_account? && grants_right?(user, :manage_developer_keys) && root_account.feature_enabled?(:lti_registrations_page)
       registrations_path = root_account.feature_enabled?(:lti_registrations_discover_page) ? :account_lti_registrations_path : :account_lti_manage_registrations_path
-      tabs << { id: TAB_EXTENSIONS, label: t("#account.tab_extensions", "Extensions"), css_class: "extensions", href: registrations_path, account_id: root_account.id }
+      tabs << { id: TAB_APPS, label: t("#account.tab_apps", "Apps"), css_class: "apps", href: registrations_path, account_id: root_account.id }
     end
 
     tabs += external_tool_tabs(opts, user)
@@ -2440,6 +2493,10 @@ class Account < ActiveRecord::Base
                             .where(is_rce_favorite: true).pluck(:id).map { |id| Shard.global_id_for(id) }
   end
 
+  def get_top_nav_favorite_tool_ids
+    top_nav_favorite_tool_ids[:value] || []
+  end
+
   def effective_course_template
     owning_account = account_chain.find(&:course_template_id)
     return nil unless owning_account
@@ -2475,9 +2532,96 @@ class Account < ActiveRecord::Base
     end
   end
 
-  def enable_user_notes
-    return false if Account.site_admin.feature_enabled?(:deprecate_faculty_journal)
+  def banned_email_domains
+    settings[:banned_email_domains] || []
+  end
 
-    read_attribute(:enable_user_notes)
+  def available_ip_filters(course_uuid, search_term = nil)
+    filters = []
+    current_account = Course.find_by(uuid: course_uuid)&.account || self
+    accounts = current_account.account_chain(include_federated_parent: true).uniq
+    search_term = search_term.downcase if search_term.present?
+
+    accounts.each do |account|
+      account_filters = account.settings[:ip_filters] || {}
+      account_filters.each do |key, filter|
+        next unless search_term.blank? || key.downcase.include?(search_term)
+
+        filters << {
+          name: key,
+          account: account.name,
+          filter:
+        }
+      end
+    end
+
+    filters.sort_by { |filter| filter[:name] }
+  end
+
+  def regrade_affected_assignments(assignment_ids, grading_standard_id)
+    regrade_affected_submissions(assignment_ids, grading_standard_id)
+    regrade_affected_submission_versions(assignment_ids, grading_standard_id)
+  end
+
+  def regrade_affected_submissions(assignment_ids, grading_standard_id)
+    submissions_with_grades = Submission.where.not(grade: nil).where(assignment_id: assignment_ids)
+    submissions_with_grades.preload(assignment: [:grading_standard, { context: :grading_standard }]).find_in_batches(batch_size: 1000) do |submissions_batch|
+      batched_updates = submissions_batch.each_with_object([]) do |submission, acc|
+        next if submission.assignment.points_possible.zero?
+
+        score = BigDecimal(submission.score.to_s.presence || "0.0") / BigDecimal(submission.assignment.points_possible.to_s)
+        grading_standard = grading_standard_id ? GradingStandard.find(grading_standard_id) : GradingStandard.default_instance
+        new_grade = grading_standard.score_to_grade((score * 100).to_f)
+        grade_has_changed = new_grade != submission.grade || new_grade != submission.published_grade
+        if grade_has_changed
+          acc << submission.attributes.merge("grade" => new_grade, "published_grade" => new_grade, "updated_at" => Time.zone.now)
+        end
+      end
+
+      Submission.upsert_all(
+        batched_updates,
+        unique_by: :id,
+        update_only: %i[grade published_grade updated_at],
+        record_timestamps: false,
+        returning: false
+      )
+    end
+  end
+
+  def regrade_affected_submission_versions(assignment_ids, grading_standard_id)
+    current_versions_for_submissions = Version
+                                       .where(versionable: Submission.where(assignment_id: assignment_ids))
+                                       .order(versionable_id: :asc, number: :desc)
+                                       .distinct_on(:versionable_id) # we only want the _most recent_ version associated with each submission
+    ActiveRecord::Base.transaction do
+      current_versions_for_submissions.preload(versionable: { assignment: [:grading_standard, { context: :grading_standard }] }).find_each do |version|
+        model = version.model
+        next unless model.grade.present? && version.versionable.assignment.points_possible.positive?
+
+        score = BigDecimal(model.score.to_s.presence || "0.0") / BigDecimal(model.assignment.points_possible.to_s)
+        grading_standard = grading_standard_id ? GradingStandard.find(grading_standard_id) : GradingStandard.default_instance
+        new_grade = grading_standard.score_to_grade((score * 100).to_f)
+        grade_has_changed = new_grade != model.grade || new_grade != model.published_grade
+        next unless grade_has_changed
+
+        model.grade = new_grade
+        model.published_grade = new_grade
+        yaml = model.attributes.to_yaml
+        # We can't use the same upsert_all approach that we used in regrade_affected_submissions
+        # because the versions table is partitioned.
+        version.update_columns(yaml:)
+      end
+    end
+  end
+
+  def recompute_assignments_using_account_default(grading_standard)
+    courses.where(grading_standard_id: nil).where.not(workflow_state: "completed").where.not(workflow_state: "deleted").find_each do |course|
+      affected_assignment_ids = course.assignments.where(grading_type: ["letter_grade", "gpa_scale"], grading_standard_id: nil).pluck(:id)
+      delay_if_production(priority: Delayed::LOWER_PRIORITY, strand: ["recalc_account_default", Shard.current.database_server.id], singleton: "recalc_account_default:#{course.global_id}").regrade_affected_assignments(affected_assignment_ids, grading_standard.id)
+    end
+
+    sub_accounts.where(grading_standard: nil).find_each do |sub_account|
+      sub_account.recompute_assignments_using_account_default(grading_standard)
+    end
   end
 end

@@ -124,8 +124,8 @@ describe Types::DiscussionEntryType do
       # Create a new subentry and set it as the quoted entry
       expect(type.resolve("quotedEntry { author { shortName } }")).to eq parent.user.short_name
       expect(type.resolve("quotedEntry { createdAt }")).to eq parent.created_at.iso8601
-      expect(type.resolve("quotedEntry { previewMessage }")).to eq parent.summary(500) # longer than the message
-      expect(type.resolve("quotedEntry { previewMessage }").length).to eq 235
+      expect(type.resolve("quotedEntry { message }")).to eq parent.message
+      expect(type.resolve("quotedEntry { message }").length).to eq parent.message.length
     end
 
     it "returns the quoted_entry over parent_entry if quoted_entry is populated and include_reply_preview is true" do
@@ -141,7 +141,7 @@ describe Types::DiscussionEntryType do
       expect(inline_reply_to_third_level_entry.depth).to eq 3
       expect(type.resolve("quotedEntry { author { shortName } }")).to eq inline_reply_to_third_level_entry.user.short_name
       expect(type.resolve("quotedEntry { createdAt }")).to eq inline_reply_to_third_level_entry.created_at.iso8601
-      expect(type.resolve("quotedEntry { previewMessage }")).to eq inline_reply_to_third_level_entry.summary(500)
+      expect(type.resolve("quotedEntry { message }")).to eq inline_reply_to_third_level_entry.message
       expect(type.resolve("quotedEntry { _id }")).to eq inline_reply_to_third_level_entry.id.to_s
     end
   end
@@ -517,7 +517,7 @@ describe Types::DiscussionEntryType do
     discussion_entry.message = "Hello! 3"
     discussion_entry.save!
 
-    discussion_entry_versions = discussion_entry_type.resolve("discussionEntryVersionsConnection { nodes { message } }")
+    discussion_entry_versions = discussion_entry_type.resolve("discussionEntryVersions { message }")
     expect(discussion_entry_versions).to eq(["Hello! 3", "Hello! 2", "Hello!"])
   end
 
@@ -531,7 +531,7 @@ describe Types::DiscussionEntryType do
     discussion_entry.message = "Hello! 3"
     discussion_entry.save!
 
-    discussion_entry_versions = discussion_entry_student_type.resolve("discussionEntryVersionsConnection { nodes { message } }")
+    discussion_entry_versions = discussion_entry_student_type.resolve("discussionEntryVersions { message }")
     expect(discussion_entry_versions).to be_nil
   end
 
@@ -549,7 +549,7 @@ describe Types::DiscussionEntryType do
     entry.message = "Hello! 3"
     entry.save!
 
-    discussion_entry_versions = discussion_entry_student_type.resolve("discussionEntryVersionsConnection { nodes { message } }")
+    discussion_entry_versions = discussion_entry_student_type.resolve("discussionEntryVersions{ message }")
     expect(discussion_entry_versions).to eq(["Hello! 3", "Hello! 2", "Hello!"])
   end
 
@@ -575,8 +575,43 @@ describe Types::DiscussionEntryType do
     entry.message = "Hello! 3"
     entry.save!
 
-    discussion_entry_versions = discussion_entry_teacher_type.resolve("discussionEntryVersionsConnection { nodes { message } }")
+    discussion_entry_versions = discussion_entry_teacher_type.resolve("discussionEntryVersions { message }")
     expect(discussion_entry_versions).to eq(["Hello! 3", "Hello! 2", "Hello!"])
+  end
+
+  it "returns the correct page number for it's associated root entry" do
+    # 3 cases: page 1, page 2, subreply
+    topic = DiscussionTopic.create!(title: "some title", context: @course, user: @teacher)
+
+    # 10 root entries
+    10.times do |i|
+      entry = topic.discussion_entries.create!(user: @teacher, message: "reply to topic #{i}")
+      topic.discussion_entries.create!(user: @teacher, message: "reply to entry #{i}", root_entry_id: entry.id, parent_id: entry.id)
+    end
+
+    entry = topic.discussion_entries.where(message: "reply to topic 6").first
+    entry.destroy
+    topic.reload
+
+    entry = topic.discussion_entries.where(message: "reply to topic 5").first
+    sub_entry = topic.discussion_entries.where(message: "reply to entry 5").first
+    entry_type = GraphQLTypeTester.new(entry, current_user: @teacher)
+    sub_entry_type = GraphQLTypeTester.new(sub_entry, current_user: @teacher)
+
+    result = entry_type.resolve("rootEntryPageNumber(perPage: 5,sortOrder: desc)")
+    expect(result).to eq 0
+    result = sub_entry_type.resolve("rootEntryPageNumber(perPage: 5,sortOrder: desc)")
+    expect(result).to eq 0
+
+    entry = topic.discussion_entries.where(message: "reply to topic 4").first
+    sub_entry = topic.discussion_entries.where(message: "reply to entry 4").first
+    entry_type = GraphQLTypeTester.new(entry, current_user: @teacher)
+    sub_entry_type = GraphQLTypeTester.new(sub_entry, current_user: @teacher)
+
+    result = entry_type.resolve("rootEntryPageNumber(perPage: 5,sortOrder: desc)")
+    expect(result).to eq 1
+    result = sub_entry_type.resolve("rootEntryPageNumber(perPage: 5,sortOrder: desc)")
+    expect(result).to eq 1
   end
 
   context "all root entries" do

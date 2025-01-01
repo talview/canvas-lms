@@ -18,15 +18,15 @@
 
 import React, {useState, useRef, useMemo, useEffect, useCallback, useContext} from 'react'
 import PropTypes from 'prop-types'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {Tag} from '@instructure/ui-tag'
 import {Alert} from '@instructure/ui-alerts'
 import {Select} from '@instructure/ui-select'
 import {IconCheckSolid} from '@instructure/ui-icons'
 import {View} from '@instructure/ui-view'
-import {GradedDiscussionDueDatesContext} from '../../util/constants'
+import {DiscussionDueDatesContext} from '../../util/constants'
 
-const I18n = useI18nScope('discussion_create')
+const I18n = createI18nScope('discussion_create')
 const liveRegion = () => document.getElementById('flash_screenreader_holder')
 
 export const AssignedTo = ({
@@ -56,9 +56,8 @@ export const AssignedTo = ({
       .find(option => initialAssignedToInformation.includes(option.assetCode)) || []
   )
 
-  const {groupCategoryId, groups, gradedDiscussionRefMap, setGradedDiscussionRefMap} = useContext(
-    GradedDiscussionDueDatesContext
-  )
+  const {groupCategoryId, groups, gradedDiscussionRefMap, setGradedDiscussionRefMap} =
+    useContext(DiscussionDueDatesContext)
 
   // Add the checkmark icon to the selected options
   const addIconToOption = (option, isSelected) => ({

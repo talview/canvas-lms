@@ -20,11 +20,11 @@
 //  * Make assignments (due date) events non-resizable. Having an end date on them doesn't
 //    make sense.
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import {map, defaults, filter, omit, each, has, last, includes} from 'lodash'
-import * as tz from '@canvas/datetime'
-import {encodeQueryString} from '@canvas/query-string-encoding'
+import * as tz from '@instructure/moment-utils'
+import {encodeQueryString} from '@instructure/query-string-encoding'
 import moment from 'moment'
 import {showFlashAlert} from '@canvas/alerts/react/FlashAlert'
 import decodeFromHex from '@canvas/util/decodeFromHex'
@@ -43,6 +43,7 @@ import deparam from 'deparam'
 import htmlEscape from '@instructure/html-escape'
 import calendarEventFilter from '../CalendarEventFilter'
 import schedulerActions from '../react/scheduler/actions'
+import {subAssignmentOrOverride} from '@canvas/calendar/jquery/CommonEvent/SubAssignment'
 import 'fullcalendar'
 // import '../ext/patches-to-fullcalendar'
 import '@canvas/jquery/jquery.instructure_misc_helpers'
@@ -51,7 +52,7 @@ import 'jquery-tinypubsub'
 import 'jqueryui/button'
 import 'jqueryui/tooltip'
 
-const I18n = useI18nScope('calendar')
+const I18n = createI18nScope('calendar')
 
 // we use a <div> (with a <style> inside it) because you cant set .innerHTML directly on a
 // <style> node in ie8
@@ -357,10 +358,10 @@ export default class Calendar {
     const startDate = event.startDate()
     const endDate = event.endDate()
     const timeString = (() => {
-      if (!endDate || +startDate === +endDate || event.blackout_date) {
+      if (startDate && (!endDate || +startDate === +endDate || event.blackout_date)) {
         startDate.locale(calendarDefaults.lang)
         return startDate.format('LT')
-      } else {
+      } else if (startDate && endDate) {
         startDate.locale(calendarDefaults.lang)
         endDate.locale(calendarDefaults.lang)
         return $.fullCalendar.formatRange(startDate, endDate, 'LT')
@@ -418,9 +419,9 @@ export default class Calendar {
       const time = element.find('.fc-time')
       let html = time.html()
       // the time element also contains the title for calendar events
-      html = html && html.replace(/^\d+:\d+\w?/, event.startDate().format('h:mmt'))
+      html = html && html.replace(/^\d+:\d+\w?/, event.startDate()?.format('h:mmt'))
       time.html(html)
-      time.attr('data-start', event.startDate().format('h:mm'))
+      time.attr('data-start', event.startDate()?.format('h:mm'))
     }
     if (event.eventType.match(/assignment/) && view.name === 'agendaWeek') {
       element
@@ -497,6 +498,18 @@ export default class Calendar {
 
   _eventDrop(event, minuteDelta, allDay, revertFunc) {
     let endDate, startDate
+    if (subAssignmentOrOverride(event.eventType)) {
+      revertFunc()
+      showFlashAlert({
+        message: I18n.t(
+          'Discussion checkpoints are not draggable. You can update their due dates by editing the parent discussion topic.'
+        ),
+        err: null,
+        type: 'error',
+      })
+      return
+    }
+
     if (this.currentView === 'week' && allDay && event.eventType === 'assignment') {
       revertFunc()
       return
@@ -703,7 +716,7 @@ export default class Calendar {
     }
     event.start = date
     event.addClass('event_pending')
-    const revertFunc = () => console.log('could not save date on undated event') // eslint-disable-line no-console
+    const revertFunc = () => console.log('could not save date on undated event')  
 
     if (!this._eventDrop(event, 0, false, revertFunc)) {
       return

@@ -15,11 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License along
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-import gql from 'graphql-tag'
+import {gql} from '@apollo/client'
 
 import {Conversation} from './Conversation'
 import {ConversationMessage} from './ConversationMessage'
-import {ConversationParticipant} from './ConversationParticipant'
 import {Enrollment} from './Enrollment'
 import {Course} from './Course'
 import {Group} from './Group'
@@ -55,6 +54,7 @@ export const ADDRESS_BOOK_RECIPIENTS = gql`
               id
               name
               shortName
+              pronouns
               observerEnrollmentsConnection(contextCode: $courseContextCode) {
                 nodes {
                   associatedUser {
@@ -106,6 +106,7 @@ export const ADDRESS_BOOK_RECIPIENTS_WITH_COMMON_COURSES = gql`
               id
               name
               shortName
+              pronouns
               commonCoursesConnection {
                 nodes {
                   _id
@@ -179,15 +180,37 @@ export const CONVERSATIONS_QUERY = gql`
           after: $afterConversation
         ) {
           nodes {
-            ...ConversationParticipant
+            _id
+            id
+            label
+            workflowState
             conversation {
-              ...Conversation
-              conversationMessagesConnection(first: 1) {
+              _id
+              id
+              subject
+              isPrivate
+              canReply
+              conversationMessagesCount
+              conversationParticipantsConnection(first: 10) {
                 nodes {
-                  ...ConversationMessage
+                  user {
+                    shortName
+                  }
                 }
               }
-              conversationMessagesCount
+              conversationMessagesConnection(first: 1) {
+                nodes {
+                  id
+                  body
+                  createdAt
+                  author {
+                    id
+                    _id
+                    name
+                    shortName
+                  }
+                }
+              }
             }
           }
           pageInfo {
@@ -197,9 +220,6 @@ export const CONVERSATIONS_QUERY = gql`
       }
     }
   }
-  ${ConversationParticipant.fragment}
-  ${Conversation.fragment}
-  ${ConversationMessage.fragment}
   ${PageInfo.fragment}
 `
 
@@ -362,6 +382,21 @@ export const RECIPIENTS_OBSERVERS_QUERY = gql`
           }
         }
       }
+    }
+  }
+`
+
+export const INBOX_SETTINGS_QUERY = gql`
+  query GetMyInboxSettings {
+    myInboxSettings {
+      _id
+      useSignature
+      signature
+      useOutOfOffice
+      outOfOfficeFirstDate
+      outOfOfficeLastDate
+      outOfOfficeSubject
+      outOfOfficeMessage
     }
   }
 `

@@ -19,7 +19,7 @@ import React from 'react'
 import Router from 'react-router'
 import {BrowserRouter} from 'react-router-dom'
 import {render, waitFor} from '@testing-library/react'
-import {QueryProvider} from '@canvas/query'
+import {MockedQueryProvider} from '@canvas/test-utils/query'
 import {DeleteRubricModal} from '../DeleteRubricModal'
 import * as ViewRubricQueries from '../../../queries/ViewRubricQueries'
 
@@ -45,7 +45,7 @@ describe('RubricForm Tests', () => {
 
   const renderComponent = (isOpen = true) => {
     return render(
-      <QueryProvider>
+      <MockedQueryProvider>
         <BrowserRouter>
           <DeleteRubricModal
             id="1"
@@ -55,7 +55,7 @@ describe('RubricForm Tests', () => {
             setPopoverIsOpen={setPopoverIsOpen}
           />
         </BrowserRouter>
-      </QueryProvider>
+      </MockedQueryProvider>
     )
   }
 
@@ -90,7 +90,7 @@ describe('RubricForm Tests', () => {
       .spyOn(ViewRubricQueries, 'deleteRubric')
       .mockImplementation(() => Promise.resolve({id: '1', title: 'Rubric 1', pointsPossible: 10}))
     const {getByTestId} = renderComponent()
-    const deleteButton = getByTestId('delete-rubric-button')
+    const deleteButton = getByTestId('delete-rubric-modal-button')
     deleteButton?.click()
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(getSRAlert()).toEqual('Rubric deleted successfully')

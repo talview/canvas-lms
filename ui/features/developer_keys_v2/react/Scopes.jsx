@@ -16,7 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import PropTypes from 'prop-types'
 import React from 'react'
 
@@ -33,7 +33,7 @@ import {Tooltip} from '@instructure/ui-tooltip'
 
 import ScopesList from './ScopesList'
 
-const I18n = useI18nScope('react_developer_keys')
+const I18n = createI18nScope('react_developer_keys')
 
 export default class Scopes extends React.Component {
   state = {filter: ''}
@@ -131,7 +131,7 @@ export default class Scopes extends React.Component {
             </Grid.Col>
           ) : null}
         </Grid.Row>
-        {this.props.requireScopes && ENV.includesFeatureFlagEnabled && (
+        {this.props.requireScopes && (
           <Grid.Row>
             <Grid.Col>
               <Checkbox

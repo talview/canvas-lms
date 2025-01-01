@@ -16,7 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
 import {AssignmentSingleAvailabilityWindow} from '../AssignmentSingleAvailabilityWindow/AssignmentSingleAvailabilityWindow'
 import {AssignmentMultipleAvailabilityWindows} from '../AssignmentMultipleAvailabilityWindows/AssignmentMultipleAvailabilityWindows'
@@ -27,7 +27,7 @@ import {TrayDisplayer} from '../TrayDisplayer/TrayDisplayer'
 import {DueDateTray} from '../DueDateTray/DueDateTray'
 import {CheckpointsTray} from '../CheckpointsTray/CheckpointsTray'
 
-const I18n = useI18nScope('discussion_posts')
+const I18n = createI18nScope('discussion_posts')
 
 export function AssignmentAvailabilityContainer({...props}) {
   const [dueDateTrayOpen, setDueDateTrayOpen] = useState(false)
@@ -60,7 +60,6 @@ export function AssignmentAvailabilityContainer({...props}) {
   }
 
   const useCheckpointsTray = props.assignment?.checkpoints?.length > 0
-
   const trayComponent = () => {
     if (props.inPacedCourse) {
       return <CoursePacingNotice courseId={props.courseId} />
@@ -69,6 +68,8 @@ export function AssignmentAvailabilityContainer({...props}) {
         <CheckpointsTray
           checkpoints={props.assignment.checkpoints}
           replyToEntryRequiredCount={props.replyToEntryRequiredCount}
+          replyToTopicSubmission={props.replyToTopicSubmission}
+          replyToEntrySubmission={props.replyToEntrySubmission}
         />
       )
     } else {
@@ -111,4 +112,6 @@ AssignmentAvailabilityContainer.propTypes = {
   inPacedCourse: PropTypes.bool,
   courseId: PropTypes.string,
   replyToEntryRequiredCount: PropTypes.number,
+  replyToTopicSubmission: PropTypes.object,
+  replyToEntrySubmission: PropTypes.object,
 }

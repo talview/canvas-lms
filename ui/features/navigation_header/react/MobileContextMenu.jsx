@@ -17,7 +17,7 @@
  */
 
 import React, {useState, useCallback} from 'react'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {string, node} from 'prop-types'
 import {Text} from '@instructure/ui-text'
 import {Grid} from '@instructure/ui-grid'
@@ -46,7 +46,6 @@ import {
   IconStatsLine,
   IconRubricLine,
   IconBankLine,
-  IconEssayLine,
   IconMaterialsRequiredLine,
   IconLockLine,
   IconStandardsLine,
@@ -60,7 +59,7 @@ import {
 
 import {Link} from '@instructure/ui-link'
 
-const I18n = useI18nScope('MobileNavigation')
+const I18n = createI18nScope('MobileNavigation')
 
 const icons = {
   home: IconHomeLine,
@@ -85,7 +84,6 @@ const icons = {
   rubrics: IconRubricLine,
   grading_standards: IconGradebookLine,
   question_banks: IconBankLine,
-  faculty_journal: IconEssayLine,
   terms: IconAnnotateLine,
   authentication: IconLockLine,
   brand_configs: IconMaterialsRequiredLine,

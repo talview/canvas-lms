@@ -98,6 +98,8 @@ export interface EnvGradebookSpeedGrader {
   assignment_title: string
   custom_grade_statuses: any
   rubric: null | unknown
+  enhanced_rubrics_enabled?: boolean
+  rubric_outcome_data: null | unknown
   nonScoringRubrics: boolean
   outcome_extra_credit_enabled: boolean
   outcome_proficiency: unknown
@@ -112,7 +114,7 @@ export interface EnvGradebookSpeedGrader {
   can_delete_attachments: boolean
   media_comment_asset_string: string
   late_policy?: {
-    late_submission_interval?: 'hour' | 'day' | string
+    late_submission_interval?: 'hour' | 'day'
   }
   assignment_missing_shortcut: boolean
 
@@ -145,4 +147,5 @@ export interface EnvGradebookSpeedGrader {
     assessment_user_id?: string
     anonymous_id?: string
   }
+  ENTRY_ID: string
 }

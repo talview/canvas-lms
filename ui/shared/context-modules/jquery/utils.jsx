@@ -20,7 +20,7 @@ import $ from 'jquery'
 import {some} from 'lodash'
 import React from 'react'
 import ReactDOM from 'react-dom'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import ModuleFile from '@canvas/files/backbone/models/ModuleFile'
 import PublishCloud from '@canvas/files/react/components/PublishCloud'
 import PublishableModuleItem from '../backbone/models/PublishableModuleItem'
@@ -30,8 +30,9 @@ import ContentTypeExternalToolTray from '@canvas/trays/react/ContentTypeExternal
 import {ltiState} from '@canvas/lti/jquery/messages'
 import {addDeepLinkingListener} from '@canvas/deep-linking/DeepLinking'
 import ExternalToolModalLauncher from '@canvas/external-tools/react/components/ExternalToolModalLauncher'
+import {getResourceTypes} from '@canvas/util/resourceTypeUtil'
 
-const I18n = useI18nScope('context_modulespublic')
+const I18n = createI18nScope('context_modulespublic')
 
 const content_type_map = {
   page: 'wiki_page',
@@ -144,6 +145,7 @@ export function initPublishButton($el, data) {
     const fileFauxView = {
       render: () => {
         const model = $el.data('view').model
+         
         ReactDOM.render(
           <PublishCloud {...props} model={model} disabled={model.get('disabled')} />,
           $el[0]
@@ -194,9 +196,9 @@ export function initPublishButton($el, data) {
 }
 
 export function setExpandAllButtonVisible(visible) {
-  const element = ENV.FEATURES.instui_header ? 
-    $('#expand_collapse_all').parent() : 
-    $('#expand_collapse_all')
+  const element = ENV.FEATURES.instui_header
+    ? $('#expand_collapse_all').parent()
+    : $('#expand_collapse_all')
   visible ? element.show() : element.hide()
 }
 
@@ -209,12 +211,14 @@ export function setExpandAllButton() {
   })
 
   if (ENV.FEATURES.instui_header) {
-    $('#expand_collapse_all').children().children().text(someVisible ? I18n.t('Collapse All') : I18n.t('Expand All'))
-  }
-  else {
+    $('#expand_collapse_all')
+      .children()
+      .children()
+      .text(someVisible ? I18n.t('Collapse All') : I18n.t('Expand All'))
+  } else {
     $('#expand_collapse_all').text(someVisible ? I18n.t('Collapse All') : I18n.t('Expand All'))
   }
-  
+
   $('#expand_collapse_all').attr(
     'aria-label',
     someVisible ? I18n.t('Collapse All Modules') : I18n.t('Expand All Modules')
@@ -228,9 +232,11 @@ export function setExpandAllButtonHandler() {
     const shouldExpand = $(this).data('expand')
 
     if (ENV.FEATURES.instui_header) {
-      $(this).children().children().text(shouldExpand ? I18n.t('Collapse All') : I18n.t('Expand All'))
-    }
-    else {
+      $(this)
+        .children()
+        .children()
+        .text(shouldExpand ? I18n.t('Collapse All') : I18n.t('Expand All'))
+    } else {
       $(this).text(shouldExpand ? I18n.t('Collapse All') : I18n.t('Expand All'))
     }
 
@@ -269,7 +275,7 @@ export function setExpandAllButtonHandler() {
 }
 
 export function resetExpandAllButtonBindings() {
-  $('#expand_collapse_all').off('click');
+  $('#expand_collapse_all').off('click')
 }
 
 export function updateProgressionState($module) {
@@ -280,8 +286,21 @@ export function updateProgressionState($module) {
   })
   $module = $('#context_module_' + data.context_module_id)
   let progression_state = data.workflow_state
-  const progression_state_capitalized =
-    progression_state && progression_state.charAt(0).toUpperCase() + progression_state.substring(1)
+
+  // I18n.t() requires a string literal, so we can't just pass a computed value
+  const progression_state_capitalized = (() => {
+    switch (progression_state) {
+      case 'completed':
+        return I18n.t('Completed')
+      case 'started':
+        return I18n.t('Started')
+      default:
+        return (
+          progression_state &&
+          progression_state.charAt(0).toUpperCase() + progression_state.substring(1)
+        )
+    }
+  })()
 
   $module.addClass(progression_state)
 
@@ -318,7 +337,7 @@ export function updateProgressionState($module) {
 
     const completed = some(
       reqs_met,
-      // eslint-disable-next-line eqeqeq
+       
       req => req.id == mod_id && $mod_item.hasClass(req.type + '_requirement')
     )
     if (completed) {
@@ -334,7 +353,7 @@ export function updateProgressionState($module) {
     } else {
       let incomplete_req = null
       for (const idx in incomplete_reqs) {
-        // eslint-disable-next-line eqeqeq
+         
         if (incomplete_reqs[idx].id == mod_id) {
           incomplete_req = incomplete_reqs[idx]
         }
@@ -537,21 +556,12 @@ function setExternalToolTray(tool, moduleData, placement = 'module_index_menu', 
     }
   }
 
+   
   ReactDOM.render(
     <ContentTypeExternalToolTray
       tool={tool}
       placement={placement}
-      acceptedResourceTypes={[
-        'assignment',
-        'audio',
-        'discussion_topic',
-        'document',
-        'image',
-        'module',
-        'quiz',
-        'page',
-        'video',
-      ]}
+      acceptedResourceTypes={getResourceTypes()}
       targetResourceType="module"
       allowItemSelection={placement === 'module_index_menu'}
       selectableItems={moduleData}
@@ -580,6 +590,7 @@ function setExternalToolModal({
     returnFocusTo.focus()
   }
 
+   
   ReactDOM.render(
     <ExternalToolModalLauncher
       tool={tool}

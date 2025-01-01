@@ -18,8 +18,8 @@
 
 import $ from 'jquery'
 import {omit, defer, pick} from 'lodash'
-import {useScope as useI18nScope} from '@canvas/i18n'
-import * as tz from '@canvas/datetime'
+import {useScope as createI18nScope} from '@canvas/i18n'
+import * as tz from '@instructure/moment-utils'
 import moment from 'moment-timezone'
 import Backbone from '@canvas/backbone'
 import React from 'react'
@@ -32,7 +32,7 @@ import unflatten from 'obj-unflatten'
 import deparam from 'deparam'
 import coupleTimeFields from '@canvas/calendar/jquery/coupleTimeFields'
 import {renderDeleteCalendarEventDialog} from '@canvas/calendar/react/RecurringEvents/DeleteCalendarEventDialog'
-import datePickerFormat from '@canvas/datetime/datePickerFormat'
+import datePickerFormat from '@instructure/moment-utils/datePickerFormat'
 import CalendarConferenceWidget from '@canvas/calendar-conferences/react/CalendarConferenceWidget'
 import filterConferenceTypes from '@canvas/calendar-conferences/filterConferenceTypes'
 import FrequencyPicker, {
@@ -47,14 +47,17 @@ import {
 import {CommonEventShowError} from '@canvas/calendar/jquery/CommonEvent/CommonEvent'
 import {showFlashAlert} from '@canvas/alerts/react/FlashAlert'
 import EditCalendarEventHeader from '../../react/components/EditCalendarEventHeader'
+import {renderDatetimeField} from '@canvas/datetime/jquery/DatetimeField'
 
-const I18n = useI18nScope('calendar.edit')
+const I18n = createI18nScope('calendar.edit')
 
 RichContentEditor.preloadRemoteModule()
 
 // #
 // View for editing a calendar event on it's own page
 export default class EditCalendarEventView extends Backbone.View {
+  static recurringEventLimit = 200
+
   initialize() {
     this.render = this.render.bind(this)
     this.toggleDuplicateOptions = this.toggleDuplicateOptions.bind(this)
@@ -219,6 +222,7 @@ export default class EditCalendarEventView extends Backbone.View {
       conferenceNode.closest('fieldset').className = 'hide'
     } else {
       conferenceNode.closest('fieldset').className = ''
+       
       ReactDOM.render(
         <CalendarConferenceWidget
           key={this.conferencesKey}
@@ -260,10 +264,12 @@ export default class EditCalendarEventView extends Backbone.View {
   }
 
   renderHeaderComponent() {
-    const title = this.model.id == null ? 
-      I18n.t('Create New Calendar Event') : 
-      I18n.t('Edit %{title}', {title: this.model.get('title')})
+    const title =
+      this.model.id == null
+        ? I18n.t('Create New Calendar Event')
+        : I18n.t('Edit %{title}', {title: this.model.get('title')})
 
+     
     ReactDOM.render(
       <EditCalendarEventHeader title={title} />,
       document.getElementById('header_component_root')
@@ -287,6 +293,7 @@ export default class EditCalendarEventView extends Backbone.View {
           : this.course.get('term')?.end_at
       }
 
+       
       ReactDOM.render(
         <div id="recurring_event_frequency_picker" style={{margin: '.5rem 0 1rem'}}>
           <FrequencyPickerErrorBoundary>
@@ -344,10 +351,15 @@ export default class EditCalendarEventView extends Backbone.View {
 
   render() {
     super.render(...arguments)
-    this.$('.date_field').date_field({
+    renderDatetimeField(this.$('.date_field'), {
+      dateOnly: true,
       datepicker: {dateFormat: datePickerFormat(I18n.t('#date.formats.default'))},
+      newSuggestionDesign: true,
     })
-    this.$('.time_field').time_field()
+    renderDatetimeField($('.time_field'), {
+      timeOnly: true,
+      newSuggestionDesign: true,
+    })
     this.$('.date_start_end_row').each((_unused, row) => {
       const date = $('.start_date', row).first()
       const start = $('.start_time', row).first()
@@ -430,6 +442,8 @@ export default class EditCalendarEventView extends Backbone.View {
       delUrl: this.model.url(),
       isRepeating: !!this.model.get('series_uuid'),
       isSeriesHead: !!this.model.get('series_head'),
+       
+      eventType: event.eventType,
     })
   }
 
@@ -494,7 +508,7 @@ export default class EditCalendarEventView extends Backbone.View {
             return true
           }
         },
-        labelFn(input) {
+        labelFn(_index, input) {
           return $(input).parents('.date_start_end_row').prev('label').text()
         },
         success: $dialog => {
@@ -532,36 +546,76 @@ export default class EditCalendarEventView extends Backbone.View {
     return this.saveEvent(eventData)
   }
 
-  validateFormData({title, start_at}) {
+  validateFormData({title, start_at, duplicate}) {
     // Form data:
     // blackout_date, description, end_at, important_dates, location_address,
     // location_name, start_at, title
     const errors = []
     if (title.length === 0) {
-      errors.push({
-        field: $('#calendar_event_title'),
-        text: I18n.t('errors.title_required', 'You must enter a title'),
+      EditCalendarEventView.showError({
+        id: 'calendar_event_title',
+        fieldSelector: '#calendar_event_title',
+        message: I18n.t('errors.title_required', 'An event title is required'),
       })
+      errors.push('#calendar_event_title')
     }
+
     if (!start_at) {
-      errors.push({
-        field: $('#calendar_event_date'),
-        text: I18n.t('errors.start_date_required', 'You must enter a date'),
+      EditCalendarEventView.showError({
+        id: 'calendar_event_date',
+        fieldSelector: '#calendar_event_date',
+        message: I18n.t('errors.start_date_required', 'You must enter a date'),
       })
+      errors.push('#calendar_event_date')
     }
+
+    if (duplicate) {
+      EditCalendarEventView.validateDuplicatesForm(duplicate, errors)
+    }
+
     if (errors.length) {
-      let offset
-      errors.forEach(err => {
-        const errorBox = err.field.errorBox(err.text)
-        offset ||= errorBox.offset()
-      })
-      if (offset) {
-        // Scrolls to the the uppermost field, in this page title field could be it.
-        $('html,body').scrollTo({top: offset.top, left: 0})
-      }
+      EditCalendarEventView.focusAndScrollTo(errors[0])
       return false
     }
     return true
+  }
+
+  static validateDuplicatesForm(duplicate, errors) {
+    const {interval, count} = duplicate
+
+    // Validate duplicate interval field
+    if (Number.isNaN(Number(interval)) || Number(interval) <= 0) {
+      EditCalendarEventView.showError({
+        id: 'duplicate_interval',
+        fieldSelector: '#duplicate_interval',
+        containerSelector: 'label[for="duplicate_interval"]',
+        message: I18n.t('errors.greater_or_equal', 'Please enter a value greater or equal to 1'),
+      })
+      errors.push('#duplicate_interval')
+    }
+
+    // Validate duplicate count field
+    if (Number.isNaN(Number(count)) || Number(count) <= 0) {
+      EditCalendarEventView.showError({
+        id: 'duplicate_count',
+        fieldSelector: '#duplicate_count',
+        containerSelector: 'label[for="duplicate_count"]',
+        message: I18n.t('errors.greater_or_equal', 'Please enter a value greater or equal to 1'),
+      })
+      errors.push('#duplicate_count')
+    } else if (Number(count) > EditCalendarEventView.recurringEventLimit) {
+      EditCalendarEventView.showError({
+        id: 'duplicate_count',
+        fieldSelector: '#duplicate_count',
+        containerSelector: 'label[for="duplicate_count"]',
+        message: I18n.t(
+          'errors.less_or_equal',
+          'Please enter a value less than or equal to %{recurringEventLimit}',
+          {recurringEventLimit: EditCalendarEventView.recurringEventLimit}
+        ),
+      })
+      errors.push('#duplicate_count')
+    }
   }
 
   async saveEvent(eventData) {
@@ -595,7 +649,6 @@ export default class EditCalendarEventView extends Backbone.View {
 
   toJSON() {
     const result = super.toJSON(...arguments)
-    result.recurringEventLimit = 200
     result.k5_context = ENV.K5_SUBJECT_COURSE || ENV.K5_HOMEROOM_COURSE || ENV.K5_ACCOUNT
     result.should_show_blackout_dates = this.shouldShowBlackoutDatesCheckbox()
     result.disableSectionDates =
@@ -677,6 +730,67 @@ export default class EditCalendarEventView extends Backbone.View {
 
   cancel() {
     RichContentEditor.closeRCE(this.$('textarea'))
+  }
+
+  static showError({id, fieldSelector, containerSelector, message}) {
+    if (fieldSelector && message) {
+      EditCalendarEventView.clearError({fieldSelector, containerSelector})
+
+      // Updates the input with red border
+      $(fieldSelector).addClass('error')
+
+      // Adds the error message with accessible attributes
+      const errorId = `${id || 'input'}-error`
+
+      const errorContainer = $('<span>', {class: 'error-message', tabindex: -1})
+      const icon = $('<i>', {class: 'icon-warning icon-Solid', tabindex: -1, 'aria-hidden': true})
+      const text = $('<span>', {
+        id: errorId,
+        role: 'alert',
+        'aria-live': 'polite',
+        tabindex: -1,
+        text: message,
+      })
+
+      errorContainer.append(icon, text)
+
+      $(containerSelector || fieldSelector)
+        .parent()
+        .append(errorContainer)
+
+      // Associates the message to the input via aria-describedby
+      $(fieldSelector).attr('aria-describedby', errorId)
+
+      // Listens changes from the input and clear error when changes
+      $(fieldSelector).on('input.clearError', function () {
+        EditCalendarEventView.clearError({fieldSelector, containerSelector})
+      })
+    }
+  }
+
+  static clearError({fieldSelector, containerSelector}) {
+    if (fieldSelector) {
+      // Removes the input red border
+      $(fieldSelector).removeClass('error')
+
+      // Removes the error message element
+      $(containerSelector || fieldSelector)
+        .parent()
+        .children('.error-message')
+        .remove()
+
+      // Removes the error message attributes from the input
+      $(fieldSelector).removeAttr('aria-describedby')
+
+      // Removes the specific event listener
+      $(fieldSelector).off('input.clearError')
+    }
+  }
+
+  static focusAndScrollTo(selector) {
+    if (selector) {
+      $(selector)[0].scrollIntoView({behavior: 'smooth'})
+    }
   }
 }
 

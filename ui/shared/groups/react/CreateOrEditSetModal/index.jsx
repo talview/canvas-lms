@@ -16,9 +16,9 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {useEffect, useRef, useReducer} from 'react'
+import React, {useEffect, useRef, useReducer, useState} from 'react'
 import ReactDOM from 'react-dom'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {Modal} from '@instructure/ui-modal'
 import {View} from '@instructure/ui-view'
 import {Heading} from '@instructure/ui-heading'
@@ -34,8 +34,9 @@ import {GroupStructure} from './GroupStructure'
 import {Leadership} from './Leadership'
 import {AssignmentProgress} from './AssignmentProgress'
 import doFetchApi from '@canvas/do-fetch-api-effect'
+import {Responsive} from '@instructure/ui-responsive'
 
-const I18n = useI18nScope('groups')
+const I18n = createI18nScope('groups')
 
 const INITIAL_STATE = Object.freeze({
   name: '',
@@ -122,6 +123,7 @@ export const CreateOrEditSetModal = ({
   const [st, dispatch] = useReducer(reducer, INITIAL_STATE)
   const topElement = useRef(null)
   const creationJSON = useRef(undefined)
+  const [selfSignupEndDate, setSelfSignupEndDate] = useState(null)
   const areErrors = Object.keys(st.errors).length > 0
   const apiCall = mockApi || doFetchApi
   const isApiActive = st.apiState !== API_STATE.inactive
@@ -134,6 +136,7 @@ export const CreateOrEditSetModal = ({
       name: st.name,
       group_limit: st.groupLimit,
       enable_self_signup: st.selfSignup ? '1' : '0',
+      self_signup_end_at: selfSignupEndDate,
       enable_auto_leader: st.enableAutoLeader ? '1' : '0',
       create_group_count: st.createGroupCount,
     }
@@ -227,6 +230,24 @@ export const CreateOrEditSetModal = ({
     return nameSectionValid && structureSectionValid
   }
 
+  async function handleApiCall({path, body, method}) {
+    try {
+      return await apiCall({path, body, method})
+    } catch (e) {
+      if (e?.response instanceof Response) {
+        const response = await e.response.json()
+
+        const errors = response?.errors && Object.values(response.errors)[0]
+
+        if (errors?.length && errors[0]?.message) {
+          // we can only show 1 error, we might lose the other errors
+          throw new Error(errors[0]?.message)
+        }
+      }
+      throw e
+    }
+  }
+
   async function handleSubmit() {
     if (!isInputValid()) {
       const div = topElement.current?.parentElement
@@ -241,13 +262,13 @@ export const CreateOrEditSetModal = ({
       const contextStem = context === 'course' ? 'courses' : 'accounts'
       const path = `/api/v1/${contextStem}/${contextId}/group_categories`
       dispatch({ev: 'api-change', to: 'submitting'})
-      const {json} = await apiCall({path, body, method: 'POST'})
+      const {json} = await handleApiCall({path, body, method: 'POST'})
       showFlashSuccess(I18n.t('Group Set was successfully created'))()
       if (body.assign_async) {
         step = I18n.t('assigning members to the new groups')
         const assignPath = `/api/v1/group_categories/${json.id}/assign_unassigned_members`
         const assignBody = {group_by_section: body.group_by_section}
-        const {json: assignJson} = await apiCall({
+        const {json: assignJson} = await handleApiCall({
           path: assignPath,
           body: assignBody,
           method: 'POST',
@@ -273,28 +294,50 @@ export const CreateOrEditSetModal = ({
   }
 
   const renderDialogBody = () => (
-    <GroupContext.Provider value={stateToContext(st)}>
-      <GroupSetName
-        errormsg={st.errors.name}
-        onChange={newName => dispatch({ev: 'name-change', to: newName})}
-        elementRef={el => {
-          topElement.current = el
-        }}
-      />
-      {allowSelfSignup && (
-        <>
-          <Divider />
-          <SelfSignup onChange={to => dispatch({ev: 'selfsignup-change', to})} />
-          <Divider />
-          <GroupStructure
-            errormsg={st.errors.structure}
-            onChange={to => dispatch({ev: 'structure-change', to})}
-          />
-          <Divider />
-          <Leadership onChange={to => dispatch({ev: 'leadership-change', to})} />
-        </>
-      )}
-    </GroupContext.Provider>
+    <Responsive
+      match="media"
+      query={{
+        small: {maxWidth: 600},
+      }}
+      props={{
+        small: {
+          direction: 'column',
+        },
+      }}
+      render={(props, matches) => {
+        return (
+          <GroupContext.Provider value={stateToContext(st)}>
+            <GroupSetName
+              errormsg={st.errors.name}
+              onChange={newName => dispatch({ev: 'name-change', to: newName})}
+              elementRef={el => {
+                topElement.current = el
+              }}
+              {...props}
+            />
+            {allowSelfSignup && (
+              <>
+                <Divider />
+                <SelfSignup
+                  onChange={to => dispatch({ev: 'selfsignup-change', to})}
+                  selfSignupEndDateEnabled={ENV.self_signup_deadline_enabled}
+                  endDateOnChange={value => setSelfSignupEndDate(value)}
+                  {...props}
+                />
+                <Divider />
+                <GroupStructure
+                  errormsg={st.errors.structure}
+                  onChange={to => dispatch({ev: 'structure-change', to})}
+                  {...props}
+                />
+                <Divider />
+                <Leadership onChange={to => dispatch({ev: 'leadership-change', to})} {...props} />
+              </>
+            )}
+          </GroupContext.Provider>
+        )
+      }}
+    />
   )
 
   return (
@@ -374,6 +417,7 @@ CreateOrEditSetModal.defaultProps = {
 export function renderCreateDialog(div, mockApi) {
   return new Promise(resolve => {
     function onDismiss(result) {
+       
       ReactDOM.render(
         <CreateOrEditSetModal
           allowSelfSignup={ENV.allow_self_signup}
@@ -385,6 +429,7 @@ export function renderCreateDialog(div, mockApi) {
       resolve(result)
     }
     const context = ENV.context_asset_string.split('_')
+     
     ReactDOM.render(
       <CreateOrEditSetModal
         studentSectionCount={ENV.student_section_count}

@@ -16,9 +16,9 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 import {User} from '../graphql/User'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
-const I18n = useI18nScope('conversations_2')
+const I18n = createI18nScope('conversations_2')
 
 export const responsiveQuerySizes = ({mobile = false, tablet = false, desktop = false} = {}) => {
   const querySizes = {}
@@ -29,7 +29,7 @@ export const responsiveQuerySizes = ({mobile = false, tablet = false, desktop = 
     querySizes.tablet = {minWidth: mobile ? '768px' : '0px'}
   }
   if (desktop) {
-    querySizes.desktop = {minWidth: tablet ? '1024px' : '768px'}
+    querySizes.desktop = {minWidth: tablet ? '1024px' : '769px'}
   }
   return querySizes
 }
@@ -114,9 +114,12 @@ export const inboxMessagesWrapper = (data, isSubmissionComments = false) => {
         inboxMessage.author = message?.author || User.mock(DEFAULT_USER_PROPERTIES)
         inboxMessage.recipients = []
         inboxMessage.body = message?.comment
+        inboxMessage.htmlBody = message?.htmlComment
         inboxMessage.attachmentsConnection = null
+        inboxMessage.attachments = null
         inboxMessage.mediaComment = null
         contextName = message?.course?.contextName
+        canReply = canReply && message?.canReply
       } else {
         inboxMessage.id = message?.id
         inboxMessage._id = message?._id
@@ -125,7 +128,9 @@ export const inboxMessagesWrapper = (data, isSubmissionComments = false) => {
         inboxMessage.author = message?.author || User.mock(DEFAULT_USER_PROPERTIES)
         inboxMessage.recipients = message?.recipients
         inboxMessage.body = message?.body
+        inboxMessage.htmlBody = message?.htmlComment
         inboxMessage.attachmentsConnection = message?.attachmentsConnection
+        inboxMessage.attachments = message?.attachments
         inboxMessage.mediaComment = message?.mediaComment
         contextName = data?.contextName
         canReply = data?.canReply

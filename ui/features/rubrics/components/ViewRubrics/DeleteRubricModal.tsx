@@ -17,7 +17,7 @@
  */
 
 import React from 'react'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {Button, CloseButton} from '@instructure/ui-buttons'
 import {Heading} from '@instructure/ui-heading'
 import {Modal} from '@instructure/ui-modal'
@@ -29,7 +29,7 @@ import {Alert} from '@instructure/ui-alerts'
 import getLiveRegion from '@canvas/instui-bindings/react/liveRegion'
 import {Text} from '@instructure/ui-text'
 
-const I18n = useI18nScope('rubrics-duplicate-modal')
+const I18n = createI18nScope('rubrics-duplicate-modal')
 
 export type DeleteRubricModalProps = {
   id?: string
@@ -111,7 +111,7 @@ export const DeleteRubricModal = ({
             onClick={() => mutate()}
             color="danger"
             type="submit"
-            data-testid="delete-rubric-button"
+            data-testid="delete-rubric-modal-button"
           >
             {I18n.t('Delete')}
           </Button>

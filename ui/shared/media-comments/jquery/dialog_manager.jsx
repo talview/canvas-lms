@@ -15,12 +15,12 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import 'jqueryui/dialog'
 import ReactDOM from 'react-dom'
 
-const I18n = useI18nScope('media_comment_dialog_manager')
+const I18n = createI18nScope('media_comment_dialog_manager')
 
 /*
  * manages uploader modal dialog
@@ -42,7 +42,7 @@ export default class DialogManager {
     }
     this.dialog.text(I18n.t('messages.loading', 'Loading...'))
     this.dialog.dialog({
-      title: I18n.t('titles.record_upload_media_comment', 'Record/Upload Media Comment'),
+      title: I18n.t('Studio Capture'),
       resizable: false,
       width: 470,
       height: 300,
@@ -65,7 +65,7 @@ export default class DialogManager {
 
   showUpdateDialog() {
     return this.dialog.dialog({
-      title: I18n.t('titles.record_upload_media_comment', 'Record/Upload Media Comment'),
+      title: I18n.t('Studio Capture'),
       width: 650,
       height: 550,
       modal: true,

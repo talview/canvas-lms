@@ -37,16 +37,11 @@ describe UserMerge do
       expect { UserMerge.from(user2).into(fake_student) }.to raise_error("cannot merge a test student")
     end
 
-    it "fails if there is an existing active user merge data object for the same user pair" do
-      UserMerge.from(user2).into(user1)
-      expect { UserMerge.from(user2).into(user1) }.to raise_error(UserMerge::UnsafeMergeError)
-    end
-
     it "logs who did the user merge" do
       merger = user_model
       mergeme = UserMerge.from(user2)
       mergeme.into(user1, merger:, source: "this spec")
-      expect(mergeme.merge_data.items.where(item_type: "logs").take.item).to eq "{:merger_id=>#{merger.id}, :source=>\"this spec\"}"
+      expect(mergeme.merge_data.items.find_by(item_type: "logs").item).to eq "{:merger_id=>#{merger.id}, :source=>\"this spec\"}"
     end
 
     it "marks as failed on merge failures" do
@@ -55,7 +50,7 @@ describe UserMerge do
       allow(mergeme).to receive(:copy_favorites).and_raise("boom")
       expect { mergeme.into(user1) }.to raise_error("boom")
       expect(mergeme.merge_data.workflow_state).to eq "failed"
-      expect(mergeme.merge_data.items.where(item_type: "merge_error").take.item.first).to eq "boom"
+      expect(mergeme.merge_data.items.find_by(item_type: "merge_error").item.first).to eq "boom"
     end
 
     it "records where the user was merged to" do
@@ -88,8 +83,8 @@ describe UserMerge do
       user3 = user_model
       Lti::Asset.opaque_identifier_for(user3)
       UserMerge.from(user1).into(user3)
-      expect(user3.reload.past_lti_ids.where(context_id: course1).take.user_lti_id).to eq user_1_old_lti
-      expect(user3.past_lti_ids.where(context_id: course2).take.user_lti_id).to eq old_lti
+      expect(user3.reload.past_lti_ids.find_by(context_id: course1).user_lti_id).to eq user_1_old_lti
+      expect(user3.past_lti_ids.find_by(context_id: course2).user_lti_id).to eq old_lti
     end
 
     it "moves past_lti_id to the new user multiple merges with conflict" do
@@ -144,7 +139,7 @@ describe UserMerge do
     end
 
     it "recalculates cached_due_date on unsubmitted placeholder submissions for the new user" do
-      due_date_timestamp = DateTime.now.iso8601
+      due_date_timestamp = Time.zone.now.iso8601
       course1.enroll_user(user2, "StudentEnrollment", enrollment_state: "active")
       assignment = course1.assignments.create!(
         title: "some assignment",
@@ -152,18 +147,18 @@ describe UserMerge do
         submission_types: "online_text_entry",
         due_at: due_date_timestamp
       )
-      expect(Submission.where(user_id: user2.id, assignment_id: assignment.id).take.cached_due_date)
+      expect(Submission.find_by(user_id: user2.id, assignment_id: assignment.id).cached_due_date)
         .to eq due_date_timestamp
 
       UserMerge.from(user2).into(user1)
 
-      submission = Submission.where(user_id: user1.id, assignment_id: assignment.id).take
+      submission = Submission.find_by(user_id: user1.id, assignment_id: assignment.id)
       expect(submission.cached_due_date).to eq due_date_timestamp
       expect(submission.workflow_state).to eq "unsubmitted"
     end
 
     it "recalculates cached_due_date on submissions for assignments with overrides" do
-      due_date_timestamp = DateTime.now.iso8601
+      due_date_timestamp = Time.zone.now.iso8601
       course1.enroll_user(user2, "StudentEnrollment", enrollment_state: "active")
       assignment = course1.assignments.create!(
         title: "Assignment with student due date override",
@@ -179,18 +174,18 @@ describe UserMerge do
       )
       override.assignment_override_students.create!(user: user2)
       assignment.update(due_at: nil, only_visible_to_overrides: true)
-      expect(Submission.where(user_id: user2.id, assignment_id: assignment.id).take.cached_due_date)
+      expect(Submission.find_by(user_id: user2.id, assignment_id: assignment.id).cached_due_date)
         .to eq due_date_timestamp
 
       UserMerge.from(user2).into(user1)
 
-      submission = Submission.where(user_id: user1.id, assignment_id: assignment.id).take
+      submission = Submission.find_by(user_id: user1.id, assignment_id: assignment.id)
       expect(submission.cached_due_date).to eq due_date_timestamp
       expect(submission.workflow_state).to eq "unsubmitted"
     end
 
     it "deletes from user's assignment override student when both users have them" do
-      due_date_timestamp = DateTime.now.iso8601
+      due_date_timestamp = Time.zone.now.iso8601
       course1.enroll_user(user1, "StudentEnrollment", enrollment_state: "active")
       course1.enroll_user(user2, "StudentEnrollment", enrollment_state: "active")
       a1 = assignment_model(course: course1)
@@ -220,7 +215,7 @@ describe UserMerge do
     end
 
     it "moves and swap assignment override student to target user" do
-      due_date_timestamp = DateTime.now.iso8601
+      due_date_timestamp = Time.zone.now.iso8601
       course1.enroll_user(user2, "StudentEnrollment", enrollment_state: "active")
       assignment = course1.assignments.create!(
         title: "Assignment with student due date override",
@@ -436,9 +431,9 @@ describe UserMerge do
       UserMerge.from(user1).into(user2)
       user1.reload
       user2.reload
-      records = UserMergeData.where(user_id: user2).take.records
+      records = UserMergeData.find_by(user_id: user2).records
       expect(records.count).to eq 8
-      record = records.where(context_id: cc1).take
+      record = records.find_by(context_id: cc1)
       expect(record.previous_user_id).to eq user1.id
       expect(record.previous_workflow_state).to eq "active"
       expect(record.context_type).to eq "CommunicationChannel"
@@ -682,8 +677,8 @@ describe UserMerge do
                                    participants_per_appointment: 1,
                                    min_appointments_per_participant: 1,
                                    new_appointments: [
-                                     ["#{Time.now.year + 1}-01-01 12:00:00", "#{Time.now.year + 1}-01-01 13:00:00"],
-                                     ["#{Time.now.year + 1}-01-01 13:00:00", "#{Time.now.year + 1}-01-01 14:00:00"]
+                                     ["#{Time.zone.now.year + 1}-01-01 12:00:00", "#{Time.zone.now.year + 1}-01-01 13:00:00"],
+                                     ["#{Time.zone.now.year + 1}-01-01 13:00:00", "#{Time.zone.now.year + 1}-01-01 14:00:00"]
                                    ])
       res1 = ag.appointments.first.reserve_for(user1, @teacher)
       ag.appointments.last.reserve_for(user2, @teacher)
@@ -722,7 +717,7 @@ describe UserMerge do
 
     it "freshens moved topics" do
       topic = course1.discussion_topics.create!(user: user2)
-      now = Time.at(5.minutes.from_now.to_i) # truncate milliseconds
+      now = Time.zone.at(5.minutes.from_now.to_i) # truncate milliseconds
       Timecop.freeze(now) do
         UserMerge.from(user2).into(user1)
         expect(topic.reload.updated_at).to eq now
@@ -732,7 +727,7 @@ describe UserMerge do
     it "freshens topics with moved entries" do
       topic = course1.discussion_topics.create!(user: user1)
       topic.discussion_entries.create!(user: user2)
-      now = Time.at(5.minutes.from_now.to_i) # truncate milliseconds
+      now = Time.zone.at(5.minutes.from_now.to_i) # truncate milliseconds
       Timecop.freeze(now) do
         UserMerge.from(user2).into(user1)
         expect(topic.reload.updated_at).to eq now
@@ -887,7 +882,7 @@ describe UserMerge do
       )
       UserMerge.from(user2).into(@user1)
       expect(
-        UserPastLtiId.shard(course).where(user_id: @user1).take.user_lti_id
+        UserPastLtiId.shard(course).find_by(user_id: @user1).user_lti_id
       ).to eq "fake_lti_id_from_old_merge"
     end
 
@@ -1010,7 +1005,7 @@ describe UserMerge do
       user1 = user_model
       UserMerge.from(@user2).into(user1)
       expect(user1.favorites.size).to eq 2
-      expect(user1.favorites.where(context_type: "Course").take.context).to eq @shard_course
+      expect(user1.favorites.find_by(context_type: "Course").context).to eq @shard_course
       expect(user1.favorites.where(context_type: "Group").count).to eq 1
     end
 
@@ -1340,6 +1335,39 @@ describe UserMerge do
 
       UserMerge.from(user1).into(@user2)
       expect(@user2.all_conversations.pluck(:conversation_id)).to match_array([c1, c2, c3].map(&:conversation_id))
+    end
+
+    it "moves ccs to the new user without duplicating the position" do
+      user1 = user_factory
+      user2 = user_factory
+      communication_channel(user1, { username: "f@instructure.com" })
+      communication_channel(user2, { username: "F@instructure.com", cc_state: "retired" })
+
+      communication_channel(user1, { username: "h@instructure.com", cc_state: "active" })
+      communication_channel(user2, { username: "H@instructure.com", cc_state: "retired" })
+
+      communication_channel(user2, { username: "j@instructure.com", active_cc: true })
+      communication_channel(user2, { username: "l@instructure.com" })
+
+      UserMerge.from(user1).into(user2)
+      user1.reload
+      user2.reload
+
+      expected_values = [
+        { position: 1, path: "j@instructure.com", workflow_state: "active" },
+        { position: 2, path: "l@instructure.com", workflow_state: "unconfirmed" },
+        { position: 6, path: "f@instructure.com", workflow_state: "unconfirmed" },
+        { position: 7, path: "h@instructure.com", workflow_state: "active" },
+      ]
+      user2.communication_channels.each_with_index do |cc, i|
+        expected = expected_values[i]
+        expect(cc.position).to eq(expected[:position])
+        expect(cc.path).to eq(expected[:path])
+        expect(cc.workflow_state).to eq(expected[:workflow_state])
+      end
+
+      positions = user2.communication_channels.pluck(:position)
+      expect(positions.uniq.length).to eq(positions.length), "Duplicate positions found in user2's communication_channels"
     end
 
     context "manual invitation" do

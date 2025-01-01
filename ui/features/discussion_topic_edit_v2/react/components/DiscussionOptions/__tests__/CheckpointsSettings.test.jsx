@@ -19,9 +19,9 @@
 import {render} from '@testing-library/react'
 import React from 'react'
 
-import { CheckpointsSettings } from '../CheckpointsSettings'
+import {CheckpointsSettings} from '../CheckpointsSettings'
 
-import {GradedDiscussionDueDatesContext} from '../../../util/constants'
+import {DiscussionDueDatesContext} from '../../../util/constants'
 
 const setup = ({
   pointsPossibleReplyToTopic = 0,
@@ -32,7 +32,7 @@ const setup = ({
   setReplyToEntryRequiredCount = () => {},
 } = {}) => {
   return render(
-    <GradedDiscussionDueDatesContext.Provider
+    <DiscussionDueDatesContext.Provider
       value={{
         pointsPossibleReplyToTopic,
         setPointsPossibleReplyToTopic,
@@ -43,7 +43,7 @@ const setup = ({
       }}
     >
       <CheckpointsSettings />
-    </GradedDiscussionDueDatesContext.Provider>
+    </DiscussionDueDatesContext.Provider>
   )
 }
 
@@ -71,11 +71,19 @@ describe('CheckpointsSettings', () => {
       })
       expect(getByText('Total Points Possible: 17')).toBeInTheDocument()
     })
+
+    it('adds decimal points', () => {
+      const {getByText} = setup({
+        pointsPossibleReplyToEntry: 2.5,
+        pointsPossibleReplyToTopic: 3.25,
+      })
+      expect(getByText('Total Points Possible: 5.75')).toBeInTheDocument()
+    })
   })
   describe('Additional Replies Required', () => {
     it('displays the correct additional replies required passed from the useContext', () => {
       const {getByTestId} = setup({
-        replyToEntryRequiredCount: 5
+        replyToEntryRequiredCount: 5,
       })
       expect(getByTestId('reply-to-entry-required-count')).toHaveValue('5')
     })

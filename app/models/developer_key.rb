@@ -27,6 +27,9 @@ class DeveloperKey < ActiveRecord::Base
     end
   end
 
+  CONFIDENTIAL_CLIENT_TYPE = "confidential"
+  PUBLIC_CLIENT_TYPE = "public"
+
   include CustomValidations
   include Workflow
 
@@ -56,11 +59,14 @@ class DeveloperKey < ActiveRecord::Base
   before_save :protect_default_key
   before_save :set_require_scopes
   before_save :set_root_account
+  after_create :create_lti_registration
+  after_create :create_default_account_binding
   after_save :clear_cache
   after_update :invalidate_access_tokens_if_scopes_removed!
   after_update :destroy_external_tools!, if: :destroy_external_tools?
-  after_create :create_default_account_binding
+  after_update :update_lti_registration
 
+  validates :client_type, inclusion: { in: [PUBLIC_CLIENT_TYPE, CONFIDENTIAL_CLIENT_TYPE] }
   validates_as_url :redirect_uri, :oidc_initiation_url, :public_jwk_url, allowed_schemes: nil
   validate :validate_redirect_uris
   validate :validate_public_jwk
@@ -68,6 +74,7 @@ class DeveloperKey < ActiveRecord::Base
   validate :validate_flag_combinations
 
   attr_reader :private_jwk
+  attr_accessor :skip_lti_sync, :current_user
 
   scope :nondeleted, -> { where("workflow_state<>'deleted'") }
   scope :not_active, -> { where("workflow_state<>'active'") } # search for deleted & inactive keys
@@ -97,6 +104,8 @@ class DeveloperKey < ActiveRecord::Base
     state :deleted
   end
 
+  DEFAULT_KEY_NAME = "User-Generated"
+
   # https://stackoverflow.com/a/2500819
   alias_method :referenced_tool_configuration, :tool_configuration
 
@@ -104,6 +113,14 @@ class DeveloperKey < ActiveRecord::Base
   def destroy
     self.workflow_state = "deleted"
     save
+  end
+
+  def confidential_client?
+    client_type == CONFIDENTIAL_CLIENT_TYPE
+  end
+
+  def public_client?
+    client_type == PUBLIC_CLIENT_TYPE
   end
 
   def usable?
@@ -123,7 +140,7 @@ class DeveloperKey < ActiveRecord::Base
 
   def redirect_uris=(value)
     value = value.split if value.is_a?(String)
-    super(value)
+    super
   end
 
   def ims_registration?
@@ -172,11 +189,11 @@ class DeveloperKey < ActiveRecord::Base
   end
 
   class << self
-    def default
-      get_special_key("User-Generated")
+    def default(create_if_missing: true)
+      get_special_key(DeveloperKey::DEFAULT_KEY_NAME, create_if_missing:)
     end
 
-    def get_special_key(default_key_name)
+    def get_special_key(default_key_name, create_if_missing: true)
       Shard.birth.activate do
         @special_keys ||= {}
 
@@ -187,6 +204,7 @@ class DeveloperKey < ActiveRecord::Base
           key = DeveloperKey.where(id: key_id).first
         end
         return @special_keys[default_key_name] = key if key
+        return nil unless create_if_missing
 
         key = DeveloperKey.create!(name: default_key_name)
         key.developer_key_account_bindings.update_all(workflow_state: "on")
@@ -253,12 +271,7 @@ class DeveloperKey < ActiveRecord::Base
     return true if account_id.blank?
     return true if target_account.id == account_id
 
-    include_federated_parent_id =
-      if target_account.feature_enabled?(:developer_key_consortia_fix_inheritance_logic)
-        !target_account.root_account.primary_settings_root_account?
-      else
-        !target_account.primary_settings_root_account?
-      end
+    include_federated_parent_id = !target_account.root_account.primary_settings_root_account?
 
     target_account.account_chain_ids(include_federated_parent_id:).include?(account_id)
   end
@@ -303,16 +316,11 @@ class DeveloperKey < ActiveRecord::Base
 
     # Search for bindings in the account chain starting with the highest account,
     # and include consortium parent if necessary
-    include_federated_parent =
-      if binding_account.root_account.feature_enabled?(:developer_key_consortia_fix_inheritance_logic)
-        !binding_account.root_account.primary_settings_root_account?
-      else
-        !binding_account.primary_settings_root_account?
-      end
+    include_federated_parent = !binding_account.root_account.primary_settings_root_account?
     accounts = binding_account.account_chain(include_federated_parent:).reverse
     binding = DeveloperKeyAccountBinding.find_in_account_priority(accounts, self)
 
-    # If no explicity set bindings were found check for 'allow' bindings
+    # If no explicitly set bindings were found check for 'allow' bindings
     binding ||= DeveloperKeyAccountBinding.find_in_account_priority(accounts.reverse, self, explicitly_set: false)
 
     binding
@@ -377,7 +385,10 @@ class DeveloperKey < ActiveRecord::Base
   end
 
   def tokens_expire_in
-    return nil unless mobile_app?
+    return nil unless mobile_app? || public_client?
+
+    # By default, public clients have a two-hour rolling refresh window
+    return Setting.get("public_client_token_ttl", "120").to_f.minutes if public_client?
 
     sessions_settings = Canvas::Plugin.find("sessions").settings || {}
     sessions_settings[:mobile_timeout]&.to_f&.minutes
@@ -413,6 +424,41 @@ class DeveloperKey < ActiveRecord::Base
   end
 
   private
+
+  def create_lti_registration
+    return unless is_lti_key?
+    return if skip_lti_sync
+    return if lti_registration.present?
+
+    lti_registration = Lti::Registration.new(developer_key: self,
+                                             account: account || Account.site_admin,
+                                             created_by: current_user,
+                                             updated_by: current_user,
+                                             admin_nickname: name,
+                                             name: tool_configuration&.settings&.dig("title") || "Unnamed tool",
+                                             workflow_state:,
+                                             ims_registration:,
+                                             skip_lti_sync: true,
+                                             manual_configuration: referenced_tool_configuration)
+    lti_registration.save!
+  end
+
+  def update_lti_registration
+    return unless is_lti_key?
+    return if skip_lti_sync
+
+    if lti_registration.blank?
+      create_lti_registration
+      return
+    end
+
+    lti_registration.update!(name: tool_configuration&.settings&.dig("title") || "Unnamed tool",
+                             admin_nickname: name,
+                             updated_by: current_user,
+                             workflow_state:,
+                             skip_lti_sync: true,
+                             manual_configuration: referenced_tool_configuration)
+  end
 
   def validate_lti_fields
     return unless is_lti_key?
@@ -547,7 +593,7 @@ class DeveloperKey < ActiveRecord::Base
       ContextExternalTool.where(id: tool_ids).preload(:context).each do |tool|
         next unless tool.context
 
-        tool_configuration.new_external_tool(
+        lti_registration.new_external_tool(
           tool.context,
           existing_tool: tool
         ).save
@@ -597,12 +643,19 @@ class DeveloperKey < ActiveRecord::Base
   end
 
   def validate_public_jwk
-    return true if public_jwk.blank?
+    return if public_jwk.blank?
 
-    jwk_errors = Schemas::Lti::PublicJwk.simple_validation_errors(public_jwk)
-    return true if jwk_errors.blank?
+    if Account.site_admin.feature_enabled?(:lti_report_multiple_schema_validation_errors)
+      jwk_errors = Schemas::Lti::PublicJwk.simple_validation_errors(public_jwk)
+      return if jwk_errors.nil?
 
-    errors.add :public_jwk, jwk_errors
+      jwk_errors.each { |error| errors.add :public_jwk, error }
+    else
+      jwk_errors = Schemas::Lti::PublicJwk.simple_validation_first_error(public_jwk)
+      return if jwk_errors.blank?
+
+      errors.add :public_jwk, jwk_errors
+    end
   end
 
   def invalidate_access_tokens_if_scopes_removed!
@@ -631,7 +684,7 @@ class DeveloperKey < ActiveRecord::Base
     invalid_scopes = scopes - TokenScopes.all_scopes
     return true if invalid_scopes.empty?
 
-    errors[:scopes] << "cannot contain #{invalid_scopes.join(", ")}"
+    errors.add(:scopes, "cannot contain #{invalid_scopes.join(", ")}")
   end
 
   def site_admin?

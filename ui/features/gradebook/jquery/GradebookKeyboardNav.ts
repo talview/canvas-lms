@@ -1,4 +1,3 @@
-// @ts-nocheck
 /*
  * Copyright (C) 2020 - present Instructure, Inc.
  *
@@ -17,9 +16,8 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
-import '@canvas/datetime/jquery'
 import '@canvas/jquery-keycodes'
 import type GridSupport from '../react/default_gradebook/GradebookGrid/GridSupport/index'
 
@@ -31,7 +29,7 @@ type KeyBinding = {
 
 type Location = {region: string; cell?: any; row?: any; columnId?: string}
 
-const I18n = useI18nScope('gradebookGradebookKeyboardNav')
+const I18n = createI18nScope('gradebookGradebookKeyboardNav')
 
 type GradebookKeyboardNavOptions = {
   getColumnTypeForColumnId: (columnId: string) => string
@@ -115,18 +113,22 @@ export default class GradebookKeyboardNav {
       ref = this.keyBindings
       for (i = 0, len = ref.length; i < len; i++) {
         binding = ref[i]
+        // @ts-expect-error
         if (binding.handler != null && binding.key != null && this[binding.handler] != null) {
+          // @ts-expect-error
           $(document.body).keycodes(binding.key, this[binding.handler])
         }
       }
     }
   }
 
+  // @ts-expect-error
   shouldHandleEvent(e) {
     let element, i, len
     const ref = this.gradebookElements
     for (i = 0, len = ref.length; i < len; i++) {
       element = ref[i]
+      // @ts-expect-error
       if (element.contains(e.target)) {
         return true
       }

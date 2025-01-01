@@ -17,27 +17,34 @@
  */
 
 import {DiscussionEdit} from '../DiscussionEdit/DiscussionEdit'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import PropTypes from 'prop-types'
-import React, {useContext, useEffect} from 'react'
-import {getDisplayName, responsiveQuerySizes} from '../../utils'
-import {SearchContext} from '../../utils/constants'
+import React, {useContext, useEffect, useState} from 'react'
+import {
+  getDisplayName,
+  responsiveQuerySizes,
+  getTranslation,
+  translationSeparator,
+} from '../../utils'
+import {DiscussionManagerUtilityContext, SearchContext} from '../../utils/constants'
 import {SearchSpan} from '../SearchSpan/SearchSpan'
 
 import {AccessibleContent} from '@instructure/ui-a11y-content'
 import {Responsive} from '@instructure/ui-responsive'
 import {Text} from '@instructure/ui-text'
+import {Flex} from '@instructure/ui-flex'
+import {Spinner} from '@instructure/ui-spinner'
 import theme from '@instructure/canvas-theme'
 import {View} from '@instructure/ui-view'
 
-const I18n = useI18nScope('discussion_posts')
+const I18n = createI18nScope('discussion_posts')
 
 export function PostMessage({...props}) {
   const {searchTerm} = useContext(SearchContext)
 
   useEffect(() => {
     if (ENV.SEQUENCE !== undefined && props.isTopic) {
-      // eslint-disable-next-line promise/catch-or-return
+       
       import('@canvas/modules/jquery/prerequisites_lookup').then(() => {
         INST.lookupPrerequisites()
       })
@@ -51,41 +58,97 @@ export function PostMessage({...props}) {
     heading = 'h' + depth.toString()
   }
 
+  const {translateTargetLanguage} = useContext(DiscussionManagerUtilityContext)
+  const [translatedTitle, setTranslatedTitle] = useState(null)
+  const [translatedMessage, setTranslatedMessage] = useState(null)
+  const [, setLastTranslationResultLanguage] = useState(null)
+  const [isTranslating, setIsTranslating] = useState(false)
+
+  // Shouldn't fire if not feature flagged.
+  // TODO Create a custom hook for translation logic.
+  useEffect(() => {
+    if (translateTargetLanguage == null) {
+      setTranslatedTitle(null)
+      setTranslatedMessage(null)
+      return
+    }
+
+    const translationAttempts = [
+      getTranslation(props.title, translateTargetLanguage),
+      getTranslation(props.message, translateTargetLanguage),
+    ]
+
+    // Begin translating, clear spinner when done.
+    setIsTranslating(true)
+    Promise.all(translationAttempts)
+      .then(translations => {
+        setTranslatedTitle(translations[0])
+        setTranslatedMessage(translations[1])
+        setLastTranslationResultLanguage(translateTargetLanguage)
+      })
+      .catch(() => {
+        setTranslatedTitle(null)
+        setTranslatedMessage(null)
+        setLastTranslationResultLanguage(null)
+      })
+      .finally(() => setIsTranslating(false))
+  }, [translateTargetLanguage, props.title, props.message])
+
   return (
     <Responsive
       match="media"
       query={responsiveQuerySizes({mobile: true, desktop: true})}
       props={{
         mobile: {
-          titleMargin: '0',
-          titleTextSize: 'small',
+          titleMargin: 'small 0',
+          titleDisplay: 'block',
+          titleTextSize: 'large',
           titleTextWeight: 'bold',
-          messageTextSize: 'fontSizeXSmall',
           messageLeftPadding: undefined,
+          isMobile: true,
         },
         desktop: {
-          titleMargin: props.threadMode ? '0' : '0 0 small 0',
+          titleMargin: '0',
+          titleDisplay: 'inline',
           titleTextSize: props.threadMode ? 'medium' : 'x-large',
           titleTextWeight: props.threadMode ? 'bold' : 'normal',
-          messageTextSize: props.threadMode ? 'fontSizeSmall' : 'fontSizeMedium',
           messageLeftPadding:
             props.discussionEntry && props.discussionEntry.depth === 1 && !props.threadMode
-              ? theme.variables.spacing.xxSmall
+              ? theme.spacing.xxSmall
               : undefined,
+          isMobile: false,
         },
       }}
       render={responsiveProps => (
         <View>
           {props.title ? (
-            <View
-              as={heading}
-              margin={responsiveProps.titleMargin}
-              padding={props.isTopic ? 'small 0 0 0' : '0'}
-            >
-              <Text size={responsiveProps.titleTextSize} weight={responsiveProps.titleTextWeight}>
-                <AccessibleContent alt={I18n.t('Discussion Topic: %{title}', {title: props.title})}>
-                  {props.title}
-                </AccessibleContent>
+            <View margin={responsiveProps.titleMargin} display={responsiveProps.titleDisplay}>
+              <Text size={responsiveProps.titleTextSize} data-testid="message_title" weight="bold">
+                {translatedTitle ? (
+                  <>
+                    <AccessibleContent
+                      alt={I18n.t('Discussion Topic: %{title}', {title: props.title})}
+                    >
+                      {props.title}
+                    </AccessibleContent>
+                    <AccessibleContent alt={translationSeparator}>
+                      {translationSeparator}
+                    </AccessibleContent>
+                    <AccessibleContent alt={translatedTitle} data-testid="post-title-translated">
+                      {translateTargetLanguage ? (
+                        <span lang={translateTargetLanguage}>{translatedTitle}</span>
+                      ) : (
+                        translatedTitle
+                      )}
+                    </AccessibleContent>
+                  </>
+                ) : (
+                  <AccessibleContent
+                    alt={I18n.t('Discussion Topic: %{title}', {title: props.title})}
+                  >
+                    {props.title}
+                  </AccessibleContent>
+                )}
               </Text>
             </View>
           ) : (
@@ -99,6 +162,16 @@ export function PostMessage({...props}) {
               </Text>
             </View>
           )}
+          {isTranslating && (
+            <Flex justifyItems="start">
+              <Flex.Item>
+                <Spinner renderTitle={I18n.t('Translating')} size="x-small" />
+              </Flex.Item>
+              <Flex.Item margin="0 0 0 x-small">
+                <Text>{I18n.t('Translating Text')}</Text>
+              </Flex.Item>
+            </Flex>
+          )}
           {props.isEditing ? (
             <View display="inline-block" margin="small none none none" width="100%">
               <DiscussionEdit
@@ -108,6 +181,7 @@ export function PostMessage({...props}) {
                 onCancel={props.onCancel}
                 value={props.message}
                 attachment={props.attachment}
+                quotedEntry={props.discussionEntry.quotedEntry}
                 onSubmit={props.onSave}
                 isEdit={true}
                 isAnnouncement={props.discussionTopic?.isAnnouncement}
@@ -116,9 +190,9 @@ export function PostMessage({...props}) {
           ) : (
             <>
               <div
+                className={'userMessage' + (responsiveProps.isMobile ? ' mobile' : '')}
                 style={{
                   marginLeft: responsiveProps.messageLeftPadding,
-                  fontSize: theme.variables.typography[responsiveProps.messageTextSize],
                 }}
               >
                 <SearchSpan
@@ -131,6 +205,25 @@ export function PostMessage({...props}) {
                     props.isTopic ? props.discussionTopic?._id : props.discussionEntry?._id
                   }
                 />
+                {translatedMessage && (
+                  <>
+                    <AccessibleContent alt={translationSeparator}>
+                      {translationSeparator}
+                    </AccessibleContent>
+                    <SearchSpan
+                      lang={translateTargetLanguage}
+                      isSplitView={props.isSplitView}
+                      searchTerm={searchTerm}
+                      text={translatedMessage}
+                      isAnnouncement={props.discussionTopic?.isAnnouncement}
+                      isTopic={props.isTopic}
+                      resourceId={
+                        props.isTopic ? props.discussionTopic?._id : props.discussionEntry?._id
+                      }
+                      testId="post-message-translated"
+                    />
+                  </>
+                )}
               </div>
               <View display="block">{props.children}</View>
             </>

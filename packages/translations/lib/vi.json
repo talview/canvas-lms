@@ -38,6 +38,12 @@
     "afrikaans_da0fe6ee": {
         "message": "Tiếng Afrikaans"
     },
+    "ai_response_9624e8e8": {
+        "message": "Phản Hồi AI"
+    },
+    "ai_tools_fda01177": {
+        "message": "Công Cụ AI"
+    },
     "albanian_21ed929e": {
         "message": "Tiếng Albania"
     },
@@ -76,6 +82,9 @@
     },
     "an_error_occurred_making_a_network_request_d1bda348": {
         "message": "Đã xảy ra lỗi khi thực hiện yêu cầu mạng"
+    },
+    "an_error_occurred_processing_your_request_a3a38d84": {
+        "message": "Đã xảy ra lỗi khi xử lý yêu cầu của bạn"
     },
     "an_error_occurred_uploading_your_media_71f1444d": {
         "message": "Đã xảy ra lỗi khi tải lên nội dung phương tiện."
@@ -158,6 +167,9 @@
     "available_folders_694d0436": {
         "message": "Thư Mục Khả Dụng"
     },
+    "background_1bc88842": {
+        "message": "Nền"
+    },
     "backslash_b2d5442d": {
         "message": "Dấu Chéo Ngược"
     },
@@ -190,6 +202,9 @@
     },
     "blue_daf8fea9": {
         "message": "Xanh Dương"
+    },
+    "border_5b08b06d": {
+        "message": "Viền"
     },
     "bottom_15a2a9be": {
         "message": "Đáy"
@@ -332,11 +347,23 @@
     "collapse_to_hide_types_1ab46d2e": {
         "message": "Thu gọn để ẩn { types }"
     },
+    "color_a363e1b0": {
+        "message": "Màu"
+    },
+    "color_contrast_4c418add": {
+        "message": "Tương Phản Màu"
+    },
+    "color_contrast_ratio_687782f0": {
+        "message": "Tỷ Lệ Tương Phản Màu"
+    },
     "color_picker_6b359edf": {
         "message": "Trình Chọn Màu"
     },
     "color_picker_colorname_selected_ad4cf400": {
         "message": "Trình Chọn Màu (đã chọn { colorName })"
+    },
+    "color_popup_af39810f": {
+        "message": "Cửa sổ bật lên màu"
     },
     "column_e1ae5c64": {
         "message": "Cột"
@@ -346,6 +373,9 @@
     },
     "complex_numbers_a543d004": {
         "message": "Số Phức"
+    },
+    "compose_44c904f4": {
+        "message": "Soạn Thảo"
     },
     "computer_1d7dfa6f": {
         "message": "Máy Tính"
@@ -359,6 +389,9 @@
     "content_1440204b": {
         "message": "Nội Dung"
     },
+    "content_in_the_editor_will_be_changed_press_cancel_d5bf3357": {
+        "message": "Nội dung trong công cụ chỉnh sửa sẽ được thay đổi. Nhấn Hủy để giữ lại nội dung ban đầu."
+    },
     "content_is_still_being_uploaded_if_you_continue_it_8f06d0cb": {
         "message": "Nội dung vẫn đang được tải lên, nếu bạn tiếp tục, nội dung sẽ không được nhúng đầy đủ."
     },
@@ -370,6 +403,9 @@
     },
     "coproduct_e7838082": {
         "message": "Sản Phẩm Phụ"
+    },
+    "copy_9748f9f": {
+        "message": "Sao chép"
     },
     "copyright_holder_66ee111": {
         "message": "Bên Giữ Bản Quyền:"
@@ -548,6 +584,9 @@
     "disjoint_union_e74351a8": {
         "message": "Liên Hợp Rời Rạc"
     },
+    "dislike_14befc48": {
+        "message": "Không thích"
+    },
     "display_options_315aba85": {
         "message": "Tùy Chọn Hiển Thị"
     },
@@ -626,7 +665,7 @@
     "edit_link_7f53bebb": {
         "message": "Chỉnh Sửa Liên Kết"
     },
-    "editor_statusbar_26ac81fc": {
+    "editor_status_bar_653f44ee": {
         "message": "Thanh Trạng Thái Trình Chỉnh Sửa"
     },
     "element_starting_with_start_91bf4c3b": {
@@ -692,6 +731,9 @@
     "enter_search_text_26cb4459": {
         "message": "nhập văn bản tìm kiếm"
     },
+    "enter_text_8b35c65b": {
+        "message": "Nhập văn bản"
+    },
     "epsilon_54bb8afa": {
         "message": "Epsilon"
     },
@@ -755,8 +797,14 @@
     "f_function_fe422d65": {
         "message": "F (hàm số)"
     },
+    "fail_544e5dde": {
+        "message": "KHÔNG ĐẠT"
+    },
     "failed_getting_file_contents_e9ea19f4": {
         "message": "Lấy nội dung tệp không thành công"
+    },
+    "failed_to_copy_response_d3def551": {
+        "message": "Sao chép phản hồi không thành công"
     },
     "failed_to_retrieve_content_from_external_tool_5899c213": {
         "message": "Không thể truy xuất nội dung từ công cụ ngoài"
@@ -869,6 +917,9 @@
     "grades_a61eba0a": {
         "message": "Điểm"
     },
+    "graphics_text_bc9568bc": {
+        "message": "Văn bản đồ họa"
+    },
     "greater_than_e98af662": {
         "message": "Lớn Hơn"
     },
@@ -959,6 +1010,12 @@
     "height_69b03e15": {
         "message": "Chiều Cao"
     },
+    "hello_please_describe_the_modifications_you_would__49b19837": {
+        "message": "Xin chào. Vui lòng mô tả những sửa đổi mà bạn muốn thực hiện cho bài soạn của mình."
+    },
+    "hello_please_describe_the_modifications_you_would__600dbbf0": {
+        "message": "Xin chào. Vui lòng mô tả những sửa đổi mà bạn muốn thực hiện cho lựa chọn của mình."
+    },
     "hexagon_d8468e0d": {
         "message": "Lục Giác"
     },
@@ -991,6 +1048,9 @@
     },
     "i_hold_the_copyright_71ee91b1": {
         "message": "Tôi là bên giữ bản quyền"
+    },
+    "i_m_sorry_but_i_cannot_find_the_ai_s_answer_67569d19": {
+        "message": "Xin lỗi, nhưng tôi không thể tìm câu trả lời của AI"
     },
     "icelandic_9d6d35de": {
         "message": "Tiếng Iceland"
@@ -1085,6 +1145,18 @@
     "infinity_7a10f206": {
         "message": "Vô Hạn"
     },
+    "input_field_for_alpha_678265fd": {
+        "message": "Trường đầu vào cho alpha"
+    },
+    "input_field_for_blue_561e020a": {
+        "message": "Trường đầu vào cho màu xanh dương"
+    },
+    "input_field_for_green_67f8b2b6": {
+        "message": "Trường đầu vào cho màu xanh lá cây"
+    },
+    "input_field_for_red_86a84615": {
+        "message": "Trường đầu vào cho màu đỏ"
+    },
     "insert_593145ef": {
         "message": "Chèn"
     },
@@ -1153,6 +1225,9 @@
     },
     "large_9c5e80e7": {
         "message": "Lớn"
+    },
+    "large_text_e7ba08cd": {
+        "message": "Văn bản khổ lớn"
     },
     "latvian_2bbb6aab": {
         "message": "Tiếng Latvia"
@@ -1258,6 +1333,9 @@
     },
     "links_to_an_external_site_de74145d": {
         "message": "Liên kết đến một trang bên ngoài."
+    },
+    "lists_cd1336fc": {
+        "message": "Danh Sách"
     },
     "lists_should_be_formatted_as_lists_f862de8d": {
         "message": "Các danh sách phải được định dạng dưới dạng danh sách."
@@ -1379,6 +1457,9 @@
     "miscellaneous_e9818229": {
         "message": "Tổng Hợp"
     },
+    "modify_6b0b13e3": {
+        "message": "Chỉnh Sửa"
+    },
     "module_90d9fd32": {
         "message": "Học Phần"
     },
@@ -1399,12 +1480,6 @@
     },
     "music_icon_4db5c972": {
         "message": "Biểu Tượng Âm Nhạc"
-    },
-    "must_be_at_least_percentage_22e373b6": {
-        "message": "Ít nhất phải bằng { percentage }%"
-    },
-    "must_be_at_least_width_x_height_px_41dc825e": {
-        "message": "Phải ít nhất { width } x { height }px"
     },
     "my_files_2f621040": {
         "message": "Tập tin của tôi"
@@ -1444,6 +1519,9 @@
     },
     "next_40e12421": {
         "message": "Tiếp"
+    },
+    "next_findtext_9d69f0fe": {
+        "message": "{ findText } Tiếp Theo"
     },
     "no_accessibility_issues_were_detected_f8d3c875": {
         "message": "Không phát hiện vấn đề khả năng tiếp cận."
@@ -1516,6 +1594,9 @@
     },
     "none_selected_b93d56d2": {
         "message": "Chưa Chọn Gì"
+    },
+    "normal_text_7b03da48": {
+        "message": "Văn bản khổ bình thường"
     },
     "norwegian_53f391ec": {
         "message": "Tiếng Na Uy"
@@ -1595,9 +1676,6 @@
     "outline_size_a6059a21": {
         "message": "Kích Thước Viền"
     },
-    "p_is_not_a_valid_protocol_which_must_be_ftp_http_h_adf13fc2": {
-        "message": "{ p } không phải là giao thức hợp lệ, vốn phải là ftp, http, https, mailto, skype, tel hoặc có thể lược bỏ"
-    },
     "page_50c4823d": {
         "message": "Trang"
     },
@@ -1616,6 +1694,9 @@
     "partial_derivative_4a9159df": {
         "message": "Riêng (Đạo Hàm)"
     },
+    "pass_1c19a2b3": {
+        "message": "ĐẠT"
+    },
     "paste_5963d1c1": {
         "message": "Dán"
     },
@@ -1633,6 +1714,9 @@
     },
     "percentage_must_be_a_number_8033c341": {
         "message": "Phần trăm phải là số"
+    },
+    "percentage_must_be_at_least_percentage_a98ca8fc": {
+        "message": "Phần trăm ít nhất phải bằng { percentage }%"
     },
     "performing_arts_icon_f3497486": {
         "message": "Biểu Tượng Nghệ Thuật Biểu Diễn"
@@ -1658,11 +1742,17 @@
     "pi_variant_10f5f520": {
         "message": "Pi (Biến)"
     },
+    "pick_a_color_557abfb0": {
+        "message": "Chọn một màu"
+    },
     "pink_68ad45cb": {
         "message": "Hồng"
     },
     "pixels_52ece7d1": {
         "message": "Pixel"
+    },
+    "pixels_must_be_at_least_width_x_height_px_e965edd5": {
+        "message": "Pixel ít nhất phải bằng { width } x { height }px"
     },
     "play_1a47eaa7": {
         "message": "Phát"
@@ -1675,6 +1765,9 @@
     },
     "please_allow_canvas_to_access_your_microphone_and__dc2c3079": {
         "message": "Vui lòng cho phép Canvas truy cập microphone và webcam của bạn."
+    },
+    "please_decribe_what_you_would_like_to_compose_27a51be5": {
+        "message": "Vui lòng mô tả nội dung bạn muốn soạn."
     },
     "plus_d43cd4ec": {
         "message": "Cộng"
@@ -1703,6 +1796,9 @@
     "preformatted_d0670862": {
         "message": "Đã định dạng trước"
     },
+    "prepend_findtext_append_8e0e769a": {
+        "message": "{ prepend }{ findText }{ append }"
+    },
     "prev_f82cbc48": {
         "message": "Trước"
     },
@@ -1720,6 +1816,12 @@
     },
     "previous_bd2ac015": {
         "message": "Trước"
+    },
+    "previous_findtext_8dfbfd30": {
+        "message": "{ findText } Trước"
+    },
+    "previously_chosen_colors_f1338315": {
+        "message": "Các màu đã chọn trước đây"
     },
     "prime_917ea60e": {
         "message": "Nguyên Tố"
@@ -1796,11 +1898,23 @@
     "replace_all_d3d68b3": {
         "message": "Thay Tất Cả"
     },
+    "replace_all_findtext_with_replacetext_da574b32": {
+        "message": "Thay thế tất cả { findText } bằng { replaceText }"
+    },
     "replace_e61834a7": {
         "message": "Thay Thế"
     },
+    "replace_findtext_with_replacetext_7b5c7fb3": {
+        "message": "Thay thế { findText } bằng { replaceText }"
+    },
     "replace_with_eeff01ad": {
         "message": "Thay bằng"
+    },
+    "replaced_alertfindtext_with_alertreplacetext_de5c1795": {
+        "message": "Đã thay thế { alertFindText } bằng { alertReplaceText }"
+    },
+    "replaced_all_alertfindtext_with_alertreplacetext_83fdfe59": {
+        "message": "Đã thay thế tất cả { alertFindText } bằng { alertReplaceText }"
     },
     "reset_95a81614": {
         "message": "Cài lại"
@@ -1808,8 +1922,17 @@
     "resize_ec83d538": {
         "message": "Đổi Cỡ"
     },
+    "response_copied_to_clipboard_130d66cd": {
+        "message": "Đã sao chép phản hồi vào bộ nhớ tạm"
+    },
     "restore_auto_save_deccd84b": {
         "message": "Khôi phục tự động lưu?"
+    },
+    "result_index_of_max_7db5ad8b": {
+        "message": "Kết quả { index } / { max }."
+    },
+    "retry_ebd5f8ba": {
+        "message": "Thử Lại"
     },
     "reverse_turnstile_does_not_yield_7558be06": {
         "message": "Cửa Quay Ngược (Không Cong)"
@@ -1970,6 +2093,9 @@
     "shortcut_911d6255": {
         "message": "Lối Tắt"
     },
+    "show_all_967a90f0": {
+        "message": "Hiển thị tất cả"
+    },
     "show_audio_options_b489926b": {
         "message": "Hiển thị tùy chọn âm thanh"
     },
@@ -2101,6 +2227,9 @@
     },
     "submit_a3cc6859": {
         "message": "Nộp"
+    },
+    "submitting_b90fac62": {
+        "message": "Đang nộp..."
     },
     "subscript_59744f96": {
         "message": "Thu Nhỏ Nằm Trên"
@@ -2525,6 +2654,9 @@
     "view_word_and_character_counts_a743dd0c": {
         "message": "Xem số lượng từ và ký tự"
     },
+    "waiting_for_response_1efd0c50": {
+        "message": "Đang đợi phản hồi"
+    },
     "we_couldn_t_detect_a_working_microphone_connected__ceb71c40": {
         "message": "Chúng tôi không phát hiện được microphone đang hoạt động được kết nối với thiết bị của bạn."
     },
@@ -2545,6 +2677,9 @@
     },
     "welsh_42ab94b1": {
         "message": "Tiếng Wales"
+    },
+    "what_would_you_like_to_do_6dc0d541": {
+        "message": "Bạn muốn làm gì?"
     },
     "when_markup_is_used_that_visually_formats_items_as_f941fc1b": {
         "message": "Khi sử dụng đánh dấu mà định dạng trực quan các mục dưới dạng danh sách nhưng không cho biết mối quan hệ danh sách, người dùng có thể gặp khó khăn trong việc điều hướng thông tin."
@@ -2576,6 +2711,9 @@
     "wreath_product_200b38ef": {
         "message": "Sản Phẩm Vòng Hoa"
     },
+    "writing_assistant_a30ac16a": {
+        "message": "Trợ Lý Viết"
+    },
     "xi_149681d0": {
         "message": "Xi"
     },
@@ -2584,6 +2722,15 @@
     },
     "yiddish_f96986df": {
         "message": "Tiếng Yiddish"
+    },
+    "you_are_on_a_color_palette_to_navigate_on_the_pale_227fc3a6": {
+        "message": "Bạn đang ở bảng màu. Để điều hướng bảng màu lên, sang trái, xuống hoặc sang phải, hãy sử dụng lần lượt các nút “W”, “A”, “S” và “D”"
+    },
+    "you_are_on_a_color_slider_to_navigate_the_slider_l_e800f68a": {
+        "message": "Bạn đang ở thanh trượt màu. Để điều hướng thanh trượt sang trái hoặc phải, hãy sử dụng lần lượt các nút “A” và “D”"
+    },
+    "you_are_on_an_alpha_slider_to_navigate_the_slider__3a014dc5": {
+        "message": "Bạn đang ở thanh trượt alpha. Để điều hướng thanh trượt sang trái hoặc phải, hãy sử dụng lần lượt các nút “A” và “D”"
     },
     "you_can_replace_by_uploading_a_new_caption_file_6c88ce00": {
         "message": "Bạn có thể thay thế bằng cách tải lên một tập tin phụ đề mới."

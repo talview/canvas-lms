@@ -16,12 +16,12 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type {Enrollment, TemporaryEnrollmentPairing} from '../types'
+import type {Enrollment, FetchedEnrollments, TemporaryEnrollmentPairing} from '../types'
 import {ITEMS_PER_PAGE} from '../types'
 import doFetchApi from '@canvas/do-fetch-api-effect'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
-const I18n = useI18nScope('temporary_enrollment')
+const I18n = createI18nScope('temporary_enrollment')
 
 /**
  * Fetches temporary enrollment data for a user
@@ -38,27 +38,30 @@ const I18n = useI18nScope('temporary_enrollment')
  */
 export async function fetchTemporaryEnrollments(
   userId: string,
-  isRecipient: boolean
-): Promise<Enrollment[]> {
+  isRecipient: boolean,
+  pageRequest: string
+): Promise<FetchedEnrollments> {
   const params: Record<string, any> = {
-    state: ['current_and_future'],
+    state: ['current_future_and_restricted'],
     per_page: ITEMS_PER_PAGE,
+    page: pageRequest,
   }
 
+  params.include = ['avatar_url']
   if (isRecipient) {
     params.temporary_enrollments_for_recipient = true
-    params.include = 'temporary_enrollment_providers'
+    params.include.push('temporary_enrollment_providers')
   } else {
     params.temporary_enrollment_recipients_for_provider = true
   }
 
-  const {response, json} = await doFetchApi({
+  const {response, json, link} = await doFetchApi<Enrollment[]>({
     path: `/api/v1/users/${userId}/enrollments`,
     params,
   })
 
   if (response.status === 204) {
-    return []
+    return {enrollments: []}
   } else if (!response.ok) {
     const errorMessage = isRecipient
       ? I18n.t('Failed to get temporary enrollments for recipient')
@@ -66,7 +69,8 @@ export async function fetchTemporaryEnrollments(
     throw new Error(errorMessage)
   }
 
-  return json
+  // @ts-expect-error
+  return {enrollments: json, link}
 }
 
 /**
@@ -88,6 +92,7 @@ export async function createTemporaryEnrollmentPairing(
         ending_enrollment_state: endingEnrollmentState,
       },
     })
+    // @ts-expect-error
     return response.json.temporary_enrollment_pairing
   } catch (error) {
     if (error instanceof Error) {
@@ -117,6 +122,7 @@ export async function getTemporaryEnrollmentPairing(
       method: 'GET',
     })
 
+    // @ts-expect-error
     return response.json.temporary_enrollment_pairing
   } catch (error) {
     if (error instanceof Error) {

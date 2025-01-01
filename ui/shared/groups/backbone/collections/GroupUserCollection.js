@@ -16,17 +16,17 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* eslint-disable no-void */
+ 
 
 import {extend} from '@canvas/backbone/utils'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import PaginatedCollection from '@canvas/pagination/backbone/collections/PaginatedCollection'
 import GroupUser from '../models/GroupUser'
 import h from '@instructure/html-escape'
-import {encodeQueryString} from '@canvas/query-string-encoding'
+import {encodeQueryString} from '@instructure/query-string-encoding'
 
-const I18n = useI18nScope('GroupUserCollection')
+const I18n = createI18nScope('GroupUserCollection')
 
 extend(GroupUserCollection, PaginatedCollection)
 
@@ -61,6 +61,7 @@ GroupUserCollection.prototype.url = function () {
 GroupUserCollection.prototype.initialize = function (models) {
   GroupUserCollection.__super__.initialize.apply(this, arguments)
   this.loaded = this.loadedAll = models != null
+  this.lastRequests = []
   this.on('change:group', this.onChangeGroup)
   return (this.model = GroupUser.extend({
     defaults: {
@@ -76,8 +77,10 @@ GroupUserCollection.prototype.load = function (target) {
   }
   this.loadAll = target === 'all'
   this.loaded = true
+
   if (target !== 'none') {
-    this.fetch()
+    const fetchPromise = this.fetch()
+    this.lastRequests.push(fetchPromise)
   }
   return (this.load = function () {})
 }

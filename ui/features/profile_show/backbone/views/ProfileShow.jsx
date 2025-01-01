@@ -21,14 +21,13 @@ import addLinkRow from '../../jst/addLinkRow.handlebars'
 import AvatarWidget from '@canvas/avatar-dialog-view'
 import Backbone from '@canvas/backbone'
 import '@canvas/jquery/jquery.instructure_forms'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {showConfirmationDialog} from '@canvas/feature-flags/react/ConfirmationDialog'
 import React from 'react'
 import ReactDOM from 'react-dom'
 import {Alert} from '@instructure/ui-alerts'
-import {Text} from '@instructure/ui-text'
 
-const I18n = useI18nScope('user_profile')
+const I18n = createI18nScope('user_profile')
 
 export default class ProfileShow extends Backbone.View {
   static initClass() {
@@ -51,6 +50,7 @@ export default class ProfileShow extends Backbone.View {
   }
 
   renderAlert(message, container, variant) {
+     
     ReactDOM.render(
       <Alert
         variant={variant}
@@ -204,13 +204,24 @@ export default class ProfileShow extends Backbone.View {
             return I18n.t('profile_title_too_long', 'Title is too long')
           }
         },
+        'user_profile[pronunciation]': function (value) {
+          if (value && value.length > 255) {
+            return I18n.t('profile_pronuciation_too_long', 'Name pronunciation is too long')
+          }
+        },
         'user_profile[bio]': function (value) {
           if (value && value.length > 65536) {
             return I18n.t('profile_bio_too_long', 'Bio is too long')
           }
         },
-        'link_urls[]': function (value) {
-          if (value && /\s/.test(value)) {
+        'link_urls[]': function (input) {
+          if (Array.isArray(input)) {
+            for (const url of input) {
+              if (url && /\s/.test(url)) {
+                return I18n.t('invalid_url', 'Invalid URL')
+              }
+            }
+          } else if (input && /\s/.test(input)) {
             return I18n.t('invalid_url', 'Invalid URL')
           }
         },

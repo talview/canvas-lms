@@ -17,7 +17,7 @@
  */
 
 import {send} from '@canvas/rce-command-shim'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import {uniqueId, find, result} from 'lodash'
 import FakeXHR from './FakeXHR'
@@ -25,7 +25,7 @@ import authenticity_token from '@canvas/authenticity-token'
 import htmlEscape, {raw} from '@instructure/html-escape'
 import './jquery.ajaxJSON' /* ajaxJSON, defaultAjaxError */
 import './jquery.disableWhileLoading'
-import '@canvas/datetime/jquery' /* date_field, time_field, datetime_field */
+import 'jqueryui/datepicker'
 import './jquery.instructure_misc_helpers' /* /\$\.uniq/ */
 import '@canvas/rails-flash-notifications'
 import 'jquery-scroll-to-visible/jquery.scrollTo'
@@ -41,7 +41,7 @@ function isSafari() {
   )
 }
 
-const I18n = useI18nScope('instructure')
+const I18n = createI18nScope('instructure')
 
 // Intercepts the default form submission process.  Uses the form tag's
 // current action and method attributes to know where to submit to.
@@ -474,7 +474,7 @@ $.httpSuccess = function (r) {
       (!r.status && window.location.protocol === 'file:') ||
       (r.status >= 200 && r.status < 300) ||
       r.status === 304 ||
-      // eslint-disable-next-line eqeqeq
+       
       (isSafari() && r.status == undefined)
     )
   } catch (e) {
@@ -552,7 +552,7 @@ $.sendFormAsBinary = function (options, not_binary) {
     if (not_binary) {
       xhr.send(body)
     } else if (!xhr.sendAsBinary) {
-      // eslint-disable-next-line no-console
+       
       console.log('xhr.sendAsBinary not supported')
     } else {
       xhr.sendAsBinary(body)
@@ -631,7 +631,6 @@ $.toMultipartForm = function (params, callback) {
         'Content-Type: multipart/mixed; boundary=' +
         innerBoundary +
         '\r\n\r\n'
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       for (const _jdx in value) {
         fileList.push(value)
       }
@@ -754,7 +753,7 @@ $.fn.fillFormData = function (data, opts) {
               val = ''
             }
             $obj.val(val.toString())
-            // eslint-disable-next-line eqeqeq
+             
           } else if ($obj.val() == data[name]) {
             $obj.prop('checked', true)
           } else {
@@ -804,7 +803,7 @@ $.fn.getFormData = function (options) {
         if (
           $form.find("[name='" + attr + "']").filter(
             'textarea,:radio:checked,:checkbox:checked,:text,:password,select,:hidden'
-            // eslint-disable-next-line eqeqeq
+             
           )[0] != $input[0]
         ) {
           return
@@ -1014,7 +1013,6 @@ $.fn.validateForm = function (options) {
     })
   }
   let hasErrors = false
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   for (const _err in errors) {
     hasErrors = true
     break

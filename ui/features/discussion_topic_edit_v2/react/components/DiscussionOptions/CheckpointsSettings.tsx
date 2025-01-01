@@ -15,8 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License along
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-import React, {useContext, useRef} from 'react'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import React, {useContext, useEffect, useState} from 'react'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {Text} from '@instructure/ui-text'
 import {View} from '@instructure/ui-view'
 import {NumberInput} from '@instructure/ui-number-input'
@@ -26,12 +26,13 @@ import theme from '@instructure/canvas-theme'
 import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import {PointsPossible} from './PointsPossible'
 import {
-  GradedDiscussionDueDatesContext,
+  DiscussionDueDatesContext,
   minimumReplyToEntryRequiredCount,
   maximumReplyToEntryRequiredCount,
 } from '../../util/constants'
+import numberHelper from '@canvas/i18n/numberHelper'
 
-const I18n = useI18nScope('discussion_create')
+const I18n = createI18nScope('discussion_create')
 
 const replyToEntryRequiredCountToolTip = I18n.t(
   'The number of additional replies required must be between %{minimumReplies} and %{maximumReplies}.',
@@ -49,7 +50,17 @@ export const CheckpointsSettings = () => {
     setPointsPossibleReplyToEntry,
     replyToEntryRequiredCount,
     setReplyToEntryRequiredCount,
-  } = useContext(GradedDiscussionDueDatesContext)
+  } = useContext(DiscussionDueDatesContext)
+
+  const [totalPoints, setTotalPoints] = useState(0)
+
+  useEffect(() => {
+    const replyToEntryPoints = numberHelper.parse(pointsPossibleReplyToEntry)
+    const replyToTopicPoints = numberHelper.parse(pointsPossibleReplyToTopic)
+    if (!Number.isNaN(replyToEntryPoints) && !Number.isNaN(replyToTopicPoints)) {
+      setTotalPoints(replyToEntryPoints + replyToTopicPoints)
+    }
+  }, [pointsPossibleReplyToTopic, pointsPossibleReplyToEntry])
 
   return (
     <>
@@ -66,6 +77,7 @@ export const CheckpointsSettings = () => {
       </View>
       <View as="div" margin="0 0 medium 0">
         <NumberInput
+          allowStringValue={true}
           data-testid="reply-to-entry-required-count"
           renderLabel={
             <>
@@ -131,7 +143,7 @@ export const CheckpointsSettings = () => {
       <View as="div" margin="0 0 medium 0">
         <Text size="large">
           {I18n.t('Total Points Possible: %{totalPoints}', {
-            totalPoints: pointsPossibleReplyToTopic + pointsPossibleReplyToEntry,
+            totalPoints,
           })}
         </Text>
       </View>

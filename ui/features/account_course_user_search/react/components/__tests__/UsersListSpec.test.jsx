@@ -25,7 +25,7 @@ import UsersListRow from '../UsersListRow'
 import fetchMock from 'fetch-mock'
 import sinon from 'sinon'
 
-describe('Account Course User Search UsersList View', function (hooks) {
+describe('Account Course User Search UsersList View', function () {
   beforeEach(() => {
     fetchMock.mock(
       '/api/v1/users/1/enrollments?state%5B%5D=active&state%5B%5D=invited&temporary_enrollment_providers=true',
@@ -120,7 +120,9 @@ describe('Account Course User Search UsersList View', function (hooks) {
 
       it(`sorting by ${columnID} ${sortOrder} puts ${expectedArrow}-arrow on ${label} only`, () => {
         const wrapper = render(<UsersList {...props} />)
-        expect(wrapper.container.querySelectorAll(`[name="IconMiniArrow${unexpectedArrow}"]`).length).toEqual(0)
+        expect(
+          wrapper.container.querySelectorAll(`[name="IconMiniArrow${unexpectedArrow}"]`).length
+        ).toEqual(0)
         const icons = wrapper.container.querySelectorAll(`[name="IconMiniArrow${expectedArrow}"]`)
         expect(icons.length).toEqual(1)
         const header = icons[0].closest('[data-testid="UsersListHeader"]')
@@ -139,9 +141,11 @@ describe('Account Course User Search UsersList View', function (hooks) {
             }}
           />
         )
-        const header = Array.from(wrapper
-          .container.querySelectorAll('[data-testid="UsersListHeader"]'))
-          .filter(n => n.textContent.includes(label))[0].querySelector('button')
+        const header = Array.from(
+          wrapper.container.querySelectorAll('[data-testid="UsersListHeader"]')
+        )
+          .filter(n => n.textContent.includes(label))[0]
+          .querySelector('button')
         const user = userEvent.setup({delay: null})
         await user.click(header)
         expect(sortSpy.calledOnce).toBeTruthy()

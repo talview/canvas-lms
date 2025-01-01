@@ -1,4 +1,3 @@
-// @ts-nocheck
 /*
  * Copyright (C) 2017 - present Instructure, Inc.
  *
@@ -17,13 +16,13 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {ReactElement} from 'react'
+import React, {type ReactElement} from 'react'
 import {CloseButton} from '@instructure/ui-buttons'
 import {Heading} from '@instructure/ui-heading'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {Modal} from '@instructure/ui-modal'
 
-const I18n = useI18nScope('modal')
+const I18n = createI18nScope('modal')
 
 /*
 ---
@@ -36,7 +35,7 @@ Use this whenever you don't want to do anything custom with your header or your 
 You should be able to use it exactly like you'd use an instUi Modal by changing:
 import {Modal} from '@instructure/ui-overlays'
 to
-import Modal from '../shared/components/InstuiModal'
+import Modal from '@canvas/instui-bindings/react/InstuiModal'
 
 <Modal
   open={this.state.open}

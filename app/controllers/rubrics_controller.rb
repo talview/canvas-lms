@@ -41,7 +41,13 @@ class RubricsController < ApplicationController
     mastery_scales_js_env
     set_tutorial_js_env
 
-    if Account.site_admin.feature_enabled?(:enhanced_rubrics)
+    if @context.feature_enabled?(:enhanced_rubrics)
+      js_env breadcrumbs: rubric_breadcrumbs
+      js_env enhanced_rubrics_enabled: true
+      js_env rubric_imports_exports: Account.site_admin.feature_enabled?(:rubric_imports_exports)
+      js_env enhanced_rubrics_copy_to: Account.site_admin.feature_enabled?(:enhanced_rubrics_copy_to)
+      js_env enhanced_rubric_assignments_enabled: Rubric.enhanced_rubrics_assignments_enabled?(@context)
+
       return show_rubrics_redesign
     end
 
@@ -55,7 +61,7 @@ class RubricsController < ApplicationController
     permission = @context.is_a?(User) ? :manage : [:manage_rubrics, :read_rubrics]
     return unless authorized_action(@context, @current_user, permission)
 
-    is_enhanced_rubrics = Account.site_admin.feature_enabled?(:enhanced_rubrics)
+    is_enhanced_rubrics = @context.feature_enabled?(:enhanced_rubrics)
 
     if params[:id].match?(Api::ID_REGEX) || is_enhanced_rubrics
       js_env ROOT_OUTCOME_GROUP: get_root_outcome,
@@ -66,6 +72,10 @@ class RubricsController < ApplicationController
       mastery_scales_js_env
 
       if is_enhanced_rubrics
+        js_env breadcrumbs: rubric_breadcrumbs
+        js_env enhanced_rubrics_enabled: true
+        js_env enhanced_rubric_assignments_enabled: Rubric.enhanced_rubrics_assignments_enabled?(@context)
+
         return show_rubrics_redesign
       end
 
@@ -79,8 +89,13 @@ class RubricsController < ApplicationController
   end
 
   def show_rubrics_redesign
-    css_bundle :learning_outcomes
+    css_bundle :enhanced_rubrics
     render html: "".html_safe, layout: true
+  end
+
+  def rubric_breadcrumbs
+    breadcrumbs = crumbs[1..]&.map { |crumb| { name: crumb[0], url: crumb[1] } }
+    breadcrumbs << { name: t("Rubrics"), url: context_url(@context, :context_rubrics_url) }
   end
 
   # @API Create a single rubric
@@ -178,7 +193,7 @@ class RubricsController < ApplicationController
       association_params[:update_if_existing] = params[:action] == "update"
       skip_points_update = !!(params[:skip_updating_points_possible] =~ /true/i)
       association_params[:skip_updating_points_possible] = skip_points_update
-      @rubric = @association.rubric if params[:id] && @association && (@association.rubric_id == params[:id].to_i || (@association.rubric && @association.rubric.migration_id == "cloned_from_#{params[:id]}"))
+      @rubric = @association.rubric if params[:id] && (@association&.rubric_id == params[:id].to_i || (@association&.rubric && @association.rubric.migration_id == "cloned_from_#{params[:id]}"))
       @rubric ||= @context.rubrics.where(id: params[:id]).first if params[:id].present?
       @association = nil unless @association && @rubric && @association.rubric_id == @rubric.id
       association_params[:id] = @association.id if @association
@@ -207,6 +222,7 @@ class RubricsController < ApplicationController
         @rubric = @association.rubric if @association
       end
       @rubric.reconcile_criteria_models(@current_user)
+      track_metrics
       json_res = {}
       json_res[:rubric] = @rubric.as_json(methods: :criteria, include_root: false, permissions: { user: @current_user, session: }) if @rubric
       json_res[:rubric_association] = @association.as_json(include_root: false, include: [:assessment_requests], permissions: { user: @current_user, session: }) if @association
@@ -264,5 +280,11 @@ class RubricsController < ApplicationController
 
   def can_manage_rubrics_context?
     @context.grants_right?(@current_user, session, :manage_rubrics)
+  end
+
+  def track_metrics
+    if @association_object.is_a?(Assignment)
+      InstStatsd::Statsd.increment("#{@context.class.to_s.downcase}.rubrics.created_from_assignment")
+    end
   end
 end

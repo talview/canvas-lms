@@ -16,10 +16,10 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {generateActionTemplates} from '../generateActionTemplates'
 
-const I18n = useI18nScope('permissions_templates_manage_course_content')
+const I18n = createI18nScope('permissions_templates_manage_course_content')
 
 export const template = generateActionTemplates(
   [
@@ -91,7 +91,7 @@ export const template = generateActionTemplates(
     },
     {
       description: I18n.t(
-        'Allows user to update modules (edit module settings, publish, unpublish, batch edit).'
+        'Allows user to update modules (edit module settings, publish, unpublish, batch edit, assign modules).'
       ),
     },
     {
@@ -270,7 +270,7 @@ export const template = generateActionTemplates(
     },
     {
       description: I18n.t(
-        'Allows user to update modules (edit module settings, publish, unpublish, batch edit).'
+        'Allows user to update modules (edit module settings, publish, unpublish, batch edit, assign modules).'
       ),
     },
     {

@@ -19,9 +19,9 @@
 import {formatFileSize, getFileThumbnail} from '@canvas/util/fileHelper'
 import FriendlyDatetime from '@canvas/datetime/react/components/FriendlyDatetime'
 import {arrayOf, func, object, shape, string} from 'prop-types'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import React from 'react'
-import * as tz from '@canvas/datetime'
+import * as tz from '@instructure/moment-utils'
 
 import {Flex} from '@instructure/ui-flex'
 import {
@@ -34,7 +34,7 @@ import {TruncateText} from '@instructure/ui-truncate-text'
 import {Text} from '@instructure/ui-text'
 import {Tooltip} from '@instructure/ui-tooltip'
 
-const I18n = useI18nScope('assignments_2')
+const I18n = createI18nScope('assignments_2')
 
 const FileButton = props => {
   return (

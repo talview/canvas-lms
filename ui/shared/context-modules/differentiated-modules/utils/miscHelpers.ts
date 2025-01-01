@@ -16,14 +16,19 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as tz from '@canvas/datetime'
+import * as tz from '@instructure/moment-utils'
 import type {SettingsPanelState} from '../react/settingsReducer'
-import type {ModuleItem, Requirement} from '../react/types'
+import type {Requirement} from '../react/types'
 
 export function calculatePanelHeight(withinTabs: boolean): string {
   let headerHeight = 79.5
   headerHeight += withinTabs ? 48 : 0 // height of the tab selector
+  headerHeight += calculateMasqueradeHeight()
   return `calc(100vh - ${headerHeight}px)`
+}
+
+export function calculateMasqueradeHeight(): number {
+  return document.body.className.match(/\bis-masquerading-or-student-view\b/) ? 52 : 0
 }
 
 export function convertFriendlyDatetimeToUTC(date: string | null | undefined): string | undefined {
@@ -63,10 +68,8 @@ export function convertModuleSettingsForApi(moduleSettings: SettingsPanelState) 
   }
 }
 
-export function requirementTypesForResource(
-  resource: ModuleItem['resource']
-): Requirement['type'][] {
-  switch (resource) {
+export function requirementTypesForResource(requirement: Requirement): Requirement['type'][] {
+  switch (requirement.resource) {
     case 'assignment':
       return ['view', 'mark', 'submit', 'score']
     case 'quiz':
@@ -75,8 +78,9 @@ export function requirementTypesForResource(
       return ['view']
     case 'page':
       return ['view', 'mark', 'contribute']
-    case 'discussion':
-      return ['view', 'contribute']
+    case 'discussion': {
+      return requirement.graded ? ['view', 'contribute', 'submit', 'score'] : ['view', 'contribute']
+    }
     case 'externalUrl':
       return ['view']
     case 'externalTool':

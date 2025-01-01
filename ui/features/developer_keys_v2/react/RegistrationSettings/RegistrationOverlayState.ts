@@ -16,9 +16,9 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 import type {LtiPlacement} from '../../model/LtiPlacements'
-import type {LtiMessage, LtiRegistration} from '../../model/LtiRegistration'
-import createStore from 'zustand/vanilla'
-import type {LtiScope} from '../../model/LtiScopes'
+import type {LtiRegistration} from '../../model/LtiRegistration'
+import {createStore} from 'zustand/vanilla'
+import type {LtiScope} from '@canvas/lti/model/LtiScope'
 import {subscribeWithSelector} from 'zustand/middleware'
 import type {LtiPrivacyLevel} from 'features/developer_keys_v2/model/LtiPrivacyLevel'
 import type {
@@ -105,7 +105,7 @@ export interface PlacementOverlay {
 }
 
 export type RegistrationOverlayState = {
-  developerKeyName?: string
+  nickname?: string
   registration: RegistrationOverlay
 }
 
@@ -129,7 +129,7 @@ const updateState =
 
 const updateDevKeyName = (name: string) =>
   updateState(state => {
-    return {...state, developerKeyName: name}
+    return {...state, nickname: name}
   })
 
 const updatePrivacyLevel = (privacyLevel: LtiPrivacyLevel) =>
@@ -163,15 +163,13 @@ const updateRegistrationLaunchHeight = (s: string) =>
 const updateRegistrationLaunchWidth = (s: string) => updateRegistrationKey('launch_width')(() => s)
 // const updateRegistrationPlacements = (s: string) => updateRegistrationKey('placements')(() => s)
 const resetOverlays = (configuration: Configuration) =>
-  updateState(state =>
-    initialOverlayStateFromLtiRegistration(configuration, null, state.developerKeyName)
-  )
+  updateState(state => initialOverlayStateFromLtiRegistration(configuration, null, state.nickname))
 
 export const createRegistrationOverlayStore = (
   developerKeyName: string | null,
   ltiRegistration: LtiRegistration
 ) =>
-  createStore<{state: RegistrationOverlayState} & RegistrationOverlayActions>(
+  createStore<{state: RegistrationOverlayState} & RegistrationOverlayActions>()(
     subscribeWithSelector(set => ({
       state: initialOverlayStateFromLtiRegistration(
         ltiRegistration.tool_configuration,
@@ -208,7 +206,7 @@ const initialOverlayStateFromLtiRegistration = (
   developerKeyName?: string | null
 ): RegistrationOverlayState => {
   return {
-    developerKeyName: developerKeyName || '',
+    nickname: developerKeyName || '',
     registration: {
       title: configuration.title,
       icon_url: overlay?.icon_url || configuration.icon_url,

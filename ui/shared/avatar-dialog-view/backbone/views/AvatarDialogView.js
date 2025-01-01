@@ -16,7 +16,7 @@
 // with this program. If not, see <http://www.gnu.org/licenses/>.
 //
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import {each, isString, defer, find, partial, isArray} from 'lodash'
 import DialogBaseView from '@canvas/dialog-base-view'
@@ -26,7 +26,7 @@ import GravatarView from './GravatarView'
 import {completeUpload} from '@canvas/upload-file'
 import template from '../../jst/avatarDialog.handlebars'
 
-const I18n = useI18nScope('profile')
+const I18n = createI18nScope('profile')
 
 export default class AvatarDialogView extends DialogBaseView {
   static initClass() {
@@ -49,7 +49,7 @@ export default class AvatarDialogView extends DialogBaseView {
     }
 
     this.prototype.events = {
-      'click .nav-pills a': 'onNav',
+      'change #avatarDropdown': 'onTypeChange',
       'click .select-photo-link': 'onUploadClick',
       'change #selected-photo': 'onSelectAvatar',
     }
@@ -69,7 +69,7 @@ export default class AvatarDialogView extends DialogBaseView {
           click: () => this.updateAvatar(),
         },
       ],
-      height: 500,
+      height: 555,
       width: 600,
       modal: true,
       zIndex: 1000,
@@ -86,7 +86,6 @@ export default class AvatarDialogView extends DialogBaseView {
   show() {
     this.render()
     each(this.children, child => this.listenTo(child, 'ready', this.onReady))
-    this.togglePane(this.$('.nav-pills a')[0])
     return super.show(...arguments)
   }
 
@@ -223,21 +222,16 @@ export default class AvatarDialogView extends DialogBaseView {
     return this.close()
   }
 
-  onNav(e) {
-    e.preventDefault()
-    return this.togglePane(e.target)
+  onTypeChange(e) {
+    const $content = this.$($(e.target).val())
+    return this.togglePane($content)
   }
 
-  togglePane(link) {
-    const $target = this.$(link).parent()
-    const $content = this.$(link.getAttribute('href'))
-    $target.siblings().removeClass('active')
-    $target.addClass('active')
+  togglePane(content) {
     this.teardown()
-    $('.select_button').prop('disabled', true)
     this.$('.avatar-content div').removeClass('active')
-    __guard__($content.addClass('active').data('view'), x => x.setup())
-    return (this.currentView = $content.data('view'))
+    __guard__(content.addClass('active').data('view'), x => x.setup())
+    return (this.currentView = content.data('view'))
   }
 
   onReady(ready = true) {

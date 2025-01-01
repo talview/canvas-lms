@@ -16,12 +16,12 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* eslint-disable no-void */
+ 
 
 import {extend} from '@canvas/backbone/utils'
 import React from 'react'
 import ReactDOM from 'react-dom'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import ValidatedFormView from '@canvas/forms/backbone/views/ValidatedFormView'
 import _, {each, find, keys, includes, forEach, filter} from 'lodash'
 import $, {param} from 'jquery'
@@ -45,7 +45,7 @@ import SisValidationHelper from '@canvas/sis/SisValidationHelper'
 import SimilarityDetectionTools from '../../react/AssignmentConfigurationTools'
 import ModeratedGradingFormFieldGroup from '../../react/ModeratedGradingFormFieldGroup'
 import AllowedAttemptsWithState from '../../react/allowed_attempts/AllowedAttemptsWithState'
-import AssignmentSubmissionTypeSelectionLaunchButton from '../../react/AssignmentSubmissionTypeSelectionLaunchButton'
+import {AssignmentSubmissionTypeContainer} from '../../react/AssignmentSubmissionTypeContainer'
 import DefaultToolForm from '../../react/DefaultToolForm'
 import UsageRightsSelectBox from '@canvas/files/react/components/UsageRightsSelectBox'
 import AssignmentExternalTools from '@canvas/assignments/react/AssignmentExternalTools'
@@ -55,12 +55,12 @@ import setUsageRights from '@canvas/files/util/setUsageRights'
 import 'jqueryui/dialog'
 import '@canvas/jquery/jquery.toJSON'
 import '@canvas/rails-flash-notifications'
-import '../../../../boot/initializers/activateTooltips'
+import '@canvas/common/activateTooltips'
 import {AnnotatedDocumentSelector} from '../../react/EditAssignment'
 import {selectContentDialog} from '@canvas/select-content-dialog'
 import {addDeepLinkingListener} from '@canvas/deep-linking/DeepLinking'
 
-const I18n = useI18nScope('assignment_editview')
+const I18n = createI18nScope('assignment_editview')
 
 const slice = [].slice
 
@@ -105,6 +105,7 @@ const ASSIGNMENT_POINTS_POSSIBLE = '#assignment_points_possible'
 const ASSIGNMENT_POINTS_CHANGE_WARN = '#point_change_warning'
 const SECURE_PARAMS = '#secure_params'
 const PEER_REVIEWS_BOX = '#assignment_peer_reviews'
+const POST_TO_SIS_BOX = '#assignment_post_to_sis'
 const INTRA_GROUP_PEER_REVIEWS = '#intra_group_peer_reviews_toggle'
 const GROUP_CATEGORY_BOX = '#has_group_category'
 const CONDITIONAL_RELEASE_TARGET = '#conditional_release_target'
@@ -119,6 +120,8 @@ const USAGE_RIGHTS_SELECTOR = '#usageRightSelector'
 const COPYRIGHT_HOLDER = '#copyrightHolder'
 const CREATIVE_COMMONS_SELECTION = '#creativeCommonsSelection'
 const LTI_EXT_MASTERY_CONNECT = 'https://canvas.instructure.com/lti/mastery_connect_assessment'
+
+const DEFAULT_SUBMISSION_TYPE_SELECTION_CONTENT_TYPE = 'context_external_tool'
 
 /*
 xsslint safeString.identifier srOnly
@@ -163,11 +166,13 @@ function EditView() {
     this.handleSubmissionTypeSelectionDialogClose.bind(this)
   this.handleSubmissionTypeSelectionLaunch = this.handleSubmissionTypeSelectionLaunch.bind(this)
   this.handlePlacementExternalToolSelect = this.handlePlacementExternalToolSelect.bind(this)
+  this.handleRemoveResource = this.handleRemoveResource.bind(this)
   this.handleSubmissionTypeChange = this.handleSubmissionTypeChange.bind(this)
   this.handleGradingTypeChange = this.handleGradingTypeChange.bind(this)
   this.handleRestrictFileUploadsChange = this.handleRestrictFileUploadsChange.bind(this)
   this.renderDefaultExternalTool = this.renderDefaultExternalTool.bind(this)
-  this.renderAssignmentSubmissionTypeSelectionLaunchButton = this.renderAssignmentSubmissionTypeSelectionLaunchButton.bind(this)
+  this.renderAssignmentSubmissionTypeContainer =
+    this.renderAssignmentSubmissionTypeContainer.bind(this)
   this.defaultExternalToolName = this.defaultExternalToolName.bind(this)
   this.defaultExternalToolUrl = this.defaultExternalToolUrl.bind(this)
   this.defaultExternalToolEnabled = this.defaultExternalToolEnabled.bind(this)
@@ -251,6 +256,7 @@ EditView.prototype.els = {
     els['' + SIMILARITY_DETECTION_TOOLS] = '$similarityDetectionTools'
     els['' + SECURE_PARAMS] = '$secureParams'
     els['' + ANONYMOUS_GRADING_BOX] = '$anonymousGradingBox'
+    els['' + POST_TO_SIS_BOX] = '$postToSisBox'
     els['' + ASSIGNMENT_EXTERNAL_TOOLS] = '$assignmentExternalTools'
     els['' + HIDE_ZERO_POINT_QUIZZES_BOX] = '$hideZeroPointQuizzesBox'
     els['' + HIDE_ZERO_POINT_QUIZZES_OPTION] = '$hideZeroPointQuizzesOption'
@@ -277,6 +283,7 @@ EditView.prototype.events = {
     events['click ' + EXTERNAL_TOOLS_URL + '_find'] = 'showExternalToolsDialog'
     events['change #assignment_points_possible'] = 'handlePointsChange'
     events['change ' + PEER_REVIEWS_BOX] = 'togglePeerReviewsAndGroupCategoryEnabled'
+    events['change ' + POST_TO_SIS_BOX] = 'handlePostToSisBoxChange'
     events['change ' + GROUP_CATEGORY_BOX] = 'handleGroupCategoryChange'
     events['change ' + ANONYMOUS_GRADING_BOX] = 'handleAnonymousGradingChange'
     events['change ' + HIDE_ZERO_POINT_QUIZZES_BOX] = 'handleHideZeroPointQuizChange'
@@ -300,7 +307,7 @@ EditView.prototype.initialize = function (options) {
   this.assignment = this.model
   this.setDefaultsIfNew()
   this.dueDateOverrideView = options.views['js-assignment-overrides']
-  if (ENV.FEATURES?.differentiated_modules) {
+  if (ENV.FEATURES?.selective_release_ui_api) {
     this.listenTo(this.dueDateOverrideView, 'tray:open', () =>
       // Disables all Save, Save & Publish and Build buttons
       this.$el
@@ -505,6 +512,18 @@ EditView.prototype.handleAnonymousGradingChange = function () {
   }
 }
 
+EditView.prototype.handlePostToSisBoxChange = function () {
+  if (ENV.FEATURES?.selective_release_ui_api) {
+    const postToSISChecked = this.$postToSisBox.prop('checked')
+    this.model.set('post_to_sis', postToSISChecked)
+
+    // Disabling this to not run the Post to SIS validations on check/uncheck
+    if (!ENV.FEATURES?.selective_release_edit_page) {
+      this.dueDateOverrideView.render()
+    }
+  }
+}
+
 EditView.prototype.handleHideZeroPointQuizChange = function () {
   if (this.$hideZeroPointQuizzesBox.prop('checked')) {
     this.$omitFromFinalGradeBox.prop('checked', true)
@@ -575,7 +594,7 @@ EditView.prototype.setDefaultsIfNew = function () {
 }
 
 EditView.prototype.cacheAssignmentSettings = function () {
-  // eslint-disable-next-line prefer-spread
+   
   const new_assignment_settings = _.pick.apply(
     _,
     [this.getFormData()].concat(slice.call(this.settingsToCache()))
@@ -627,6 +646,9 @@ EditView.prototype.handleAssignmentSelectionSubmit = function (data) {
       height: data['item[iframe][height]'],
     },
     lineItem: tryJsonParse(data['item[line_item]']),
+    'https://canvas.instructure.com/lti/preserveExistingAssignmentName': tryJsonParse(
+      data['item[preserveExistingAssignmentName]']
+    ),
   }
   this.handleContentItem(contentItem)
 }
@@ -638,7 +660,6 @@ EditView.prototype.handleAssignmentSelectionSubmit = function (data) {
  * @param {ResourceLinkContentItem} item
  */
 EditView.prototype.handleContentItem = function (item) {
-  const line_items_enabled = !!window.ENV.FEATURES.lti_assignment_page_line_items
   this.$externalToolsCustomParams.val(JSON.stringify(item.custom))
   this.$externalToolsContentType.val(item.type)
   this.$externalToolsContentId.val(item.id || this.selectedTool?.id)
@@ -648,36 +669,55 @@ EditView.prototype.handleContentItem = function (item) {
   this.$externalToolsIframeWidth.val(item.iframe?.width)
   this.$externalToolsIframeHeight.val(item.iframe?.height)
 
-  const line_item = item.lineItem
-  if (line_item) {
-    this.$externalToolsLineItem.val(JSON.stringify(line_item))
-    if (
-      'scoreMaximum' in line_item &&
-      (line_items_enabled || this.$assignmentPointsPossible.val() === '0')
-    ) {
-      this.$assignmentPointsPossible.val(line_item.scoreMaximum)
-    }
-    const new_assignment_name = 'label' in line_item ? line_item.label : item.title
-
-    if (new_assignment_name && (line_items_enabled || this.$name.val() === '')) {
-      this.$name.val(new_assignment_name)
-    }
-  } else {
-    const new_assignment_name = item.title
-    if (new_assignment_name && (line_items_enabled || this.$name.val() === '')) {
-      this.$name.val(new_assignment_name)
+  const lineItem = item.lineItem
+  if (lineItem) {
+    this.$externalToolsLineItem.val(JSON.stringify(lineItem))
+    if ('scoreMaximum' in lineItem) {
+      this.$assignmentPointsPossible.val(lineItem.scoreMaximum)
     }
   }
 
-  const description = item.text
-  if (description) {
-    const existing_desc = RichContentEditor.callOnRCE(this.$description, 'get_code')
-    if (line_items_enabled || existing_desc === '') {
-      RichContentEditor.callOnRCE(this.$description, 'set_code', description)
-    }
+  const newAssignmentName = lineItem && 'label' in lineItem ? lineItem.label : item.title
+  const replaceAssignmentName =
+    !item['https://canvas.instructure.com/lti/preserveExistingAssignmentName']
+  if (newAssignmentName && (replaceAssignmentName || this.$name.val() === '')) {
+    this.$name.val(newAssignmentName)
   }
+
+  if (item.text) {
+    RichContentEditor.callOnRCE(this.$description, 'set_code', item.text)
+  }
+
+  this.renderAssignmentSubmissionTypeContainer()
 
   // TODO: add date prefill here
+}
+
+EditView.prototype.setDefaultSubmissionTypeSelectionContentType = function () {
+  return this.$externalToolsContentType.val(DEFAULT_SUBMISSION_TYPE_SELECTION_CONTENT_TYPE)
+}
+
+EditView.prototype.submissionTypeSelectionHasResource = function () {
+  return this.$externalToolsContentType.val() !== DEFAULT_SUBMISSION_TYPE_SELECTION_CONTENT_TYPE
+}
+
+// used when loading an existing assignment with a resource link. otherwise
+// this is set in deep linking response
+EditView.prototype.setHasResourceLink = function () {
+  return this.$externalToolsContentType.val('ltiResourceLink')
+}
+
+EditView.prototype.handleRemoveResource = function () {
+  // Restore things to how they were before the user pushed the button to
+  // launch the submission_type_selection tool
+  this.setDefaultSubmissionTypeSelectionContentType()
+  this.$externalToolsUrl.val(this.selectedTool.external_url)
+  this.$externalToolsTitle.val('')
+  this.$externalToolsCustomParams.val('')
+  this.$externalToolsIframeWidth.val('')
+  this.$externalToolsIframeHeight.val('')
+
+  this.renderAssignmentSubmissionTypeContainer()
 }
 
 /**
@@ -864,6 +904,7 @@ EditView.prototype.renderAnnotatedDocumentUsageRightsSelectBox = function () {
   if (annotatedDocument) {
     contextType = annotatedDocument.contextType
     contextId = annotatedDocument.contextId
+     
     ReactDOM.render(
       React.createElement(UsageRightsSelectBox, {
         contextType,
@@ -898,18 +939,6 @@ EditView.prototype.toggleAdvancedTurnitinSettings = function (ev) {
   ev.preventDefault()
   return this.$advancedTurnitinSettings.toggleAccessibly(
     this.$turnitinEnabled.prop('checked') || this.$vericiteEnabled.prop('checked')
-  )
-}
-
-EditView.prototype.renderAssignmentSubmissionTypeSelectionLaunchButton = function () {
-  const tool = this.selectedTool
-  const props = {
-    tool,
-    onClick: this.handleSubmissionTypeSelectionLaunch,
-  }
-  return ReactDOM.render(
-    React.createElement(AssignmentSubmissionTypeSelectionLaunchButton, props),
-    document.querySelector('[data-component="AssignmentSubmissionTypeSelectionLaunchButton"]')
   )
 }
 
@@ -951,14 +980,30 @@ EditView.prototype.handleGradingTypeChange = function (gradingType) {
   return this.handleSubmissionTypeChange(null)
 }
 
+EditView.prototype.hasMasteryConnectData = function () {
+  // Some places check for this data before clearing/overwriting...
+  // It's not clear the reasoning behind this, but I'm for leaving as-is for now.
+  // If some of the resulting odd behavior (switching to MasteryCoinnect from another submission type placement tool) surfaces, revisit with Mastery Connect team (git ref ef3249f62f)
+  return !!this.$externalToolExternalData.val()
+}
+
 EditView.prototype.handleSubmissionTypeChange = function (_ev) {
   const subVal = this.$submissionType.val()
   this.$onlineSubmissionTypes.toggleAccessibly(subVal === 'online')
   this.$externalToolSettings.toggleAccessibly(subVal === 'external_tool')
   const isPlacementTool = subVal.includes('external_tool_placement')
   this.$externalToolPlacementLaunchContainer.toggleAccessibly(isPlacementTool)
+
   if (isPlacementTool) {
     this.handlePlacementExternalToolSelect(subVal)
+  } else if (this.selectedTool && subVal === 'external_tool' && !this.hasMasteryConnectData()) {
+    // Moving from a submission_type_placement tool to generic
+    // "External Tool" type: empty out the fields. this prevents people
+    // from working around the "require_resource_selection" field just
+    // by choosing the tool and then choosing "External Tool"
+    this.handleRemoveResource()
+    this.$externalToolsUrl.val('')
+    this.selectedTool = undefined
   }
   this.$groupCategorySelector.toggleAccessibly(subVal !== 'external_tool' && !isPlacementTool)
   this.$peerReviewsFields.toggleAccessibly(subVal !== 'external_tool' && !isPlacementTool)
@@ -1004,29 +1049,53 @@ EditView.prototype.handleMessageEvent = function (event) {
 EditView.prototype.handlePlacementExternalToolSelect = function (selection) {
   const toolId = selection.replace('external_tool_placement_', '')
   this.$externalToolsContentId.val(toolId)
-  this.$externalToolsContentType.val('context_external_tool')
+  this.setDefaultSubmissionTypeSelectionContentType()
   this.selectedTool = find(this.model.submissionTypeSelectionTools(), function (tool) {
     return toolId === tool.id
   })
 
-  const hasNoExtToolData = !this.$externalToolExternalData.val()
   const toolIdsMatch = toolId === this.assignment.selectedSubmissionTypeToolId()
   const extToolUrlsMatch = this.$externalToolsUrl.val() === this.assignment.externalToolUrl()
 
-  if (hasNoExtToolData && !(toolIdsMatch && extToolUrlsMatch)) {
-    // Set the URL of the tool, but only if we haven't just come back from a
-    // deep linking response (so we'll have a URL from the deep linking
-    // response); also don't set if we are just editing the assignment (in this
-    // case the URL [this.$externalToolsUrl] will be the assignment URL)
+  if (!this.hasMasteryConnectData() && !(toolIdsMatch && extToolUrlsMatch)) {
+    // When switching to a submission_type_selection tool in the dropdown, set
+    // the URL of the tool. Don't set if we are just editing the assignment
+    // (toolIdsMatch and extToolUrlsMatch).
+
     this.$externalToolsUrl.val(this.selectedTool.external_url)
     // Ensure that custom params & other stuff left over from another previous
     // deep link response get cleared out when the user chooses a tool:
     this.$externalToolsCustomParams.val('')
     this.$externalToolsIframeWidth.val('')
     this.$externalToolsIframeHeight.val('')
+    this.$externalToolsTitle.val('')
+  } else if (this.assignment.resourceLink()) {
+    this.setHasResourceLink()
+    if (this.assignment.resourceLink().title) {
+      this.$externalToolsTitle.val(this.assignment.resourceLink().title)
+    }
   }
 
-    this.renderAssignmentSubmissionTypeSelectionLaunchButton()
+  this.renderAssignmentSubmissionTypeContainer()
+}
+
+EditView.prototype.renderAssignmentSubmissionTypeContainer = function () {
+  const resource = this.submissionTypeSelectionHasResource()
+    ? {title: this.$externalToolsTitle.val()}
+    : undefined
+
+  const props = {
+    tool: this.selectedTool,
+    resource,
+    onRemoveResource: this.handleRemoveResource,
+    onLaunchButtonClick: this.handleSubmissionTypeSelectionLaunch,
+  }
+
+   
+  ReactDOM.render(
+    React.createElement(AssignmentSubmissionTypeContainer, props),
+    document.querySelector('[data-component="AssignmentSubmissionTypeContainer"]')
+  )
 }
 
 EditView.prototype.handleSubmissionTypeSelectionLaunch = function () {
@@ -1216,7 +1285,7 @@ EditView.prototype.toJSON = function () {
       (typeof ENV !== 'undefined' && ENV !== null
         ? ENV.ANONYMOUS_INSTRUCTOR_ANNOTATIONS_ENABLED
         : void 0) || false,
-    differentiatedModulesEnabled: ENV.FEATURES.differentiated_modules,
+    differentiatedModulesEnabled: ENV.FEATURES?.selective_release_ui_api,
   })
 }
 
@@ -1267,11 +1336,15 @@ EditView.prototype._adjustDateValue = function (newDate, originalDate) {
 EditView.prototype.getFormData = function () {
   let data
   data = EditView.__super__.getFormData.apply(this, arguments)
+  data.submission_type = this.toolSubmissionType(data.submission_type)
   data = this._inferSubmissionTypes(data)
   data = this._filterAllowedExtensions(data)
   data = this._unsetGroupsIfExternalTool(data)
   data.ab_guid = this.assignment.get('ab_guid')
-  if (!(typeof ENV !== 'undefined' && ENV !== null ? ENV.IS_LARGE_ROSTER : void 0)) {
+  if (
+    this.groupCategorySelector &&
+    !(typeof ENV !== 'undefined' && ENV !== null ? ENV.IS_LARGE_ROSTER : void 0)
+  ) {
     data = this.groupCategorySelector.filterFormData(data)
   }
   if (!data.post_to_sis) {
@@ -1287,7 +1360,7 @@ EditView.prototype.getFormData = function () {
     data.lock_at = null
     data.unlock_at = null
   }
-  data.only_visible_to_overrides = !this.dueDateOverrideView.overridesContainDefault()
+  data.only_visible_to_overrides = this.dueDateOverrideView.setOnlyVisibleToOverrides()
   data.assignment_overrides = this.dueDateOverrideView.getOverrides()
   if (this.shouldPublish) {
     data.published = true
@@ -1338,20 +1411,12 @@ EditView.prototype.saveFormData = function () {
 }
 
 EditView.prototype.submit = function (event) {
-  let missingDateDialog, sections
+  let missingDateDialog
   event.preventDefault()
   event.stopPropagation()
   this.cacheAssignmentSettings()
-  $(SUBMISSION_TYPE).val(this.toolSubmissionType($(SUBMISSION_TYPE).val()))
   if (this.dueDateOverrideView.containsSectionsWithoutOverrides()) {
-    sections = this.dueDateOverrideView.sectionsWithoutOverrides()
     missingDateDialog = new MissingDateDialog({
-      validationFn() {
-        return sections
-      },
-      labelFn(section) {
-        return section.get('name')
-      },
       success: (function (_this) {
         return function (dateDialog) {
           dateDialog.dialog('close').remove()
@@ -1472,7 +1537,10 @@ EditView.prototype.validateBeforeSave = function (data, errors) {
   errors = this.assignmentGroupSelector.validateBeforeSave(data, errors)
   Object.assign(errors, this.validateFinalGrader(data))
   Object.assign(errors, this.validateGraderCount(data))
-  if (!(typeof ENV !== 'undefined' && ENV !== null ? ENV.IS_LARGE_ROSTER : void 0)) {
+  if (
+    this.groupCategorySelector &&
+    !(typeof ENV !== 'undefined' && ENV !== null ? ENV.IS_LARGE_ROSTER : void 0)
+  ) {
     errors = this.groupCategorySelector.validateBeforeSave(data, errors)
   }
   errors = this._validatePointsPossible(data, errors)
@@ -1649,7 +1717,7 @@ EditView.prototype._validatePointsPossible = function (data, errors) {
   if (this.lockedItems.points) {
     return errors
   }
-  // eslint-disable-next-line no-restricted-globals
+   
   if (typeof data.points_possible !== 'number' || isNaN(data.points_possible)) {
     errors.points_possible = [
       {
@@ -1669,7 +1737,7 @@ EditView.prototype._validatePointsRequired = function (data, errors) {
   if (
     typeof data.points_possible !== 'number' ||
     data.points_possible < 0 ||
-    // eslint-disable-next-line no-restricted-globals
+     
     isNaN(data.points_possible)
   ) {
     errors.points_possible = [
@@ -1682,9 +1750,12 @@ EditView.prototype._validatePointsRequired = function (data, errors) {
 }
 
 EditView.prototype._validateExternalTool = function (data, errors) {
-  let message, ref, ref1
+  if (data.submission_type !== 'external_tool') {
+    return errors
+  }
+
+  let ref, ref1
   if (
-    data.submission_type === 'external_tool' &&
     data.grading_type !== 'not_graded' &&
     $.trim(
       (ref = data.external_tool_tag_attributes) != null
@@ -1694,18 +1765,27 @@ EditView.prototype._validateExternalTool = function (data, errors) {
         : void 0
     ).length === 0
   ) {
-    message = I18n.t('External Tool URL cannot be left blank')
-    errors['external_tool_tag_attributes[url]'] = [
-      {
-        message,
-      },
-    ]
-    errors['default-tool-launch-button'] = [
-      {
-        message,
-      },
-    ]
+    const message = I18n.t('External Tool URL cannot be left blank')
+    errors['external_tool_tag_attributes[url]'] = [{message}]
+    errors['default-tool-launch-button'] = [{message}]
   }
+
+  // This can happen when:
+  // * user chooses a tool in the submission type dropdown (Submission Type
+  //   Selection placement) but doesn't launch the tool and finish deep linking
+  //   flow
+  // * user edits assignment and removes resource by clicking the 'x'
+  //   (we reset content_type back to 'context_external_tool' then)
+  if (
+    typeof data.external_tool_tag_attributes === 'object' &&
+    this.selectedTool?.require_resource_selection &&
+    data.external_tool_tag_attributes.content_type ===
+      DEFAULT_SUBMISSION_TYPE_SELECTION_CONTENT_TYPE
+  ) {
+    const message = I18n.t('Please click below to launch the tool and select a resource.')
+    errors.assignment_submission_container = [{message}]
+  }
+
   return errors
 }
 

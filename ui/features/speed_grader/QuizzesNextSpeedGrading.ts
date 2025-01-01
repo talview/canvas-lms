@@ -1,4 +1,3 @@
-// @ts-nocheck
 /*
  * Copyright (C) 2016 - present Instructure, Inc.
  *
@@ -17,8 +16,8 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-// this is called by speed grader to enable communication
-// between quizzesNext LTI tool and speed grader
+// this is called by SpeedGrader to enable communication
+// between quizzesNext LTI tool and SpeedGrader
 // and modify normal speedGrader behavior to be more compatible
 // with our LTI tool
 
@@ -34,6 +33,7 @@
 import type {Submission} from '../../api.d'
 import $ from 'jquery'
 
+// @ts-expect-error
 function sendPostMessage($iframe_holder, message) {
   const contentWindow = $iframe_holder.children()[0]?.contentWindow
   if (contentWindow) {
@@ -41,7 +41,9 @@ function sendPostMessage($iframe_holder, message) {
   }
 }
 
+// @ts-expect-error
 function setup(EG, $iframe_holder, registerCb, refreshGradesCb, speedGraderWindow = window) {
+  // @ts-expect-error
   function quizzesNextChange(submission) {
     EG.refreshSubmissionsToView()
     if (submission && submission.submission_history) {
@@ -70,6 +72,7 @@ function setup(EG, $iframe_holder, registerCb, refreshGradesCb, speedGraderWindo
     return Date.parse(submission.graded_at) <= Date.parse(originalSubmission.graded_at)
   }
 
+  // @ts-expect-error
   // gets the submission from the speed_grader.js
   // function that will call this
   function postChangeSubmissionMessage(submission) {
@@ -79,8 +82,10 @@ function setup(EG, $iframe_holder, registerCb, refreshGradesCb, speedGraderWindo
     quizzesNextChange(submission)
   }
 
+  // @ts-expect-error
   function onMessage(e) {
     const message = e.data
+    const prevButton = document.getElementById('prev-student-button')
     switch (message.subject) {
       case 'quizzesNext.register':
         EG.setGradeReadOnly(true)
@@ -91,6 +96,10 @@ function setup(EG, $iframe_holder, registerCb, refreshGradesCb, speedGraderWindo
         return EG.prev()
       case 'quizzesNext.nextStudent':
         return EG.next()
+      case 'SG.focusPreviousStudentButton':
+        if (prevButton) {
+          prevButton.focus()
+        }
     }
   }
 
@@ -104,11 +113,13 @@ function setup(EG, $iframe_holder, registerCb, refreshGradesCb, speedGraderWindo
   }
 }
 
+// @ts-expect-error
 export function postGradeByQuestionChangeMessage($iframe_holder, enabled) {
   const message = {subject: 'canvas.speedGraderGradeByQuestionChange', enabled}
   sendPostMessage($iframe_holder, message)
 }
 
+// @ts-expect-error
 export function postChangeSubmissionVersionMessage($iframe_holder, submission) {
   const message = {
     subject: 'canvas.speedGraderSubmissionChange',

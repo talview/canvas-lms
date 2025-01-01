@@ -16,11 +16,11 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as timezone from '@canvas/datetime'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import * as timezone from '@instructure/moment-utils'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {auditEventStudentAnonymityStates, overallAnonymityStates} from './AuditTrailHelpers'
 
-const I18n = useI18nScope('speed_grader')
+const I18n = createI18nScope('speed_grader')
 
 const {OFF, ON, TURNED_OFF, TURNED_ON} = auditEventStudentAnonymityStates
 const {FULL, PARTIAL} = overallAnonymityStates

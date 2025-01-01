@@ -17,7 +17,7 @@
  */
 
 import {arrayOf, bool, number, shape, string} from 'prop-types'
-import gql from 'graphql-tag'
+import {gql} from '@apollo/client'
 import {RubricCriterion} from './RubricCriterion'
 
 export const Rubric = {
@@ -30,6 +30,7 @@ export const Rubric = {
       free_form_criterion_comments: freeFormCriterionComments
       hide_score_total: hideScoreTotal
       points_possible: pointsPossible
+      ratingOrder
       title
     }
     ${RubricCriterion.fragment}

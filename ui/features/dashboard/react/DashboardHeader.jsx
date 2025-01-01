@@ -18,10 +18,10 @@
 
 import React from 'react'
 import ReactDOM from 'react-dom'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import axios from '@canvas/axios'
 import classnames from 'classnames'
-import {bool, func, string, object, oneOf} from 'prop-types'
+import {bool, func, string, object, oneOf, arrayOf} from 'prop-types'
 import {
   initializePlanner,
   loadPlannerDashboard,
@@ -44,15 +44,16 @@ import {View} from '@instructure/ui-view'
 import {Heading} from '@instructure/ui-heading'
 import {Flex} from '@instructure/ui-flex'
 import {Button} from '@instructure/ui-buttons'
+import {dateString, datetimeString, timeString} from '@canvas/datetime/date-functions'
 
-const I18n = useI18nScope('dashboard')
+const I18n = createI18nScope('dashboard')
 
 const [show, hide] = ['block', 'none'].map(displayVal => id => {
   const el = document.getElementById(id)
   if (el) el.style.display = displayVal
 })
 
-const observerMode = () => ENV.current_user_roles?.includes('observer')
+export const observerMode = () => ENV.current_user_roles?.includes('observer')
 
 /**
  * This component renders the header and the to do sidebar for the user
@@ -69,6 +70,8 @@ class DashboardHeader extends React.Component {
     responsiveSize: oneOf(['small', 'medium', 'large']),
     startNewCourseVisible: bool,
     viewGradesUrl: string,
+    preloadedCards: arrayOf(object) || null, // Card[]
+    refetchDashboardCards: func || null,
   }
 
   static defaultProps = {
@@ -103,9 +106,9 @@ class DashboardHeader extends React.Component {
         srFlashMessage: this.props.screenReaderFlashMessage,
         convertApiUserContent: apiUserContent.convert,
         dateTimeFormatters: {
-          dateString: $.dateString,
-          timeString: $.timeString,
-          datetimeString: $.datetimeString,
+          dateString,
+          timeString,
+          datetimeString,
         },
         externalFallbackFocusable: this.menuButtonFocusable,
         observedUser,
@@ -150,9 +153,9 @@ class DashboardHeader extends React.Component {
     loadPlannerDashboard()
   }
 
-  loadCardDashboard(observedUserId) {
+  loadCardDashboard(observedUserId, preloadedCards) {
     // I put this in so I can spy on the imported function in a spec :'(
-    this.cardDashboardLoader.loadCardDashboard(undefined, observedUserId)
+    this.cardDashboardLoader.loadCardDashboard(undefined, observedUserId, preloadedCards)
   }
 
   loadStreamItemDashboard(observedUserId) {
@@ -204,7 +207,7 @@ class DashboardHeader extends React.Component {
           showFlashAlert({message: I18n.t('Failed initializing dashboard'), type: 'error'})
         })
     } else if (newView === 'cards') {
-      this.loadCardDashboard(this.state.selectedObserveeId)
+      this.loadCardDashboard(this.state.selectedObserveeId, this.props.preloadedCards)
     } else if (newView === 'activity') {
       this.loadStreamItemDashboard(this.state.selectedObserveeId)
     }
@@ -242,6 +245,7 @@ class DashboardHeader extends React.Component {
 
   handleChangeObservedUser(id) {
     if (id !== this.state.selectedObserveeId) {
+      this.props.refetchDashboardCards && this.props.refetchDashboardCards()
       fetchShowK5Dashboard(id)
         .then(response => {
           if (!response.show_k5_dashboard) {
@@ -357,6 +361,11 @@ class DashboardHeader extends React.Component {
   }
 
   renderResponsiveContent(canEnableElementaryDashboard) {
+    let responsiveSize = this.props.responsiveSize
+    if (observerMode() && responsiveSize == 'large') {
+      responsiveSize = 'medium'
+    }
+
     return (
       <div style={{backgroundColor: 'white', paddingBottom: 'small'}}>
         <Flex
@@ -387,12 +396,12 @@ class DashboardHeader extends React.Component {
               {observerMode() && (
                 <Flex.Item overflowY="visible">
                   <ObserverOptions
-                      currentUser={ENV.current_user}
-                      currentUserRoles={ENV.current_user_roles}
-                      observedUsersList={ENV.OBSERVED_USERS_LIST}
-                      canAddObservee={ENV.CAN_ADD_OBSERVEE}
-                      handleChangeObservedUser={id => this.handleChangeObservedUser(id)}
-                    />
+                    currentUser={ENV.current_user}
+                    currentUserRoles={ENV.current_user_roles}
+                    observedUsersList={ENV.OBSERVED_USERS_LIST}
+                    canAddObservee={ENV.CAN_ADD_OBSERVEE}
+                    handleChangeObservedUser={id => this.handleChangeObservedUser(id)}
+                  />
                 </Flex.Item>
               )}
               <Flex.Item overflowY="visible">
@@ -409,15 +418,22 @@ class DashboardHeader extends React.Component {
                   />
                 </div>
               </Flex.Item>
-              <span style={{display: (this.props.planner_enabled && this.state.currentDashboard == 'planner' ? 'block' : 'none')}}>
+              <span
+                style={{
+                  display:
+                    this.props.planner_enabled && this.state.currentDashboard == 'planner'
+                      ? 'block'
+                      : 'none',
+                }}
+              >
                 <Flex.Item overflowY="visible">
-                  <span id="dashboard-planner-header"></span>
-                  <span id="dashboard-planner-header-aux"></span>
+                  <span id="dashboard-planner-header" />
+                  <span id="dashboard-planner-header-aux" />
                 </Flex.Item>
               </span>
-              {(this.props.startNewCourseVisible) && (
+              {this.props.startNewCourseVisible && (
                 <Flex.Item overflowY="visible">
-                  <Button 
+                  <Button
                     display={this.props.responsiveSize == 'small' ? 'block' : 'inline-block'}
                     onclick={() => {}}
                     id="start_new_course"
@@ -428,15 +444,15 @@ class DashboardHeader extends React.Component {
                 </Flex.Item>
               )}
               {this.state.currentDashboard != 'planner' && (
-              <Flex.Item overflowY="visible">
-                <Button 
-                  id="ic-Dashboard-header__view_grades_button"
-                  display={this.props.responsiveSize == 'small' ? 'block' : 'inline-block'}
-                  href={this.props.viewGradesUrl}
-                >
-                  {I18n.t('View Grades')}
-                </Button>
-              </Flex.Item>
+                <Flex.Item overflowY="visible">
+                  <Button
+                    id="ic-Dashboard-header__view_grades_button"
+                    display={this.props.responsiveSize == 'small' ? 'block' : 'inline-block'}
+                    href={this.props.viewGradesUrl}
+                  >
+                    {I18n.t('View Grades')}
+                  </Button>
+                </Flex.Item>
               )}
             </Flex>
           </Flex.Item>
@@ -459,7 +475,10 @@ class DashboardHeader extends React.Component {
 }
 
 export {DashboardHeader}
-export default responsiviser()(DashboardHeader)
+export default responsiviser()(
+  DashboardHeader,
+  ENV.FEATURES?.instui_header ? {small: '(max-width: 62em)', medium: '(max-width: 86em)'} : null
+)
 
 // extract this out to a property so tests can override it and not have to mock
 // out the timers in every single test.
@@ -502,6 +521,7 @@ function loadStartNewCourseHandler() {
   const modalContainer = document.getElementById('create_course_modal_container')
   if (startButton && modalContainer && ENV.FEATURES?.create_course_subaccount_picker) {
     startButton.addEventListener('click', () => {
+       
       ReactDOM.render(
         <CreateCourseModal
           isModalOpen={true}

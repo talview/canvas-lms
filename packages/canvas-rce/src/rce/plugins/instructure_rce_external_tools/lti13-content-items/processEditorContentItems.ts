@@ -1,4 +1,3 @@
-// @ts-nocheck
 /*
  * Copyright (C) 2018 - present Instructure, Inc.
  *
@@ -28,10 +27,14 @@ export default function processEditorContentItems(
     data?: {
       content_items?: Lti13ContentItemJson[] | null
       ltiEndpoint?: string | null
+      replaceEditorContents?: boolean | null
+      msg?: string | null
+      errorMsg?: string | null
     }
   },
   env: ExternalToolsEnv,
   dialog: {
+    // @ts-expect-error
     close()
   } | null
 ) {
@@ -52,7 +55,11 @@ export default function processEditorContentItems(
       })
 
       if (parsedItem != null) {
-        env.insertCode(parsedItem.toHtmlString())
+        if (event.data?.replaceEditorContents) {
+          env.replaceCode(parsedItem.toHtmlString())
+        } else {
+          env.insertCode(parsedItem.toHtmlString())
+        }
       } else if (!unsupportedItemWarningShown) {
         showFlashAlert({
           message: formatMessage(
@@ -70,6 +77,16 @@ export default function processEditorContentItems(
     // Remove "unsaved changes" warnings and close modal
     if (event.data?.content_items) {
       dialog?.close()
+    }
+
+    if (event.data?.msg !== undefined) {
+      // @ts-expect-error
+      showFlashAlert({message: event.data.msg.toString()})
+    }
+    // @ts-expect-error
+    if (event.data?.errormsg !== undefined) {
+      // @ts-expect-error
+      showFlashAlert({message: event.data.errormsg.toString(), type: 'error'})
     }
   } catch (e) {
     showFlashAlert({

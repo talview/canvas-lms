@@ -24,6 +24,7 @@ import mediaCommentThumbnail from './media_comment_thumbnail'
 import {addParentFrameContextToUrl} from '../rce/plugins/instructure_rce_external_tools/util/addParentFrameContextToUrl'
 import {MathJaxDirective, Mathml} from './mathml'
 import {makeExternalLinkIcon} from './external_links'
+import getTranslations from '../getTranslations'
 
 // in jest the es directory doesn't exist so stub the undefined svg
 const IconDownloadSVG = IconDownloadLine?.src || '<svg></svg>'
@@ -167,7 +168,22 @@ export function enhanceUserContent(container = document, opts = {}) {
      * When used inside of an LTI tool, this contains the canvas global id of the tool.
      */
     containingCanvasLtiToolId,
+
+    /**
+     * Contingency plan in case new instfs media links cause problems in rich content.
+     */
+    replaceInstFSLinksWithOldLinks,
   } = opts
+
+  getTranslations(locale)
+    .then(() => {
+      formatMessage.setup({
+        locale: locale || 'en',
+      })
+    })
+    .catch(_err => {
+      console.error('Failed loading the language file for', locale, '. Falling back to English.')
+    })
 
   const content =
     (container instanceof HTMLElement && container) ||
@@ -201,6 +217,30 @@ export function enhanceUserContent(container = document, opts = {}) {
       }
     })
     setData(unenhanced_elem, 'unenhanced_content_html', unenhanced_elem.innerHTML)
+
+    // If instfs links are causing content problems,
+    // use this to show users old links instead
+    if (replaceInstFSLinksWithOldLinks) {
+      const attributes = ['href', 'src']
+      const selector = '[href], [src]'
+      const oldLinkAttribute = 'data-old-link'
+
+      unenhanced_elem.querySelectorAll(selector).forEach(element => {
+        const oldLink = element.getAttribute(oldLinkAttribute)
+
+        if (!oldLink) {
+          return
+        }
+
+        for (const a of attributes) {
+          const newLink = element.getAttribute(a)
+
+          if (newLink && newLink != oldLink) {
+            element.setAttribute(a, oldLink)
+          }
+        }
+      })
+    }
 
     // guarantee relative links point to canvas
     if (canvasOrigin) {
@@ -279,7 +319,7 @@ export function enhanceUserContent(container = document, opts = {}) {
       if (!href) return
 
       const matchesCanvasFile = href.pathname.match(
-        /(?:\/(courses|groups|users)\/(\d+))?\/files\/(\d+)/
+        /(?:\/(courses|groups|users)\/\d+)?\/files\/([\d~]+)(?=[!*'();:@&=+$,/?#\[\]]|$)/
       )
       if (!matchesCanvasFile) {
         // a bug in the new RCE added instructure_file_link class name to all links

@@ -59,35 +59,6 @@ describe ConversationsController do
       expect(assigns[:js_env]).not_to be_nil
     end
 
-    it "tallies legacy inbox stats" do
-      user_session(@student)
-
-      # counts toward inbox and sent, and unread
-      c1 = conversation
-      c1.update_attribute :workflow_state, "unread"
-
-      # counts toward inbox, sent, and starred
-      c2 = conversation
-      c2.update(starred: true)
-
-      # counts toward sent, and archived
-      c3 = conversation
-      c3.update_attribute :workflow_state, "archived"
-
-      term = @course.root_account.enrollment_terms.create! name: "Fall"
-      @course.update! enrollment_term: term
-
-      get "index"
-      expect(response).to be_successful
-
-      expect(InstStatsd::Statsd).to have_received(:increment).with("inbox.visit.legacy")
-      expect(InstStatsd::Statsd).to have_received(:count).with("inbox.visit.scope.inbox.count.legacy", 2).once
-      expect(InstStatsd::Statsd).to have_received(:count).with("inbox.visit.scope.sent.count.legacy", 3).once
-      expect(InstStatsd::Statsd).to have_received(:count).with("inbox.visit.scope.unread.count.legacy", 1).once
-      expect(InstStatsd::Statsd).to have_received(:count).with("inbox.visit.scope.starred.count.legacy", 1).once
-      expect(InstStatsd::Statsd).to have_received(:count).with("inbox.visit.scope.archived.count.legacy", 1).once
-    end
-
     it "assigns variables for json" do
       user_session(@student)
       conversation
@@ -306,10 +277,6 @@ describe ConversationsController do
     end
 
     context "react-inbox" do
-      before do
-        Account.default.enable_feature! :react_inbox
-      end
-
       context "metrics" do
         it "does not increment visit count if not authorized to open inbox" do
           get "index"
@@ -402,7 +369,8 @@ describe ConversationsController do
 
       post "create", params: { recipients: [@teacher.id.to_s], body: "yo", context_code: @course.asset_string }
       expect(response).not_to be_successful
-      expect(response.body).to include("Unable to send messages")
+      expect(response.parsed_body[0]["attribute"]).to eq("recipients")
+      expect(response.parsed_body[0]["message"]).to eq("invalid")
     end
 
     it "allows creating conversations in concluded courses for teachers" do
@@ -671,43 +639,38 @@ describe ConversationsController do
       end
     end
 
-    context "user_notes" do
-      before do
-        Account.default.update_attribute :enable_user_notes, true
-        user_session(@teacher)
+    it "does not trigger OOO responses on bulk messages" do
+      Account.site_admin.enable_feature! :inbox_settings
+      Account.default.settings[:enable_inbox_auto_response] = true
+      Account.default.save!
 
-        @students = create_users_in_course(@course, 2, account_associations: true, return_type: :record)
-      end
+      user_session(@student)
 
-      context "when the deprecate_faculty_journal feature flag is disabled" do
-        before { Account.site_admin.disable_feature!(:deprecate_faculty_journal) }
+      new_user1 = User.create
+      enrollment1 = @course.enroll_student(new_user1)
+      enrollment1.workflow_state = "active"
+      enrollment1.save
 
-        it "creates user notes" do
-          post "create", params: { recipients: @students.map(&:id), body: "yo", subject: "greetings", user_note: "1" }
-          @students.each { |x| expect(x.user_notes.size).to be(1) }
-          expect(InstStatsd::Statsd).to have_received(:increment).with("inbox.conversation.sent.faculty_journal.legacy")
-        end
+      # Set up OOO for new_user1
+      Inbox::InboxService.update_inbox_settings_for_user(
+        user_id: new_user1.id,
+        root_account_id: Account.default.id,
+        use_signature: false,
+        signature: "",
+        use_out_of_office: true,
+        out_of_office_first_date: Time.zone.today,
+        out_of_office_last_date: Time.zone.tomorrow,
+        out_of_office_subject: "OOO",
+        out_of_office_message: "Out of Office"
+      )
 
-        it "_not_s create user notes if asked not to" do
-          post "create", params: { recipients: @students.map(&:id), body: "yolo", subject: "salutations", user_note: "0" }
-          @students.each { |x| expect(x.user_notes.size).to be(0) }
-          expect(InstStatsd::Statsd).not_to have_received(:increment).with("inbox.conversation.sent.faculty_journal.legacy")
-        end
-
-        it "includes the domain root account in the user note" do
-          post "create", params: { recipients: @students.map(&:id), body: "hi there", subject: "hi there", user_note: true }
-          note = UserNote.last
-          expect(note.root_account_id).to eql Account.default.id
-        end
-      end
-
-      context "when the deprecate_faculty_journal feature flag is enabled" do
-        it "does not create user notes" do
-          post "create", params: { recipients: @students.map(&:id), body: "yo", subject: "greetings", user_note: "1" }
-          @students.each { |x| expect(x.user_notes.size).to be(0) }
-          expect(InstStatsd::Statsd).to_not have_received(:increment).with("inbox.conversation.sent.faculty_journal.legacy")
-        end
-      end
+      new_user2 = User.create
+      enrollment2 = @course.enroll_student(new_user2)
+      enrollment2.workflow_state = "active"
+      enrollment2.save
+      post "create", params: { recipients: [new_user1.id.to_s, new_user2.id.to_s], body: "later", subject: "farewell", bulk_message: "1" }
+      expect(response).to be_successful
+      expect(ConversationMessage.count).to eq(3)
     end
 
     describe "for recipients the sender has no relationship with" do
@@ -919,42 +882,6 @@ describe ConversationsController do
       run_jobs
       expect(@conversation.reload.messages.count(:all)).to eq 2
       expect(@conversation.reload.last_message_at).to eql expected_lma
-    end
-
-    context "when the deprecate_faculty_journal feature flag is disabled" do
-      before { Account.site_admin.disable_feature!(:deprecate_faculty_journal) }
-
-      it "generates a user note when requested" do
-        Account.default.update_attribute :enable_user_notes, true
-        course_with_teacher_logged_in(active_all: true)
-        conversation
-
-        post "add_message", params: { conversation_id: @conversation.conversation_id, body: "hello world" }
-        expect(response).to be_successful
-        message = @conversation.messages.first # newest message is first
-        student = message.recipients.first
-        expect(student.user_notes.size).to eq 0
-
-        post "add_message", params: { conversation_id: @conversation.conversation_id, body: "make a note", user_note: 1 }
-        expect(response).to be_successful
-        message = @conversation.messages.first
-        student = message.recipients.first
-        expect(student.user_notes.size).to eq 1
-      end
-    end
-
-    context "when the deprecate_faculty_journal feature flag is enabled" do
-      it "does not generate a user note when requested" do
-        Account.default.update_attribute :enable_user_notes, true
-        course_with_teacher_logged_in(active_all: true)
-        conversation
-
-        post "add_message", params: { conversation_id: @conversation.conversation_id, body: "make a note", user_note: 1 }
-        expect(response).to be_successful
-        message = @conversation.messages.first
-        student = message.recipients.first
-        expect(student.user_notes.size).to eq 0
-      end
     end
 
     it "does not allow new messages in concluded courses for students" do
@@ -1311,7 +1238,7 @@ describe ConversationsController do
     it "returns basic feed attributes" do
       conversation
       get "public_feed", params: { feed_code: @student.feed_code }, format: "atom"
-      feed = Feedjira.parse(response.body) rescue nil
+      feed = Feedjira.parse(response.body)
       expect(feed).not_to be_nil
       expect(feed.title).to eq "Conversations Feed"
       expect(feed.feed_url).to match(/conversations/)
@@ -1335,7 +1262,7 @@ describe ConversationsController do
       message = "Sending a test message to some random users, in the hopes that it really works."
       conversation(message:)
       get "public_feed", params: { feed_code: @student.feed_code }, format: "atom"
-      feed = Feedjira.parse(response.body) rescue nil
+      feed = Feedjira.parse(response.body)
       expect(feed).not_to be_nil
       expect(feed.entries.first.title).to match(/Sending a test/)
       expect(feed.entries.first.title).not_to match(message)
@@ -1345,7 +1272,7 @@ describe ConversationsController do
       message = "Sending a test message to some random users, in the hopes that it really works."
       conversation(message:)
       get "public_feed", params: { feed_code: @student.feed_code }, format: "atom"
-      feed = Feedjira.parse(response.body) rescue nil
+      feed = Feedjira.parse(response.body)
       expect(feed).not_to be_nil
       expect(feed.entries.first.content).to match(message)
     end
@@ -1354,7 +1281,7 @@ describe ConversationsController do
       message = "Sending a test message to some random users, in the hopes that it really works."
       conversation(num_other_users: 4, message:)
       get "public_feed", params: { feed_code: @student.feed_code }, format: "atom"
-      feed = Feedjira.parse(response.body) rescue nil
+      feed = Feedjira.parse(response.body)
       expect(feed).not_to be_nil
       expect(feed.entries.first.content).to match(/Message Course/)
       expect(feed.entries.first.content).to match(/User/)
@@ -1367,7 +1294,7 @@ describe ConversationsController do
       @conversation.add_message("test attachment", attachment_ids: [attachment.id])
       allow(HostUrl).to receive(:context_host).and_return("test.host")
       get "public_feed", params: { feed_code: @student.feed_code }, format: "atom"
-      feed = Feedjira.parse(response.body) rescue nil
+      feed = Feedjira.parse(response.body)
       expect(feed).not_to be_nil
       expect(feed.entries.first.content).to match(/somefile\.doc/)
     end

@@ -72,6 +72,8 @@ export type Assessment = {
 
 export type RubricsStore = {
   displayedAssessment: Assessment | null
+  selfAssessment: Assessment | null
+  isSavingRubricAssessment?: boolean
 }
 
 export type Assignment = {

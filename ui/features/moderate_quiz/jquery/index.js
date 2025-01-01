@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-shadow */
-/* eslint-disable eqeqeq */
+ 
+ 
 /*
  * Copyright (C) 2011 - present Instructure, Inc.
  *
@@ -18,12 +18,12 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import timing from './quiz_timing'
 import openModerateStudentDialog from './openModerateStudentDialog'
 import '@canvas/jquery/jquery.ajaxJSON'
-import '@canvas/datetime/jquery' /* datetimeString */
+import {datetimeString} from '@canvas/datetime/date-functions'
 import '@canvas/jquery/jquery.instructure_forms' /* fillFormData, getFormData */
 import 'jqueryui/dialog'
 import '@canvas/util/jquery/fixDialogButtons'
@@ -31,10 +31,10 @@ import '@canvas/jquery/jquery.instructure_misc_helpers' /* replaceTags */
 import '@canvas/jquery/jquery.instructure_misc_plugins' /* showIf */
 import '@canvas/rails-flash-notifications'
 import '@canvas/util/templateData' /* fillTemplateData */
-import 'date-js'
+import '@instructure/date-js'
 import replaceTags from '@canvas/util/replaceTags'
 
-const I18n = useI18nScope('quizzes.moderate')
+const I18n = createI18nScope('quizzes.moderate')
 /* Date.parse */
 
 const DIALOG_WIDTH = 490
@@ -451,13 +451,13 @@ $(document).ready(function (_event) {
         url,
         'POST',
         formData,
-        // eslint-disable-next-line no-loop-func
+         
         data => {
           finished++
           moderation.updateSubmission(data)
           checkIfFinished()
         },
-        // eslint-disable-next-line no-loop-func
+         
         _data => {
           finished++
           errors++
@@ -474,8 +474,8 @@ $(document).ready(function (_event) {
   $(document).on('click', '.extend_time_link', event => {
     event.preventDefault()
     const $row = $(event.target).parents('.student')
-    const end_at = $.datetimeString($row.attr('data-end-at'))
-    const started_at = $.datetimeString($row.attr('data-started-at'))
+    const end_at = datetimeString($row.attr('data-end-at'))
+    const started_at = datetimeString($row.attr('data-started-at'))
     const $dialog = $('#extend_time_dialog')
     $dialog.data('row', $row)
     $dialog.fillTemplateData({
@@ -513,7 +513,7 @@ $(document).ready(function (_event) {
         data.time_type === 'extend_from_now' &&
         data.time < $dialog.data('row').data('minutes_left')
       ) {
-        // eslint-disable-next-line no-alert
+         
         const result = window.confirm(
           I18n.t(
             'confirms.taking_time_away',

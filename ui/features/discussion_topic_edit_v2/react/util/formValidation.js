@@ -16,9 +16,9 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
-const I18n = useI18nScope('discussion_create')
+const I18n = createI18nScope('discussion_create')
 
 export const validateTitle = (newTitle, setTitleValidationMessages) => {
   if (newTitle.length > 255) {
@@ -75,11 +75,7 @@ const validateUsageRights = (
   setOnFailure
 ) => {
   // if usage rights is not enabled or there are no attachments, there is no need to validate
-  if (
-    !ENV?.FEATURES?.usage_rights_discussion_topics ||
-    !ENV?.USAGE_RIGHTS_REQUIRED ||
-    !attachment
-  ) {
+  if (!ENV?.USAGE_RIGHTS_REQUIRED || !attachment) {
     return true
   }
 
@@ -102,9 +98,29 @@ const validatePostToSections = (shouldShowPostToSectionOption, sectionIdsToPostT
   }
 }
 
-const validateGradedDiscussionFields = (gradedDiscussionRefMap, gradedDiscussionRef, isGraded) => {
+const validateGradedDiscussionFields = (
+  gradedDiscussionRefMap,
+  gradedDiscussionRef,
+  isGraded,
+  assignedInfoList,
+  postToSis,
+  showPostToSisError
+) => {
   if (!isGraded) {
     return true
+  }
+
+  if (
+    ENV.DUE_DATE_REQUIRED_FOR_ACCOUNT &&
+    ENV.FEATURES?.selective_release_ui_api &&
+    assignedInfoList &&
+    postToSis
+  ) {
+    const aDueDateMissing = assignedInfoList.some(assignee => !assignee.dueDate)
+    if (aDueDateMissing) {
+      showPostToSisError()
+      return false
+    }
   }
 
   for (const refMap of gradedDiscussionRefMap.values()) {
@@ -140,7 +156,10 @@ export const validateFormFields = (
   setTitleValidationMessages,
   setAvailabilityValidationMessages,
   shouldShowPostToSectionOption,
-  sectionIdsToPostTo
+  sectionIdsToPostTo,
+  assignedInfoList,
+  postToSis,
+  showPostToSisError
 ) => {
   let isValid = true
 
@@ -174,7 +193,10 @@ export const validateFormFields = (
       validationFunction: validateGradedDiscussionFields(
         gradedDiscussionRefMap,
         gradedDiscussionRef,
-        isGraded
+        isGraded,
+        assignedInfoList,
+        postToSis,
+        showPostToSisError
       ),
       ref: gradedDiscussionRef.current,
     },

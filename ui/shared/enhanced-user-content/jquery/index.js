@@ -16,7 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 import KeyboardNavDialog from '@canvas/keyboard-nav-dialog'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import {uniqueId} from 'lodash'
 import htmlEscape from '@instructure/html-escape'
@@ -27,7 +27,7 @@ import {makeAllExternalLinksExternalLinks} from '@instructure/canvas-rce/es/enha
 import './instructure_helper'
 import 'jqueryui/draggable'
 import '@canvas/jquery/jquery.ajaxJSON'
-import '@canvas/datetime/jquery' /* datetimeString, dateString, fudgeDateForProfileTimezone */
+import {datetimeString, fudgeDateForProfileTimezone} from '@canvas/datetime/date-functions'
 import '@canvas/jquery/jquery.instructure_forms' /* formSubmit, fillFormData, formErrors */
 import 'jqueryui/dialog'
 import '@canvas/jquery/jquery.instructure_misc_helpers' /* replaceTags, youTubeID */
@@ -38,17 +38,17 @@ import '@canvas/rails-flash-notifications'
 import '@canvas/util/templateData'
 import '@canvas/util/jquery/fixDialogButtons'
 import '@canvas/media-comments/jquery/mediaCommentThumbnail'
-import 'date-js'
+import '@instructure/date-js'
 import 'jquery-tinypubsub' /* /\.publish\(/ */
 import 'jqueryui/resizable'
 import 'jqueryui/sortable'
 import 'jqueryui/tabs'
 import {captureException} from '@sentry/browser'
 
-const I18n = useI18nScope('instructure_js')
+const I18n = createI18nScope('instructure_js')
 
 export function formatTimeAgoTitle(date) {
-  const fudgedDate = $.fudgeDateForProfileTimezone(date)
+  const fudgedDate = fudgeDateForProfileTimezone(date)
   return fudgedDate.toString('MMM d, yyyy h:mmtt')
 }
 
@@ -100,7 +100,7 @@ function enhanceUserJQueryWidgetContent() {
         'Canvas is moving away from jQueryUI for our own widgets and this behavior ' +
         "will go away. Rather than relying on the internals of Canvas's JavaScript, " +
         'you should use your own custom JS file to do any such customizations.'
-      console.error(msg, $elements) // eslint-disable-line no-console
+      console.error(msg, $elements)  
       captureException(new Error(msg))
     })
     .end()
@@ -426,7 +426,7 @@ function doThingsWhenDiscussionTopicSubMessageIsPosted() {
         let submission = null
         for (const idx in data) {
           const s = data[idx].submission
-          // eslint-disable-next-line eqeqeq
+           
           if (s.user_id == user_id) {
             submission = s
           }
@@ -435,7 +435,7 @@ function doThingsWhenDiscussionTopicSubMessageIsPosted() {
           const comment =
             submission.submission_comments[submission.submission_comments.length - 1]
               .submission_comment
-          comment.post_date = $.datetimeString(comment.created_at)
+          comment.post_date = datetimeString(comment.created_at)
           comment.message = comment.formatted_body || comment.comment
           $message.fillTemplateData({
             data: comment,
@@ -444,7 +444,7 @@ function doThingsWhenDiscussionTopicSubMessageIsPosted() {
         }
       } else {
         const entry = data.discussion_entry
-        entry.post_date = $.datetimeString(entry.created_at)
+        entry.post_date = datetimeString(entry.created_at)
         $message.find('.content > .message_html').val(entry.message)
         $message.fillTemplateData({
           data: entry,
@@ -537,7 +537,7 @@ function doThingsToModuleSequenceFooter() {
         })
       })
       .catch(ex => {
-        // eslint-disable-next-line no-console
+         
         console.error(ex)
         captureException(ex)
       })
@@ -599,17 +599,17 @@ function confirmAndDeleteRightSideTodoItemsWhenClicked() {
 // this it'll be too time consuming to decouple it from canvas in our
 // timeframe. Solve it for now by using postMessage from enhanced-user-content2
 // (which we hope to decouple from canvas) to ask canvas to render the preview
-function showFilePreviewInOverlayHandler({file_id, verifier}) {
+function showFilePreviewInOverlayHandler({file_id, verifier, access_token, instfs_id}) {
   import('../react/showFilePreview')
     .then(module => {
-      module.showFilePreview(file_id, verifier)
+      module.showFilePreview(file_id, verifier, access_token, instfs_id)
     })
     .catch(err => {
       showFlashAlert({
         message: I18n.t('Something went wrong loading the file previewer.'),
         type: 'error',
       })
-      // eslint-disable-next-line no-console
+       
       console.log(err)
     })
 }

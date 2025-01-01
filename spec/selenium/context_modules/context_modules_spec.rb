@@ -21,12 +21,14 @@ require_relative "../helpers/context_modules_common"
 require_relative "../helpers/public_courses_context"
 require_relative "page_objects/modules_index_page"
 require_relative "page_objects/modules_settings_tray"
+require_relative "../../helpers/selective_release_common"
 
 describe "context modules" do
   include_context "in-process server selenium tests"
   include ContextModulesCommon
   include ModulesIndexPage
   include ModulesSettingsTray
+  include SelectiveReleaseCommon
 
   context "adds existing items to modules" do
     before(:once) do
@@ -212,6 +214,16 @@ describe "context modules" do
       go_to_modules
       verify_module_title("Non-graded Published Discussion")
       expect(f(".due_date_display").text).to eq date_string(todo_date, :no_words)
+    end
+
+    it "does not show the todo date on an graded discussion in a module", priority: "2" do
+      due_at = 3.days.from_now
+      todo_date = 3.days.from_now
+      @assignment = @course.assignments.create!(name: "assignemnt", due_at:)
+      @discussion = @course.discussion_topics.create!(title: "Graded Discussion", assignment: @assignment, todo_date:)
+      @mod.add_item(type: "discussion_topic", id: @discussion.id)
+      go_to_modules
+      expect(f(".due_date_display").text).to eq date_string(due_at, :no_words)
     end
 
     it "edits available/until dates on a ungraded discussion in a module", priority: "2" do
@@ -569,7 +581,7 @@ describe "context modules" do
       end
 
       it "creating a new module should display a drag and drop area without differentiated modules" do
-        Account.site_admin.disable_feature! :differentiated_modules
+        Account.site_admin.disable_feature! :selective_release_ui_api
 
         get "/courses/#{@course.id}/modules"
         wait_for_ajaximations
@@ -597,7 +609,7 @@ describe "context modules" do
     end
 
     it "adds a file item to a module when differentiated modules is disabled", priority: "1" do
-      Account.site_admin.disable_feature! :differentiated_modules
+      Account.site_admin.disable_feature! :selective_release_ui_api
       get "/courses/#{@course.id}/modules"
       manually_add_module_item("#attachments_select", "File", file_name)
       expect(f(".context_module_item")).to include_text(file_name)

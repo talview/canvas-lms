@@ -19,10 +19,13 @@
 
 module Lti
   module IMS
+    # @API LTI Dynamic Registrations
+    # @internal
+    # Implements the 1EdTech LTI 1.3 Dynamic Registration <a href="/doc/api/registration.html">spec</a>.
+    # See the <a href="/doc/api/registration.html">Registration guide</a> for how to use this API.
     class DynamicRegistrationController < ApplicationController
       REGISTRATION_TOKEN_EXPIRATION = 1.hour
 
-      before_action :require_dynamic_registration_flag, except: [:create]
       before_action :require_user, except: [:create]
       before_action :require_account, except: [:create]
 
@@ -49,15 +52,20 @@ module Lti
 
       def registration_token
         uuid = SecureRandom.uuid
-        current_time = DateTime.now.iso8601
+        current_time = Time.zone.now.iso8601
         user_id = @current_user.id
         root_account_global_id = account_context.global_id
+        unified_tool_id = params[:unified_tool_id].presence
+        registration_url = params[:registration_url]
+
         token = Canvas::Security.create_jwt(
           {
             uuid:,
             initiated_at: current_time,
             user_id:,
-            root_account_global_id:
+            unified_tool_id:,
+            root_account_global_id:,
+            registration_url:
           },
           REGISTRATION_TOKEN_EXPIRATION.from_now
         )
@@ -70,7 +78,11 @@ module Lti
       end
 
       def registration_by_uuid
-        render json: Lti::IMS::Registration.find_by(guid: params[:registration_uuid])
+        render json: Lti::IMS::Registration.find_by(guid: params[:registration_uuid]).as_json(context: account_context)
+      end
+
+      def show
+        render json: Lti::IMS::Registration.find(params[:registration_id]).as_json(context: account_context)
       end
 
       def oidc_configuration_url(registration_token)
@@ -90,19 +102,47 @@ module Lti
 
       def update_registration_overlay
         registration = Lti::IMS::Registration.find(params[:registration_id])
-        # TODO: validate overlay against a schema
-        registration.registration_overlay = JSON.parse(request.body.read)
-        registration.save!
-        registration.update_external_tools!
+        # Historically, the overlay for an IMS Registration lived on its
+        # registration_overlay column. However, we're transitioning over to using
+        # the Lti::Overlay and Lti::Registration models, so that more than just Dynamic
+        # Registrations can be overlaid, hence the reason for keeping two data
+        # sources in sync.
+        Lti::IMS::Registration.transaction do
+          registration_overlay = JSON.parse(request.body.read)
+          overlay = registration.lti_registration.overlay_for(@context)
+
+          # Let the registration validate the data they passed
+          registration.update!(registration_overlay:)
+
+          # also update the DK scopes
+          if registration_overlay["disabledScopes"].present?
+            registration.developer_key.update!(scopes: registration.scopes - registration_overlay["disabledScopes"])
+          end
+
+          data = Schemas::Lti::IMS::RegistrationOverlay.to_lti_overlay(registration_overlay)
+
+          if overlay.blank?
+            Lti::Overlay.create!(registration: registration.lti_registration,
+                                 updated_by: @current_user,
+                                 account: account_context,
+                                 data:)
+          else
+            overlay.update!(data:, updated_by: @current_user)
+          end
+          registration.update_external_tools!
+        end
         render json: registration
       end
 
+      # @API Create a Dynamic Registration
+      # The final step of the Dynamic Registration process.
+      # Refer to the Registration guide linked at the top of this page for usage of this endpoint.
+      # Requires special Dynamic Registration token and is not for out-of-band use.
       def create
         access_token = AuthenticationMethods.access_token(request)
         jwt = Canvas::Security.decode_jwt(access_token)
 
-        expected_jwt_keys = %w[user_id initiated_at root_account_global_id exp uuid]
-
+        expected_jwt_keys = %w[user_id initiated_at root_account_global_id exp uuid unified_tool_id registration_url]
         if jwt.keys.sort != expected_jwt_keys.sort
           respond_with_error(:unauthorized, "JWT did not include expected contents")
           return
@@ -115,34 +155,32 @@ module Lti
           return
         end
 
-        unless root_account.feature_enabled? :lti_dynamic_registration
-          render status: :not_found, template: "shared/errors/404_message"
-          return
-        end
+        Schemas::Lti::IMS::OidcRegistration.to_model_attrs(params.to_unsafe_h) =>
+          {errors:, registration_attrs:}
+        return render status: :unprocessable_entity, json: { errors: } if errors.present?
+
+        registration_url = jwt["registration_url"]
 
         root_account.shard.activate do
-          registration_params = params.permit(*expected_registration_params)
-          registration_params["lti_tool_configuration"] = registration_params["https://purl.imsglobal.org/spec/lti-tool-configuration"]
-          registration_params.delete("https://purl.imsglobal.org/spec/lti-tool-configuration")
-          scopes = registration_params["scope"].split
-          registration_params.delete("scope")
-
           developer_key = DeveloperKey.new(
-            name: registration_params["client_name"],
+            current_user: User.find(jwt["user_id"]),
+            name: registration_attrs["client_name"],
             account: root_account.site_admin? ? nil : root_account,
-            redirect_uris: registration_params["redirect_uris"],
-            public_jwk_url: registration_params["jwks_uri"],
-            oidc_initiation_url: registration_params["initiate_login_uri"],
+            redirect_uris: registration_attrs["redirect_uris"],
+            public_jwk_url: registration_attrs["jwks_uri"],
+            oidc_initiation_url: registration_attrs["initiate_login_uri"],
             is_lti_key: true,
-            scopes:,
-            icon_url: registration_params["logo_uri"]
+            scopes: registration_attrs["scopes"],
+            icon_url: registration_attrs["logo_uri"]
           )
+
           registration = Lti::IMS::Registration.new(
             developer_key:,
             root_account_id: root_account.id,
-            scopes:,
             guid: jwt["uuid"],
-            **registration_params
+            unified_tool_id: jwt["unified_tool_id"],
+            registration_url:,
+            **registration_attrs
           )
 
           ActiveRecord::Base.transaction do
@@ -159,20 +197,43 @@ module Lti
         redirect_to account_developer_key_view_url(registration.root_account_id, registration.developer_key_id)
       end
 
+      def dr_iframe
+        @dr_url = params.require(:url)
+        token = CGI.parse(URI.parse(@dr_url).query)["registration_token"].first
+        jwt = Canvas::Security.decode_jwt(token)
+
+        if jwt["root_account_global_id"] != @context.global_id
+          render status: :unauthorized,
+                 json: {
+                   errorMessage: "Invalid root_account_id in registration_token"
+                 }
+          return
+        end
+        if jwt["user_id"] != @current_user.id
+          render status: :unauthorized,
+                 json: {
+                   errorMessage: "registration_token was created for a different user"
+                 }
+          return
+        end
+        request.env["dynamic_reg_url_csp"] = @dr_url
+        render("lti/ims/dynamic_registration/dr_iframe", layout: false, formats: :html)
+      end
+
       private
 
       def render_registration(registration, developer_key)
         render json: {
           client_id: developer_key.global_id.to_s,
-          application_type: registration.application_type,
-          grant_types: registration.grant_types,
+          application_type: Lti::IMS::Registration::REQUIRED_APPLICATION_TYPE,
+          grant_types: Lti::IMS::Registration::REQUIRED_GRANT_TYPES,
           initiate_login_uri: registration.initiate_login_uri,
           redirect_uris: registration.redirect_uris,
-          response_types: registration.response_types,
+          response_types: [Lti::IMS::Registration::REQUIRED_RESPONSE_TYPE],
           client_name: registration.client_name,
           jwks_uri: registration.jwks_uri,
           logo_uri: developer_key.icon_url,
-          token_endpoint_auth_method: registration.token_endpoint_auth_method,
+          token_endpoint_auth_method: Lti::IMS::Registration::REQUIRED_TOKEN_ENDPOINT_AUTH_METHOD,
           scope: registration.scopes.join(" "),
           "https://purl.imsglobal.org/spec/lti-tool-configuration": registration.lti_tool_configuration.merge(
             {
@@ -183,55 +244,10 @@ module Lti
       end
 
       def respond_with_error(status_code, message)
-        head status_code
-        render json: {
-          errorMessage: message
-        }
-      end
-
-      def require_dynamic_registration_flag
-        unless account_context.feature_enabled? :lti_dynamic_registration
-          render status: :not_found, template: "shared/errors/404_message"
-        end
-      end
-
-      def expected_registration_params
-        [
-          :application_type,
-          { grant_types: [] },
-          { response_types: [] },
-          { redirect_uris: [] },
-          :initiate_login_uri,
-          :client_name,
-          :jwks_uri,
-          :scope,
-          :token_endpoint_auth_method,
-          { "https://purl.imsglobal.org/spec/lti-tool-configuration" => [
-            :domain,
-            {
-              messages:
-              [
-                :type,
-                :target_link_uri,
-                :label,
-                :icon_uri,
-                { custom_parameters: ArbitraryStrongishParams::ANYTHING },
-                { roles: [] },
-                { placements: [] },
-                Lti::IMS::Registration::COURSE_NAV_DEFAULT_ENABLED_EXTENSION,
-                Lti::IMS::Registration::PLACEMENT_VISIBILITY_EXTENSION
-              ]
-            },
-            { claims: [] },
-            :target_link_uri,
-            { custom_parameters: ArbitraryStrongishParams::ANYTHING },
-            "https://#{Lti::IMS::Registration::CANVAS_EXTENSION_LABEL}/lti/privacy_level"
-          ] },
-          :client_uri,
-          :logo_uri,
-          :tos_uri,
-          :policy_uri,
-        ]
+        render status: status_code,
+               json: {
+                 errorMessage: message
+               }
       end
     end
   end

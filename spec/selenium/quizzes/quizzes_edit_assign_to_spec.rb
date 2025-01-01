@@ -22,6 +22,8 @@ require_relative "page_objects/quizzes_edit_page"
 require_relative "page_objects/quizzes_landing_page"
 require_relative "../helpers/items_assign_to_tray"
 require_relative "../helpers/context_modules_common"
+require_relative "../../helpers/selective_release_common"
+require_relative "../helpers/admin_settings_common"
 
 describe "quiz edit page assign to" do
   include_context "in-process server selenium tests"
@@ -30,9 +32,10 @@ describe "quiz edit page assign to" do
   include ItemsAssignToTray
   include ContextModulesCommon
   include QuizzesCommon
+  include SelectiveReleaseCommon
 
   before :once do
-    differentiated_modules_on
+    Account.site_admin.disable_feature!(:selective_release_edit_page)
 
     course_with_teacher(active_all: true)
     @quiz_assignment = @course.assignments.create
@@ -84,7 +87,7 @@ describe "quiz edit page assign to" do
 
     expect(@classic_quiz.assignment_overrides.last.assignment_override_students.count).to eq(1)
 
-    due_at_row = retrieve_quiz_due_date_table_row("1 student")
+    due_at_row = retrieve_quiz_due_date_table_row("1 Student")
     expect(due_at_row).not_to be_nil
     expect(due_at_row.text.split("\n").first).to include("Dec 31, 2022")
     expect(due_at_row.text.split("\n").third).to include("Dec 27, 2022")
@@ -172,5 +175,136 @@ describe "quiz edit page assign to" do
     keep_trying_until { expect(item_tray_exists?).to be_truthy }
 
     check_element_has_focus close_button
+  end
+
+  it "does not recover a deleted card when adding an assignee" do
+    # Bug fix of LX-1619
+    get "/courses/#{@course.id}/quizzes/#{@classic_quiz.id}/edit"
+    click_manage_assign_to_button
+
+    wait_for_assign_to_tray_spinner
+    keep_trying_until { expect(item_tray_exists?).to be_truthy }
+
+    click_add_assign_to_card
+    click_delete_assign_to_card(0)
+    select_module_item_assignee(0, @student2.name)
+
+    expect(selected_assignee_options.count).to be(1)
+  end
+
+  context "sync to sis" do
+    include AdminSettingsCommon
+    include ItemsAssignToTray
+
+    let(:due_date) { 3.years.from_now }
+
+    before do
+      account_model
+      @account.set_feature_flag! "post_grades", "on"
+      course_with_teacher_logged_in(active_all: true, account: @account)
+      turn_on_sis_settings(@account)
+      @account.settings[:sis_require_assignment_due_date] = { value: true }
+      @account.save!
+      @student1 = student_in_course(course: @course, active_all: true, name: "Student 1").user
+      @quiz = course_quiz
+      @quiz.post_to_sis = "1"
+    end
+
+    it "validates due date inputs when sync to sis is enabled", :ignore_js_errors do
+      get "/courses/#{@course.id}/quizzes/#{@quiz.id}/edit"
+
+      click_manage_assign_to_button
+
+      wait_for_assign_to_tray_spinner
+
+      expect(assign_to_date_and_time[0].text).not_to include("Please add a due date")
+
+      click_add_assign_to_card
+      select_module_item_assignee(1, @student1.name)
+
+      click_save_button("Apply")
+      keep_trying_until { expect(element_exists?(module_item_edit_tray_selector)).to be_falsey }
+
+      click_post_to_sis_checkbox
+      click_manage_assign_to_button
+
+      wait_for_assign_to_tray_spinner
+      keep_trying_until { expect(item_tray_exists?).to be_truthy }
+
+      expect(assign_to_date_and_time[0].text).to include("Please add a due date")
+
+      update_due_date(0, format_date_for_view(due_date, "%-m/%-d/%Y"))
+      update_due_time(0, "11:59 PM")
+      update_due_date(1, format_date_for_view(due_date, "%-m/%-d/%Y"))
+      click_save_button("Apply")
+      keep_trying_until { expect(element_exists?(module_item_edit_tray_selector)).to be_falsey }
+    end
+
+    it "blocks saving empty due dates when enabled", :ignore_js_errors do
+      get "/courses/#{@course.id}/quizzes/#{@quiz.id}/edit"
+
+      click_post_to_sis_checkbox
+
+      wait_for_ajaximations
+
+      expect(driver.current_url).to include("edit")
+
+      click_quiz_save_button
+
+      expect_instui_flash_message("Please set a due date or change your selection for the “Sync to SIS” option.")
+
+      click_manage_assign_to_button
+
+      wait_for_assign_to_tray_spinner
+      keep_trying_until { expect(item_tray_exists?).to be_truthy }
+
+      expect(assign_to_date_and_time[0].text).to include("Please add a due date")
+
+      update_due_date(0, format_date_for_view(Time.zone.now, "%-m/%-d/%Y"))
+      update_due_time(0, "11:59 PM")
+      click_save_button("Apply")
+      keep_trying_until { expect(element_exists?(module_item_edit_tray_selector)).to be_falsey }
+
+      expect(is_checked(post_to_sis_checkbox_selector)).to be_truthy
+    end
+
+    it "does not block empty due dates when disabled" do
+      get "/courses/#{@course.id}/quizzes/#{@quiz.id}/edit"
+
+      expect(is_checked(post_to_sis_checkbox_selector)).to be_falsey
+      click_quiz_save_button
+      expect(driver.current_url).not_to include("edit")
+
+      get "/courses/#{@course.id}/quizzes/#{@quiz.id}/edit"
+      expect(is_checked(post_to_sis_checkbox_selector)).to be_falsey
+    end
+
+    it "validates due date when user checks/unchecks the option", :ignore_js_errors do
+      get "/courses/#{@course.id}/quizzes/#{@quiz.id}/edit"
+
+      click_manage_assign_to_button
+      wait_for_assign_to_tray_spinner
+      keep_trying_until { expect(item_tray_exists?).to be_truthy }
+
+      expect(assign_to_date_and_time[0].text).not_to include("Please add a due date")
+
+      click_cancel_button
+      keep_trying_until { expect(element_exists?(module_item_edit_tray_selector)).to be_falsey }
+
+      click_post_to_sis_checkbox
+      click_manage_assign_to_button
+      wait_for_assign_to_tray_spinner
+      keep_trying_until { expect(item_tray_exists?).to be_truthy }
+
+      expect(assign_to_date_and_time[0].text).to include("Please add a due date")
+
+      update_due_date(0, format_date_for_view(Time.zone.now, "%-m/%-d/%Y"))
+      update_due_time(0, "11:59 PM")
+      click_save_button("Apply")
+      keep_trying_until { expect(element_exists?(module_item_edit_tray_selector)).to be_falsey }
+
+      click_quiz_save_button
+      expect(driver.current_url).not_to include("edit")
+    end
   end
 end

@@ -18,7 +18,7 @@
 
 import $ from 'jquery'
 import ready from '@instructure/ready'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import htmlEscape from '@instructure/html-escape'
 import {loadSignupDialog} from '@canvas/signup-dialog'
 import 'jquery-fancy-placeholder' /* fancyPlaceholder */
@@ -26,16 +26,18 @@ import '@canvas/jquery/jquery.instructure_forms' /* formSubmit, getFormData, for
 import '@canvas/loading-image'
 import '@canvas/rails-flash-notifications'
 
-const I18n = useI18nScope('pseudonyms.login')
+const I18n = createI18nScope('pseudonyms.login')
 
 $('#coenrollment_link').click(function (event) {
   event.preventDefault()
   const template = $(this).data('template')
   const path = $(this).data('path')
   loadSignupDialog
+    // @ts-ignore
     .then(signupDialog => {
       signupDialog(template, I18n.t('parent_signup', 'Parent Signup'), path)
     })
+    // @ts-ignore
     .catch(error => {
       throw new Error('Failed to load signup dialog', error)
     })
@@ -65,6 +67,7 @@ $('#forgot_password_form').formSubmit({
     // Focus on the close button of the alert we just put up, per a11y
     $('#flash_message_holder button.close_link').focus()
   },
+  // @ts-expect-error
   error(_data) {
     $(this).loadingImage('remove')
   },

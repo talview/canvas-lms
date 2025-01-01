@@ -17,17 +17,19 @@
  */
 
 import React, {useCallback, useMemo} from 'react'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import ClearableDateTimeInput from './ClearableDateTimeInput'
 import type {CustomDateTimeInputProps} from './types'
 import {generateMessages} from './utils'
 
-const I18n = useI18nScope('differentiated_modules')
+const I18n = createI18nScope('differentiated_modules')
 
 type AvailableFromDateTimeInputProps = CustomDateTimeInputProps & {
   availableFromDate: string | null
   setAvailableFromDate: (availableFromDate: string | null) => void
   handleAvailableFromDateChange: (_event: React.SyntheticEvent, value: string | undefined) => void
+  disabledWithGradingPeriod?: boolean
+  clearButtonAltLabel: string
 }
 
 export function AvailableFromDateTimeInput({
@@ -40,16 +42,20 @@ export function AvailableFromDateTimeInput({
   dateInputRefs,
   timeInputRefs,
   handleBlur,
+  disabledWithGradingPeriod,
+  clearButtonAltLabel,
   ...otherProps
 }: AvailableFromDateTimeInputProps) {
   const key = 'unlock_at'
   const handleClear = useCallback(() => setAvailableFromDate(null), [setAvailableFromDate])
   const dateInputRef = useCallback(
+    // @ts-expect-error
     el => (dateInputRefs[key] = el),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   )
   const timeInputRef = useCallback(
+    // @ts-expect-error
     el => (timeInputRefs[key] = el),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
@@ -68,7 +74,8 @@ export function AvailableFromDateTimeInput({
   const availableFromDateProps = {
     key,
     id: key,
-    disabled: Boolean(blueprintDateLocks?.includes('availability_dates')),
+    disabled:
+      Boolean(blueprintDateLocks?.includes('availability_dates')) || disabledWithGradingPeriod,
     description: I18n.t('Choose an available from date and time'),
     dateRenderLabel: I18n.t('Available from'),
     value: availableFromDate,
@@ -78,6 +85,7 @@ export function AvailableFromDateTimeInput({
     onBlur,
     dateInputRef,
     timeInputRef,
+    clearButtonAltLabel,
   }
 
   return <ClearableDateTimeInput {...availableFromDateProps} {...otherProps} />

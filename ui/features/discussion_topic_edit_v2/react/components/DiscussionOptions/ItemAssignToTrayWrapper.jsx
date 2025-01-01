@@ -17,9 +17,11 @@
  */
 
 import React, {useContext, useEffect, useState} from 'react'
-import {GradedDiscussionDueDatesContext} from '../../util/constants'
+import {DiscussionDueDatesContext} from '../../util/constants'
 import DifferentiatedModulesSection from '@canvas/due-dates/react/DifferentiatedModulesSection'
+import AssignToContent from '@canvas/due-dates/react/AssignToContent'
 import LoadingIndicator from '@canvas/loading-indicator'
+import {View} from '@instructure/ui-view'
 
 const DEFAULT_SECTION_ID = '0'
 
@@ -30,8 +32,13 @@ export const ItemAssignToTrayWrapper = () => {
     title,
     assignmentID,
     importantDates,
+    setImportantDates,
     pointsPossible,
-  } = useContext(GradedDiscussionDueDatesContext)
+    isGraded,
+    isCheckpoints,
+    postToSis,
+    groupCategoryId,
+  } = useContext(DiscussionDueDatesContext)
 
   const [overrides, setOverrides] = useState([])
   const [loading, setLoading] = useState(true)
@@ -41,9 +48,10 @@ export const ItemAssignToTrayWrapper = () => {
     if (assignedInfoList.length > 0) {
       const newOverrides = assignedInfoList.map(convertToOverrideObject)
       setOverrides(newOverrides)
-      setLoading(false) // Data is loaded and processed
     }
-  }, [assignedInfoList])
+    setLoading(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Convert the assignedInfoList to the expected shape for the DifferentiatedModulesSection
   function convertToOverrideObject(inputObj) {
@@ -51,15 +59,22 @@ export const ItemAssignToTrayWrapper = () => {
       due_at: inputObj.dueDate || null,
       lock_at: inputObj.availableUntil || null,
       unlock_at: inputObj.availableFrom || null,
+      reply_to_topic_due_at: inputObj.replyToTopicDueDate || null,
+      required_replies_due_at: inputObj.requiredRepliesDueDate || null,
       due_at_overridden: true,
       all_day: false,
       all_day_date: null,
       unlock_at_overridden: true,
+      reply_to_topic_due_at_overridden: true,
+      required_replies_due_at_overridden: true,
       lock_at_overridden: true,
+      unassign_item: inputObj.unassignItem || false,
       id: inputObj.dueDateId,
       noop_id: null,
       stagedOverrideId: inputObj.stagedOverrideId || null,
       rowKey: inputObj.rowKey || null,
+      replyToEntryOverrideId: inputObj.replyToEntryOverrideId || null,
+      replyToTopicOverrideId: inputObj.replyToTopicOverrideId || null,
     }
 
     // Add context_module_id and context_module_name fields if they exist on inputObj
@@ -72,7 +87,6 @@ export const ItemAssignToTrayWrapper = () => {
 
     let courseSectionId = null
     const studentIds = []
-    const groupIds = []
 
     inputObj.assignedList.forEach(item => {
       if (item === 'everyone') {
@@ -95,18 +109,20 @@ export const ItemAssignToTrayWrapper = () => {
       } else if (type === 'user') {
         studentIds.push(id)
       } else if (type === 'group') {
-        groupIds.push(id)
+        outputObj.group_id = id
+        outputObj.title = inputObj.title
+      } else if (type === 'course') {
+        outputObj.course_id = id
       }
     })
 
     if (courseSectionId) {
       outputObj.course_section_id = courseSectionId
+      outputObj.title = inputObj.title
     }
     if (studentIds.length > 0) {
       outputObj.student_ids = studentIds
-    }
-    if (groupIds.length > 0) {
-      outputObj.group_ids = groupIds
+      outputObj.students = inputObj.students?.map(student => ({...student, id: student._id}))
     }
 
     return outputObj
@@ -116,13 +132,18 @@ export const ItemAssignToTrayWrapper = () => {
     const outputObj = {
       dueDateId: inputObj.rowKey || inputObj.stagedOverrideId || null,
       assignedList: [],
+      replyToTopicDueDate: inputObj.reply_to_topic_due_at || null,
+      requiredRepliesDueDate: inputObj.required_replies_due_at || null,
       dueDate: inputObj.due_at ? inputObj.due_at : null,
-      availableFrom: inputObj.unlock_at_overridden ? inputObj.unlock_at : null,
-      availableUntil: inputObj.lock_at_overridden ? inputObj.lock_at : null,
+      availableFrom: inputObj.unlock_at || null,
+      availableUntil: inputObj.lock_at || null,
+      unassignItem: inputObj.unassign_item || false,
       context_module_id: inputObj.context_module_id || null,
       context_module_name: inputObj.context_module_name || null,
       stagedOverrideId: inputObj.stagedOverrideId || null,
       rowKey: inputObj.rowKey || null,
+      replyToEntryOverrideId: inputObj.replyToEntryOverrideId || null,
+      replyToTopicOverrideId: inputObj.replyToTopicOverrideId || null,
     }
 
     if (inputObj.noop_id === '1') {
@@ -132,31 +153,45 @@ export const ItemAssignToTrayWrapper = () => {
         outputObj.assignedList.push('everyone')
       } else {
         outputObj.assignedList.push('course_section_' + inputObj.course_section_id)
+        outputObj.title = inputObj.title
       }
     } else if (inputObj.student_ids) {
       inputObj.student_ids.forEach(id => {
         outputObj.assignedList.push('user_' + id)
       })
+      outputObj.students = inputObj.students?.map(student => ({...student, id: student._id}))
+    } else if (inputObj.course_id) {
+      outputObj.assignedList.push('course_' + inputObj.course_id)
+    } else if (inputObj.group_id) {
+      outputObj.assignedList.push('group_' + inputObj.group_id)
+      outputObj.title = inputObj.title
     }
 
-    if (!inputObj.course_section_id && !inputObj.student_ids && !inputObj.noop_id) {
+    if (
+      !inputObj.course_section_id &&
+      !inputObj.course_id &&
+      !inputObj.student_ids &&
+      !inputObj.noop_id &&
+      !inputObj.group_id
+    ) {
       outputObj.assignedList.push('everyone')
     }
 
     return outputObj
   }
 
-  const onSync = assigneeInfoUpdateOverrides => {
-    const outputArray = []
-
-    assigneeInfoUpdateOverrides.forEach(inputObj => {
-      const outputObj = convertToAssignedInfoListObject(inputObj)
-      outputArray.push(outputObj)
-    })
-
-    // convert overrides to the expected assignedInfoList shape
-    // Then Set the assignedInfoList
-    setAssignedInfoList(outputArray)
+  const onSync = (assigneeInfoUpdateOverrides, newImportantDatesValue) => {
+    if (assigneeInfoUpdateOverrides) {
+      const outputArray = []
+      assigneeInfoUpdateOverrides.forEach(inputObj => {
+        const outputObj = convertToAssignedInfoListObject(inputObj)
+        outputArray.push(outputObj)
+      })
+      // convert overrides to the expected assignedInfoList shape
+      // Then Set the assignedInfoList
+      setAssignedInfoList(outputArray)
+    }
+    setImportantDates(newImportantDatesValue)
   }
 
   if (loading) {
@@ -164,16 +199,37 @@ export const ItemAssignToTrayWrapper = () => {
   }
 
   return (
-    <DifferentiatedModulesSection
-      onSync={onSync}
-      overrides={overrides}
-      assignmentId={assignmentID}
-      assignmentName={title}
-      pointsPossible={pointsPossible}
-      type="discussion"
-      importantDates={importantDates}
-      defaultSectionId={DEFAULT_SECTION_ID}
-    />
+    <View as="div" maxWidth="478px">
+      {ENV.FEATURES?.selective_release_edit_page ? (
+        <AssignToContent
+          onSync={onSync}
+          overrides={overrides}
+          assignmentId={assignmentID}
+          defaultGroupCategoryId={groupCategoryId}
+          importantDates={importantDates}
+          defaultSectionId={DEFAULT_SECTION_ID}
+          supportDueDates={isGraded}
+          type="discussion"
+          isCheckpointed={isCheckpoints}
+          postToSIS={postToSis}
+        />
+      ) : (
+        <DifferentiatedModulesSection
+          onSync={onSync}
+          overrides={overrides}
+          assignmentId={assignmentID}
+          getAssignmentName={() => title}
+          getPointsPossible={() => pointsPossible}
+          getGroupCategoryId={() => groupCategoryId}
+          type="discussion"
+          importantDates={importantDates}
+          defaultSectionId={DEFAULT_SECTION_ID}
+          supportDueDates={isGraded}
+          isCheckpointed={isCheckpoints}
+          postToSIS={postToSis}
+        />
+      )}
+    </View>
   )
 }
 

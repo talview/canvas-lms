@@ -15,7 +15,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import Backbone from '@canvas/backbone'
 import template from '../../jst/index.handlebars'
@@ -26,8 +26,9 @@ import ReactDOM from 'react-dom'
 import {TextInput} from '@instructure/ui-text-input'
 import {IconSearchLine} from '@instructure/ui-icons'
 import {ScreenReaderContent} from '@instructure/ui-a11y-content'
+import {initializeTopNavPortalWithDefaults} from '@canvas/top-navigation/react/TopNavPortalWithDefaults'
 
-const I18n = useI18nScope('RosterView')
+const I18n = createI18nScope('RosterView')
 
 export default class RosterView extends Backbone.View {
   static initClass() {
@@ -55,9 +56,19 @@ export default class RosterView extends Backbone.View {
       '#addUsers': '$addUsersButton',
       '#createUsersModalHolder': '$createUsersModalHolder',
     }
+    const handleBreadCrumbSetter = ({getCrumbs, setCrumbs}) => {
+      const crumbs = getCrumbs()
+      crumbs.push({name: I18n.t('People'), url: ''})
+      setCrumbs(crumbs)
+    }
+    initializeTopNavPortalWithDefaults({
+      getBreadCrumbSetter: handleBreadCrumbSetter,
+      useStudentView: true,
+    })
   }
 
   afterRender() {
+     
     ReactDOM.render(
       <TextInput
         onChange={e => {
@@ -84,9 +95,7 @@ export default class RosterView extends Backbone.View {
     this.$addUsersButton.on('click', this.showCreateUsersModal.bind(this))
 
     const canReadSIS = 'permissions' in ENV ? !!ENV.permissions.read_sis : true
-    const canAddUser = ENV.FEATURES.granular_permissions_manage_users
-      ? role => role.addable_by_user
-      : role => role.manageable_by_user
+    const canAddUser = role => role.addable_by_user
 
     return (this.addPeopleApp = new AddPeopleApp(this.$createUsersModalHolder[0], {
       courseId: (ENV.course && ENV.course.id) || 0,

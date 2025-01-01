@@ -20,8 +20,8 @@ import React, {useEffect, useRef, useState} from 'react'
 import {Popover} from '@instructure/ui-popover'
 import {IconButton} from '@instructure/ui-buttons'
 import {IconMoreLine, IconTrashLine, IconUserLine, IconUpdownLine} from '@instructure/ui-icons'
-import {useScope as useI18nScope} from '@canvas/i18n'
-import {Menu} from '@instructure/ui-menu'
+import {useScope as createI18nScope} from '@canvas/i18n'
+import {Menu, type MenuItem} from '@instructure/ui-menu'
 import {Text} from '@instructure/ui-text'
 import {Flex} from '@instructure/ui-flex'
 import {AccessibleContent} from '@instructure/ui-a11y-content'
@@ -43,15 +43,15 @@ type MenuItemProps = {
   alt: string
   icon: React.ReactNode
   text: string
-  setRef?: (ref: HTMLElement) => void
+  setRef?: (ref: MenuItem | null) => void
 }
 
-const I18n = useI18nScope('groups')
+const I18n = createI18nScope('groups')
 
 export const GroupUserMenu = ({...props}: Props): JSX.Element => {
   const [isOpen, setIsOpen] = useState<boolean>(false)
   const triggerButtonRef = useRef<HTMLElement | null>(null)
-  const firstMenuItemRef = useRef<HTMLElement | null>(null)
+  const firstMenuItemRef = useRef<MenuItem | null>(null)
 
   useEffect(() => {
     if (isOpen && firstMenuItemRef.current) {
@@ -132,8 +132,10 @@ export const GroupUserMenu = ({...props}: Props): JSX.Element => {
             as="span"
             data-testid="groupUserMenu"
             data-userid={props.userId}
-            elementRef={(el: HTMLElement) => {
-              triggerButtonRef.current = el
+            elementRef={(el: Element | null) => {
+              if (el instanceof HTMLElement) {
+                triggerButtonRef.current = el
+              }
             }}
           >
             <IconMoreLine />
@@ -164,7 +166,9 @@ export const GroupUserMenu = ({...props}: Props): JSX.Element => {
             icon: <IconTrashLine size="x-small" />,
             text: I18n.t('Remove'),
             setRef: ref => {
-              firstMenuItemRef.current = ref
+              if (ref instanceof HTMLElement) {
+                firstMenuItemRef.current = ref
+              }
             },
           })}
           {renderMenuItem({

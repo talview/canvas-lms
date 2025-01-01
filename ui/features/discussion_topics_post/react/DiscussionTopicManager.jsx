@@ -17,24 +17,25 @@
  */
 
 import {DISCUSSION_QUERY} from '../graphql/Queries'
-import {DiscussionTopicToolbarContainer} from './containers/DiscussionTopicToolbarContainer/DiscussionTopicToolbarContainer'
 import {DiscussionTopicRepliesContainer} from './containers/DiscussionTopicRepliesContainer/DiscussionTopicRepliesContainer'
 import {DiscussionTopicContainer} from './containers/DiscussionTopicContainer/DiscussionTopicContainer'
 import errorShipUrl from '@canvas/images/ErrorShip.svg'
 import GenericErrorPage from '@canvas/generic-error-page'
-import {getOptimisticResponse, responsiveQuerySizes} from './utils'
+import {getOptimisticResponse, responsiveQuerySizes, getCheckpointSubmission} from './utils'
 import {
   HIGHLIGHT_TIMEOUT,
   SearchContext,
   DiscussionManagerUtilityContext,
   AllThreadsState,
+  REPLY_TO_TOPIC,
+  REPLY_TO_ENTRY,
+  isSpeedGraderInTopUrl,
 } from './utils/constants'
-import {useScope as useI18nScope} from '@canvas/i18n'
-import LoadingIndicator from '@canvas/loading-indicator'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {NoResultsFound} from './components/NoResultsFound/NoResultsFound'
 import PropTypes from 'prop-types'
 import React, {useEffect, useRef, useState} from 'react'
-import {useQuery} from 'react-apollo'
+import {useQuery} from '@apollo/client'
 import {SplitScreenViewContainer} from './containers/SplitScreenViewContainer/SplitScreenViewContainer'
 import {DrawerLayout} from '@instructure/ui-drawer-layout'
 import {Mask} from '@instructure/ui-overlays'
@@ -42,18 +43,32 @@ import {Responsive} from '@instructure/ui-responsive'
 import {View} from '@instructure/ui-view'
 import useCreateDiscussionEntry from './hooks/useCreateDiscussionEntry'
 import {flushSync} from 'react-dom'
+import {captureException} from '@sentry/react'
+import {LoadingSpinner} from './components/LoadingSpinner/LoadingSpinner'
+import useNavigateEntries from './hooks/useNavigateEntries'
+import WithBreakpoints, {breakpointsShape} from '@canvas/with-breakpoints'
+import DiscussionTopicToolbarContainer from './containers/DiscussionTopicToolbarContainer/DiscussionTopicToolbarContainer'
 
-const I18n = useI18nScope('discussion_topics_post')
+const I18n = createI18nScope('discussion_topics_post')
 
 const DiscussionTopicManager = props => {
   const [searchTerm, setSearchTerm] = useState('')
   const [filter, setFilter] = useState('all')
   const [unreadBefore, setUnreadBefore] = useState('')
-  const [sort, setSort] = useState('desc')
+  const [sort, setSort] = useState(null)
   const [pageNumber, setPageNumber] = useState(ENV.current_page)
   const [searchPageNumber, setSearchPageNumber] = useState(0)
   const [allThreadsStatus, setAllThreadsStatus] = useState(AllThreadsState.None)
   const [expandedThreads, setExpandedThreads] = useState([])
+  // This state is used to control the state of the topic RCE
+  const [expandedTopicReply, setExpandedTopicReply] = useState(false)
+  const translationEnabled = useRef(ENV?.discussion_translation_available ?? false)
+  const translationLanguages = useRef(ENV?.discussion_translation_languages ?? [])
+  const [showTranslationControl, setShowTranslationControl] = useState(false)
+  // Start as null, populate when ready.
+  const [translateTargetLanguage, setTranslateTargetLanguage] = useState(null)
+  const [focusSelector, setFocusSelector] = useState('')
+
   const searchContext = {
     searchTerm,
     setSearchTerm,
@@ -69,11 +84,12 @@ const DiscussionTopicManager = props => {
     setAllThreadsStatus,
     expandedThreads,
     setExpandedThreads,
+    discussionID: props.discussionTopicId,
+    perPage: ENV.per_page,
   }
   const [userSplitScreenPreference, setUserSplitScreenPreference] = useState(
-    ENV.DISCUSSION?.preferences?.discussions_splitscreen_view || false
+    (!isSpeedGraderInTopUrl && ENV.DISCUSSION?.preferences?.discussions_splitscreen_view) || false
   )
-
   const goToTopic = () => {
     setSearchTerm('')
     closeView()
@@ -88,7 +104,8 @@ const DiscussionTopicManager = props => {
 
   // split screen view
   const [isSplitScreenViewOpen, setSplitScreenViewOpen] = useState(
-    ENV.DISCUSSION?.preferences?.discussions_splitscreen_view &&
+    !isSpeedGraderInTopUrl &&
+      ENV.DISCUSSION?.preferences?.discussions_splitscreen_view &&
       !!(ENV.discussions_deep_link?.parent_id
         ? ENV.discussions_deep_link?.parent_id
         : ENV.discussions_deep_link?.entry_id)
@@ -101,7 +118,8 @@ const DiscussionTopicManager = props => {
   const [highlightEntryId, setHighlightEntryId] = useState(ENV.discussions_deep_link?.entry_id)
   const [relativeEntryId, setRelativeEntryId] = useState(null)
 
-  const [isUserMissingInitialPost, setIsUserMissingInitialPost] = useState(null)
+  const [replyToTopicSubmission, setReplyToTopicSubmission] = useState({})
+  const [replyToEntrySubmission, setReplyToEntrySubmission] = useState({})
 
   const [isGradedDiscussion, setIsGradedDiscussion] = useState(false)
 
@@ -110,6 +128,8 @@ const DiscussionTopicManager = props => {
 
   const usedThreadingToolbarChildRef = useRef(null)
 
+  const [isSummaryEnabled, setIsSummaryEnabled] = useState(ENV.discussion_summary_enabled || false)
+
   const discussionManagerUtilities = {
     replyFromId,
     setReplyFromId,
@@ -117,24 +137,26 @@ const DiscussionTopicManager = props => {
     setUserSplitScreenPreference,
     highlightEntryId,
     setHighlightEntryId,
+    setPageNumber,
+    expandedThreads,
+    setExpandedThreads,
+    focusSelector,
+    setFocusSelector,
     setIsGradedDiscussion,
     isGradedDiscussion,
     usedThreadingToolbarChildRef,
+    translationEnabled,
+    translationLanguages,
+    showTranslationControl,
+    setShowTranslationControl,
+    translateTargetLanguage,
+    setTranslateTargetLanguage,
+    isSummaryEnabled,
+    setIsSummaryEnabled,
   }
 
-  const isModuleItem = ENV.SEQUENCE != null
-
-  // Unread filter
-  // This introduces a double query for DISCUSSION_QUERY when filter changes
-  useEffect(() => {
-    if (filter === 'unread' && !unreadBefore) {
-      setUnreadBefore(new Date(Date.now()).toISOString())
-    } else if (filter !== 'unread') {
-      setUnreadBefore('')
-    }
-    setPageNumber(0)
-    setSearchPageNumber(0)
-  }, [filter, unreadBefore])
+  const urlParams = new URLSearchParams(window.location.search)
+  const isPersistEnabled = urlParams.get('persist') === '1'
 
   // Reset search to 0 when inactive
   useEffect(() => {
@@ -146,20 +168,12 @@ const DiscussionTopicManager = props => {
   }, [pageNumber, searchPageNumber, searchTerm])
 
   useEffect(() => {
-    if (isTopicHighlighted) {
+    if (isTopicHighlighted && !isPersistEnabled) {
       setTimeout(() => {
         setIsTopicHighlighted(false)
       }, HIGHLIGHT_TIMEOUT)
     }
-  }, [isTopicHighlighted])
-
-  useEffect(() => {
-    if (highlightEntryId) {
-      setTimeout(() => {
-        setHighlightEntryId(null)
-      }, HIGHLIGHT_TIMEOUT)
-    }
-  }, [highlightEntryId])
+  }, [isPersistEnabled, isTopicHighlighted])
 
   /**
    * Opens a split-screen view for a discussion entry.
@@ -207,16 +221,69 @@ const DiscussionTopicManager = props => {
   const waitForUnreadFilter =
     (filter === 'unread' && !unreadBefore) || (filter !== 'unread' && unreadBefore)
 
-  // in some cases, we want to refresh the results rather that use the current cache:
-  // in the case: 'isUserMissingInitialPost' the cache is empty so we need to get the entries.
   const discussionTopicQuery = useQuery(DISCUSSION_QUERY, {
     variables,
-    fetchPolicy: isUserMissingInitialPost || searchTerm ? 'network-only' : 'cache-and-network',
+    fetchPolicy: searchTerm ? 'network-only' : 'cache-and-network',
     skip: waitForUnreadFilter,
+  })
+
+  const [firstRequest, setFirstRequest] = useState(true)
+  useEffect(() => {
+    if (!discussionTopicQuery.data || !firstRequest) return
+    setFirstRequest(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [discussionTopicQuery])
+
+  // Unread filter
+  // This introduces a double query for DISCUSSION_QUERY when filter changes
+  useEffect(() => {
+    if (filter === 'unread' && !unreadBefore) {
+      setUnreadBefore(new Date(Date.now()).toISOString())
+    } else if (filter !== 'unread') {
+      setUnreadBefore('')
+    }
+    if (firstRequest && ENV.current_page !== 0) return
+    setPageNumber(0)
+    setSearchPageNumber(0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, unreadBefore])
+
+  useEffect(() => {
+    if (highlightEntryId && !isPersistEnabled) {
+      setTimeout(() => {
+        setHighlightEntryId(null)
+      }, HIGHLIGHT_TIMEOUT)
+    }
+  }, [highlightEntryId, discussionTopicQuery.loading, isPersistEnabled])
+
+  useNavigateEntries({
+    highlightEntryId,
+    setHighlightEntryId,
+    setPageNumber,
+    expandedThreads,
+    setExpandedThreads,
+    setFocusSelector,
+    discussionID: props.discussionTopicId,
+    perPage: ENV.per_page,
+    sort,
   })
 
   useEffect(() => {
     setIsGradedDiscussion(!!discussionTopicQuery?.data?.legacyNode?.assignment)
+  }, [discussionTopicQuery])
+
+  const getSubmissionObject = (submissionsArray, submissionTag) => {
+    return submissionsArray.find(node => node.subAssignmentTag === submissionTag) || {}
+  }
+  // set initial checkpoint submission objects
+  useEffect(() => {
+    setTimeout(() => {
+      const submissionsArray =
+        discussionTopicQuery?.data?.legacyNode?.assignment?.mySubAssignmentSubmissionsConnection
+          ?.nodes || []
+      setReplyToTopicSubmission(getSubmissionObject(submissionsArray, REPLY_TO_TOPIC))
+      setReplyToEntrySubmission(getSubmissionObject(submissionsArray, REPLY_TO_ENTRY))
+    }, 0)
   }, [discussionTopicQuery])
 
   const updateCache = (cache, result) => {
@@ -227,15 +294,15 @@ const DiscussionTopicManager = props => {
       }
       const newDiscussionEntry = result.data.createDiscussionEntry.discussionEntry
       const currentDiscussion = JSON.parse(JSON.stringify(cache.readQuery(options)))
+      const isInitialPostRequired = currentDiscussion.legacyNode.initialPostRequiredForCurrentUser
 
       // if the current user hasn't made the required inital post, then this entry will be it.
-      // In that case, we are required to do a page refresh to get all the entries (implemented with isUserMissingInitialPost)
-      // thus we bascially want to not do 'else if (currentDiscussion && newDiscussionEntry)' which contains updateCache logic.
-      // Discussion.initialPostRequiredForCurrentUser is based on user and topic so if the user meets this reuqire, then
+      // In that case, we are required to do a page refresh to get all the entries (implemented in onComplete, as updateCache is fired twice,
+      // once for the optimistic response, and once for the real one...)
+      // thus we basically want to not do this if that contains updateCache logic.
+      // Discussion.initialPostRequiredForCurrentUser is based on user and topic so if the user meets this requirement, then
       // this doesnt run and caching resumes as normal.
-      if (currentDiscussion.legacyNode.initialPostRequiredForCurrentUser) {
-        setIsUserMissingInitialPost(currentDiscussion.legacyNode.initialPostRequiredForCurrentUser)
-      } else if (currentDiscussion && newDiscussionEntry) {
+      if (!isInitialPostRequired && currentDiscussion && newDiscussionEntry) {
         // if we have a new entry update the counts, because we are about to add to the cache (something useMutation dont do, that useQuery does)
         currentDiscussion.legacyNode.entryCounts.repliesCount += 1
         // add the new entry to the current entries in the cache
@@ -246,26 +313,42 @@ const DiscussionTopicManager = props => {
         }
         cache.writeQuery({...options, data: currentDiscussion})
       }
+
+      if (result.data.createDiscussionEntry.mySubAssignmentSubmissions?.length > 0) {
+        const submissionsArray = result.data.createDiscussionEntry.mySubAssignmentSubmissions
+        currentDiscussion.legacyNode.assignment.mySubAssignmentSubmissionsConnection.nodes =
+          submissionsArray
+        cache.writeQuery({...options, data: currentDiscussion})
+      }
     } catch (e) {
       discussionTopicQuery.refetch(variables)
     }
   }
 
-  const onEntryCreationCompletion = data => {
-    setHighlightEntryId(data.createDiscussionEntry.discussionEntry._id)
-    if (sort === 'asc') {
-      setPageNumber(discussionTopicQuery.data.legacyNode.entriesTotalPages - 1)
-    }
-    if (
-      discussionTopicQuery.data.legacyNode.availableForUser &&
-      discussionTopicQuery.data.legacyNode.initialPostRequiredForCurrentUser
-    ) {
-      discussionTopicQuery.refetch(variables)
+  const onEntryCreationCompletion = (data, success) => {
+    if (success) {
+      setHighlightEntryId(data.createDiscussionEntry.discussionEntry._id)
+      setReplyToTopicSubmission(getCheckpointSubmission(data, REPLY_TO_TOPIC))
+      setReplyToEntrySubmission(getCheckpointSubmission(data, REPLY_TO_ENTRY))
+
+      if (sort === 'asc') {
+        setPageNumber(discussionTopicQuery.data.legacyNode.entriesTotalPages - 1)
+      }
+      if (
+        discussionTopicQuery.data.legacyNode.availableForUser &&
+        discussionTopicQuery.data.legacyNode.initialPostRequiredForCurrentUser
+      ) {
+        discussionTopicQuery.refetch(variables)
+      }
+      setExpandedTopicReply(false)
     }
   }
 
   // Used when replying to the Topic directly
-  const {createDiscussionEntry} = useCreateDiscussionEntry(onEntryCreationCompletion, updateCache)
+  const {createDiscussionEntry, isSubmitting} = useCreateDiscussionEntry(
+    onEntryCreationCompletion,
+    updateCache
+  )
 
   // why || waitForUnreadFilter: when waitForUnreadFilter, discussionTopicQuery is skipped, but this does not set loading.
   // why && !searchTerm: this is for the search if you type it triggers useQuery and you lose the search.
@@ -277,15 +360,20 @@ const DiscussionTopicManager = props => {
       discussionTopicQuery?.data &&
       Object.keys(discussionTopicQuery.data).length === 0)
   ) {
-    return <LoadingIndicator />
+    return <LoadingSpinner />
   }
 
   if (discussionTopicQuery.error || !discussionTopicQuery?.data?.legacyNode) {
+    captureException(
+      new Error(`Error received from discussionTopicQuery: ${discussionTopicQuery.error}`)
+    )
+
     return (
       <GenericErrorPage
         imageUrl={errorShipUrl}
         errorSubject={I18n.t('Discussion Topic initial query error')}
         errorCategory={I18n.t('Discussion Topic Post Error Page')}
+        errorMessage={discussionTopicQuery.error}
       />
     )
   }
@@ -299,9 +387,11 @@ const DiscussionTopicManager = props => {
           props={{
             mobile: {
               viewPortWidth: '100vw',
+              padding: 'medium x-small 0',
             },
             desktop: {
               viewPortWidth: '480px',
+              padding: 'medium medium 0 small',
             },
           }}
           render={responsiveProps => {
@@ -314,20 +404,32 @@ const DiscussionTopicManager = props => {
                 {isSplitScreenViewOverlayed && isSplitScreenViewOpen && (
                   <Mask onClick={() => closeView()} />
                 )}
-                <DrawerLayout.Content label="Splitscreen View Content">
+                <DrawerLayout.Content
+                  label="Splitscreen View Content"
+                  themeOverride={{
+                    overflowY: 'unset',
+                  }}
+                >
                   <View
                     display="block"
-                    padding="medium medium 0 small"
-                    height={isModuleItem ? '85vh' : '90vh'}
+                    padding={responsiveProps.padding}
+                    overflowX="auto"
+                    overflowY="auto"
+                    id="module_sequence_footer_container"
                   >
                     <DiscussionTopicToolbarContainer
                       discussionTopic={discussionTopicQuery.data.legacyNode}
                       setUserSplitScreenPreference={setUserSplitScreenPreference}
                       userSplitScreenPreference={userSplitScreenPreference}
+                      setIsSummaryEnabled={setIsSummaryEnabled}
+                      isSummaryEnabled={isSummaryEnabled}
                       closeView={closeView}
+                      breakpoints={props.breakpoints}
                     />
                     <DiscussionTopicContainer
                       discussionTopic={discussionTopicQuery.data.legacyNode}
+                      expandedTopicReply={expandedTopicReply}
+                      setExpandedTopicReply={setExpandedTopicReply}
                       createDiscussionEntry={(message, file, isAnonymousAuthor) => {
                         createDiscussionEntry({
                           variables: {
@@ -348,6 +450,11 @@ const DiscussionTopicManager = props => {
                         setHighlightEntryId('DISCUSSION_ENTRY_PLACEHOLDER')
                       }}
                       isHighlighted={isTopicHighlighted}
+                      replyToTopicSubmission={replyToTopicSubmission}
+                      replyToEntrySubmission={replyToEntrySubmission}
+                      isSummaryEnabled={ENV.user_can_summarize && isSummaryEnabled}
+                      setIsSummaryEnabled={setIsSummaryEnabled}
+                      isSubmitting={isSubmitting}
                     />
 
                     {discussionTopicQuery.data.legacyNode.discussionEntriesConnection.nodes
@@ -372,6 +479,7 @@ const DiscussionTopicManager = props => {
                           setHighlightEntryId={setHighlightEntryId}
                           isSearchResults={!!searchTerm}
                           userSplitScreenPreference={userSplitScreenPreference}
+                          refetchDiscussionEntries={discussionTopicQuery.refetch}
                         />
                       )
                     )}
@@ -402,6 +510,8 @@ const DiscussionTopicManager = props => {
                         highlightEntryId={highlightEntryId}
                         setHighlightEntryId={setHighlightEntryId}
                         isTrayFinishedOpening={isTrayFinishedOpening}
+                        setReplyToTopicSubmission={setReplyToTopicSubmission}
+                        setReplyToEntrySubmission={setReplyToEntrySubmission}
                       />
                     </View>
                   )}
@@ -417,6 +527,7 @@ const DiscussionTopicManager = props => {
 
 DiscussionTopicManager.propTypes = {
   discussionTopicId: PropTypes.string.isRequired,
+  breakpoints: breakpointsShape,
 }
 
-export default DiscussionTopicManager
+export default WithBreakpoints(DiscussionTopicManager)

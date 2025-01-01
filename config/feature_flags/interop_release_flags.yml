@@ -1,14 +1,4 @@
 ---
-ags_improved_course_concluded_response_codes:
-  state: hidden
-  display_name: Better LTI AGS Response Codes for Concluded Courses
-  description: |-
-    If enabled, the AGS API will return a more helpful response code whenever an LTI
-    tool attempts to access or modify data in a course that has already concluded.
-    Rather than returning a generic 404 Not Found, the API will instead return a 422
-    along with a helpful message indicating that the tool cannot access concluded
-    courses.
-  applies_to: RootAccount
 ags_scores_multiple_files:
   state: hidden
   display_name: Allow multiple file AGS submissions to count as only one submission
@@ -20,90 +10,21 @@ ags_scores_multiple_files:
   environments:
     development:
       state: on
-allow_lti_tools_editor_button_placement_without_icon:
-  state: hidden
-  applies_to: RootAccount
-  display_name: Allow LTI tools to have an editor button icon without placement (use default tool icon)
-  description: |-
-    When disabled, new or updated ContextExternalTool installations (including
-    LTI 1.3 tools updated automatically due to updates to their developer keys)
-    will have their editor_button placement removed if there is no icon_url or
-    canvas_icon_class provided in the settings (legacy behavior). When enabled,
-    the placement is not removed, so tools without icons will show a default
-    icon (with a color / letter based on tool name and tool/developer key ID).
-  environments:
-    development:
-      state: allowed_on
-    test:
-      state: allowed_on
-    ci:
-      state: allowed_on
-api_auth_error_updates:
-  state: hidden
-  display_name: Updates to JSON API auth error HTTP code and JSON status field
-  description: |-
-    If enabled, an "unauthorized" response from the JSON API will return a 403
-    (Forbidden) instead of a 401 code, to be more in line with HTTP standards.
-    Also, when the API returns a unauthenticated or unauthorized JSON error,
-    the "status" field will not be localized; it will always be given in
-    English.
-  applies_to: SiteAdmin
 assignment_edit_placement_not_on_announcements:
   state: hidden
   applies_to: SiteAdmin
-  display_name: Allows LTI tools with assignment_edit placement to be launched on Announcements page
-  description: When enabled, an LTI tool with the assignment_edit placement will be launched on the Announcement page.
-deep_linking_use_window_parent:
+  display_name: Prevents LTI tools with assignment_edit placement from being launched on Announcements page
+  description: When enabled, an LTI tool with the assignment_edit placement will not be launched on the Announcement page.
+assignment_submission_type_card:
   state: hidden
-  display_name: Use window.parent in Deep Linking Response
-  description: |-
-    If enabled, the deep linking response JS will send postMessages
-    to window.parent instead of window.top. This enables the deep linking
-    response to correctly send content items to New Quizzes, when a tool is
-    launched from NQ.
   applies_to: SiteAdmin
+  display_name: Allow submission type resource card to be shown in the assignment edit page
+  description: When enabled, the new submission type resource card will be shown in the assignment edit page.
   environments:
     development:
       state: allowed_on
     ci:
-      state: on
-developer_key_consortia_fix_inheritance_logic:
-  state: hidden
-  applies_to: RootAccount
-  shadow: true
-  display_name: Consistent inheritance logic for Developer Keys in non-CMC consortia
-  description: |-
-    When enabled for a child account of a non-centrally managed consortium,
-    developer key state and tokens from the consortium parent will not be
-    inherited to subaccounts of a consortium child. When disabled, the legacy
-    (inconsistent) behavior is followed. This flag applies only to consortium
-    _child_ accounts. This flag does not affect centrally-managed consortia in
-    any way.
-  environments:
-    development:
       state: allowed_on
-    test:
-      state: allowed_on
-    ci:
-      state: allowed_on
-developer_key_consortia_stop_tool_management_from_parent:
-  state: allowed_on
-  applies_to: RootAccount
-  shadow: true
-  display_name: Prevent non-CMC consortium parent dev key from affecting tools in children
-  description: |-
-    When enabled for the parent account of a non-centrally managed consortium,
-    turning on/off developer keys in the parent will not affect the tool
-    installs of the child accounts. When disabled, turning on/off
-    SiteAdmin-inherited developer keys in the parent account of a non-centrally
-    managed consortium will affect (delete/restore) tools in the children
-    accounts (legacy behavior). This flag applies only to consortium _parent_
-    accounts. This flag does not affect centrally-managed consortia in any way.
-developer_key_support_includes:
-  state: hidden
-  display_name: Developer Key Include Parameter Support
-  description: Provides a flag on the Developer Key to support Include Parameters on API requests
-  applies_to: SiteAdmin
 disable_graphql_authentication:
   state: hidden
   display_name: Disable authentication for GraphQL
@@ -120,18 +41,18 @@ disable_oembed_retrieve:
     This is to ease transitioning any potential users off this endpoint before
     removing it altogether.
   shadow: true
-enhanced_developer_keys_tables:
+disallow_null_custom_variables:
   state: hidden
-  applies_to: RootAccount
-  display_name: Sort and Filter Developer Keys Tables
+  applies_to: SiteAdmin
+  display_name: Disallow all null values for custom variables
   description: |-
-    When enabled, allows the tables on the Developer Keys page to be
-    sorted and filtered.
+    When enabled, any custom variables that have previously been returning NULL
+    will now return the name of the custom variable.
   environments:
     development:
       state: allowed_on
     ci:
-      state: on
+      state: allowed_on
 external_tool_drawer:
   state: hidden
   applies_to: RootAccount
@@ -144,19 +65,19 @@ external_tool_drawer:
       state: allowed_on
     ci:
       state: allowed_on
-include_oauth_consumer_key_in_lti_launch:
+import_numeric_lti_custom_params_as_string:
   state: hidden
+  shadow: true
   applies_to: SiteAdmin
-  display_name: Enable Sending OAuth Consumer Key
+  display_name: Copy numeric lti custom params as strings on imports.
+  description: Prevent ResourceLink custom parameters from being converted to numbers during course copy.
   environments:
     development:
       state: allowed_on
+    test:
+      state: allowed_on
     ci:
       state: allowed_on
-  description: |-
-    When enabled, LTI 1.3 launches that would be associated with LTI 1.1 tool
-    if the LTI 1.3 tool wasn't present will include the oauth_consumer_key and
-    oauth_consumer_key_sign properties as part of the LTI 1.1 claims section.
 lti_ags_remove_top_submitted_at:
   state: hidden
   applies_to: RootAccount
@@ -172,10 +93,37 @@ lti_ags_remove_top_submitted_at:
       state: allowed_on
     ci:
       state: allowed_on
-lti_assignment_page_line_items:
+lti_apps_page_instructors:
   state: hidden
-  display_name: LTI Deep Linking Line Items on Assignment create/edit page
-  description: If enabled, prefills the assignment form with values from deep link messages on the assignment create/edit page.
+  shadow: true
+  applies_to: RootAccount
+  display_name: LTI Apps Page for Instructors
+  description: When enabled, the LTI Apps page will be available in the Course navigation sidebar.
+  environments:
+    development:
+      state: hidden
+lti_asset_processor:
+  state: hidden
+  shadow: true
+  applies_to: RootAccount
+  display_name: Enable tools to use Asset Processor-related services and placements
+  description: |-
+    This feature enables LTI tools to create Asset Processors and use services and placements associated
+    with the 1EdTech Asset Processor specifications.
+  environments:
+    development:
+      state: allowed_on
+    test:
+      state: allowed_on
+    ci:
+      state: allowed_on
+lti_before_assignment_results:
+  state: hidden
+  display_name: Display LTI placement before assignment description after submitting.
+  description: |-
+    If enabled, the assignment_view LTI placement iframe will be shown above the assignment description if the student has a submission
+    and can view the assignment. This can be used to make the placement more prominent for tools that require action after an assignment
+    has been submitted.
   applies_to: RootAccount
 lti_deep_linking_line_items:
   state: hidden
@@ -187,11 +135,18 @@ lti_deep_linking_module_index_menu_modal:
   display_name: LTI Deep Linking for Module Index Menu
   description: If enabled, allows deep linking from the module index via a modal.
   applies_to: RootAccount
-lti_dynamic_registration:
+lti_deployment_id_in_login_request:
   state: hidden
-  display_name: LTI Dynamic Registration
-  description: Enables administrators to register LTI tools with Dynamic Registration
   applies_to: RootAccount
+  display_name: Send lti_deployment_id in the LTI login request
+  description: |-
+    When enabled the lti_deployment_id will be sent in the LTI 1.3 login request.
+    When disabled both deployment_id and lti_deployment_id will be sent.
+  environments:
+    development:
+      state: allowed_on
+    ci:
+      state: allowed_on
 lti_find_external_tool_prefer_original_client_id:
   state: hidden
   applies_to: RootAccount
@@ -240,23 +195,32 @@ lti_login_required_error_page:
       state: allowed_on
     ci:
       state: allowed_on
-lti_multiple_assignment_deep_linking:
+lti_migration_info:
   state: hidden
-  display_name: LTI Multiple Assignment Deep Linking
-  description: If enabled, allows multiple deep link support for assignments and modules.
+  display_name: LTI 1.1 to 1.3 Migration Info
+  shadow: true
+  description: When enabled, allows users to view LTI 1.1 to 1.3 migration info on the External Apps page.
   applies_to: RootAccount
   environments:
     development:
       state: allowed_on
     ci:
       state: allowed_on
-lti_overwrite_user_url_input_select_content_dialog:
-  state: on
+lti_oidc_missing_cookie_retry:
+  state: hidden
   applies_to: RootAccount
-  display_name: Overwrite user LTI URL input on select content dialog
+  display_name: Retry LTI OIDC launches that fail due to missing cookies
   description: |-
-    If enabled, the user's LTI URL input on the select content dialog will be overwritten
-    if the tool responds with a valid LTI URL.
+    If enabled, Canvas will retry LTI OIDC launches that fail due to missing cookies.
+    Safari tracking protection sometimes blocks cookies from being set to authorize the endpoint.
+    To fix this, we resubmit the request with a form.
+  environments:
+    development:
+      state: allowed_on
+    test:
+      state: allowed_on
+    ci:
+      state: allowed_on
 lti_placement_restrictions:
   state: hidden
   applies_to: RootAccount
@@ -272,36 +236,55 @@ lti_placement_restrictions:
       state: allowed_on
     ci:
       state: allowed_on
-lti_rce_postmessage_support:
+lti_registrations_discover_page:
   state: hidden
-  applies_to: SiteAdmin
-  display_name: Support all LTI postMessages from within active RCE
-  description: |-
-    Respond to all LTI postMessages sent from tools launched within iframes in an active RCE
-    window. Supports standard postMessages sent to window.parent and Platform Storage
-    messages sent to the sibling post_message_forwarding frame.
+  shadow: true
+  applies_to: RootAccount
+  display_name: LTI Apps Discover Page
+  description: When enabled, the LTI Apps Discover page will be available in the Apps page.
   environments:
     development:
       state: allowed_on
     ci:
       state: allowed_on
-lti_registrations_discover_page:
+  custom_transition_proc: lti_registrations_discover_page_hook
+lti_registrations_next:
   state: hidden
+  shadow: true
   applies_to: RootAccount
-  display_name: LTI Extensions Discover Page
-  description: When enabled, the LTI Extensions Discover page will be available in the Extensions view.
+  display_name: LTI Apps Page Features In-Development
+  description: When enabled, the LTI Apps page will have features that are currently in-development.
   environments:
     development:
-      state: hidden
-  custom_transition_proc: lti_registrations_discover_page_hook
+      state: allowed_on
+    ci:
+      state: allowed_on
 lti_registrations_page:
   state: hidden
+  beta: true
   applies_to: RootAccount
-  display_name: LTI Extensions Page
-  description: When enabled, the LTI Extensions page will be available in the Account navigation.
+  display_name: LTI Apps Page
+  description: When enabled, the LTI Apps page will be available in the Account navigation sidebar..
   environments:
     development:
-      state: hidden
+      state: allowed_on
+    ci:
+      state: allowed_on
+lti_report_multiple_schema_validation_errors:
+  state: hidden
+  shadow: true
+  applies_to: SiteAdmin
+  display_name: Return multiple json schema validation errors at once (not just the first one).
+  description: INTEROP-8899. This is a low risk change, because tools should not depend on error messages coming from json schema validator.
+  environments:
+    ci:
+      state: allowed_on
+    test:
+      state: allowed_on
+    development:
+      state: allowed_on
+    production:
+      state: allowed_on
 lti_resource_link_id_speedgrader_launches_reference_assignment:
   state: hidden
   applies_to: RootAccount
@@ -312,6 +295,34 @@ lti_resource_link_id_speedgrader_launches_reference_assignment:
     title. With the feature flag off, in SpeedGrader launches, resource_link_id
     and resource_link_title reference the tool (not the assignment) for
     non-NewQuizzes LTI 1.1 tools.
+lti_resource_links_api:
+  state: hidden
+  shadow: true
+  applies_to: RootAccount
+  display_name: Allow LTI 1.3 Resource Links API
+  description: |-
+    When enabled, the Canvas API for LTI Resource Links is usable. Admins can
+    use this API for visibility into content returned from tools.
+  environments:
+    development:
+      state: allowed_on
+    ci:
+      state: allowed_on
+lti_toggle_placements:
+  state: hidden
+  applies_to: RootAccount
+  display_name: Allow LTI Placement Toggling
+  description: |-
+    When enabled, admins can enable or disable existing placements for any
+    LTI tool installed on the External Apps page (previously only allowed
+    for 1.1 tools to assist with migration to 1.3). Changes to placement
+    status for 1.3 tools made on this page will be reset by any changes to the LTI
+    developer key, including changes made by Instructure to global inherited keys.
+  environments:
+    development:
+      state: allowed_on
+    ci:
+      state: allowed_on
 lti_tools_from_federated_parents:
   state: hidden
   display_name: Show LTI tools from federated parent accounts
@@ -319,6 +330,22 @@ lti_tools_from_federated_parents:
     If enabled, LTI tools installed in federated parent accounts will be
     available / visible in child accounts.
   applies_to: SiteAdmin
+lti_variable_expansions_use_group_course_as_course:
+  state: hidden
+  shadow: true
+  applies_to: RootAccount
+  display_name: "LTI Variable Expansions: Use Group's Course as Course"
+  description: >-
+    If enabled, if an LTI tool is launched in the context of Course-based Group (Group within a Course), Course-related LTI variable expansions will use
+    the Group's Course as the Course. If disabled, legacy behavior will apply -- Course-related LTI variable expansions will only apply when the Course
+    is the direct context of the launch.
+  environments:
+    development:
+      state: allowed_on
+    test:
+      state: allowed_on
+    ci:
+      state: allowed_on
 microsoft_group_enrollments_syncing:
   state: hidden
   display_name: Microsoft Group enrollment syncing
@@ -326,6 +353,37 @@ microsoft_group_enrollments_syncing:
     If enabled, syncing course enrollments to Microsoft Groups will be
     available. Account admins may enable this in account settings.
   applies_to: RootAccount
+platform_notification_service:
+  state: hidden
+  shadow: true
+  applies_to: RootAccount
+  display_name: Enable Platform Notification Service
+  description: >-
+    When on, 1Edtech Platform Notification service (used to subscribe tools for notices, list existing notice handlers, notify subscribed tools, etc.) will
+    be enabled.
+  environments:
+    development:
+      state: allowed_on
+    test:
+      state: allowed_on
+    ci:
+      state: allowed_on
+refactor_custom_variables:
+  state: hidden
+  shadow: true
+  applies_to: RootAccount
+  display_name: Refactor custom variables to make substitution controllerless.
+  description: |-
+    Some of the custom variables used a controller instance for substitution.
+    That is not available in background jobs, so in PNS notices and content migration.
+    This feature flag will refactor the custom variables to make most if the variable substitutions controllerless.
+  environments:
+    development:
+      state: allowed_on
+    test:
+      state: allowed_on
+    ci:
+      state: allowed_on
 remove_submission_type_selection_from_dev_keys_edit_page:
   state: hidden
   shadow: true
@@ -344,13 +402,42 @@ remove_submission_type_selection_from_dev_keys_edit_page:
       state: allowed_on
     ci:
       state: allowed_on
-resource_link_uuid_in_custom_substitution:
+remove_unwanted_lti_validation_claims:
   state: hidden
-  display_name: Use a Resource link's resource_link_uuid in the $ResourceLink.id substitution parameter
-  description: |-
-    Changes the $ResourceLink.id substitution parameter's behavior
-    to include the resource_link_uuid, instead of the resource_id for the line item
+  applies_to: SiteAdmin
+  display_name: Do not include validation_context and errors claims in LTI Launches
+  description: If enabled, the unwanted LTI validation claims like validation_context and errors will not be included in every LTI launch.
+  environments:
+    development:
+      state: allowed_on
+    test:
+      state: allowed_on
+    ci:
+      state: allowed_on
+require_permission_for_app_center_token:
+  state: hidden
+  shadow: true
   applies_to: RootAccount
+  display_name: Require Manage LTI permissions to set External App Center token
+  description: |-
+    When enabled, requires any of the manage_lti_* permissions to see the
+    Manage App List button on the External Apps page and to update the token
+    from Eduappcenter, to prevent accidental changes to the app list.
+  environments:
+    development:
+      state: allowed_on
+    ci:
+      state: allowed_on
+top_navigation_placement:
+  state: hidden
+  applies_to: RootAccount
+  display_name: Top Navigation Placement
+  description: Enables top_navigation LTI placement. (LTI 1.3 Only)
+  environments:
+    development:
+      state: allowed_on
+    ci:
+      state: allowed_on
 tune_lti_context_id_history_query:
   state: hidden
   applies_to: RootAccount
@@ -363,13 +450,14 @@ tune_lti_context_id_history_query:
     improve performance. Caution: for some accounts where this query
     doesn't already time out, enabling this may cause the query to take
     much longer and even time out.
-update_assignment_submission_type_launch_button:
+update_unified_tool_id:
   state: hidden
-  applies_to: SiteAdmin
-  display_name: Update the assignment submission type launch button
+  applies_to: RootAccount
+  display_name: Fetch Unified Tool ID from LP and update it
+  shadow: true
   description: |-
-    Update the look of all tools using the submission_type_selection
-    placement to be a more modern design in line with the rest of Canvas' UI
+    When enabled, it fetches the unified_tool_id from LearnPlatform and updates the
+    unified_tool_id field every time the ContextExternalTool is saved.
   environments:
     development:
       state: allowed_on

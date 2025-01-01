@@ -1,4 +1,3 @@
-// @ts-nocheck
 /*
  * Copyright (C) 2017 - present Instructure, Inc.
  *
@@ -25,12 +24,12 @@ import {Menu} from '@instructure/ui-menu'
 import {Text} from '@instructure/ui-text'
 import GradebookExportManager from '../../shared/GradebookExportManager'
 import PostGradesApp from '../../SISGradePassback/PostGradesApp'
-import * as tz from '@canvas/datetime'
+import * as tz from '@instructure/moment-utils'
 import DateHelper from '@canvas/datetime/dateHelper'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import '@canvas/rails-flash-notifications'
 
-const I18n = useI18nScope('gradebookActionMenu')
+const I18n = createI18nScope('gradebookActionMenu')
 
 const {Item: MenuItem, Separator: MenuItemSeparator} = Menu as any
 
@@ -88,12 +87,14 @@ class ActionMenu extends React.Component<ActionMenuProps, ActionMenuState> {
     },
   }
 
+  // @ts-expect-error
   static gotoUrl(url) {
     window.location.href = url
   }
 
   exportManager?: GradebookExportManager
 
+  // @ts-expect-error
   constructor(props) {
     super(props)
 
@@ -144,10 +145,12 @@ class ActionMenu extends React.Component<ActionMenuProps, ActionMenuState> {
     }
   }
 
+  // @ts-expect-error
   setExportInProgress(status) {
     this.setState({exportInProgress: !!status})
   }
 
+  // @ts-expect-error
   handleExport(currentView) {
     this.setExportInProgress(true)
     $.flashMessage(I18n.t('Gradebook export has started. This may take a few minutes.'))
@@ -180,6 +183,7 @@ class ActionMenu extends React.Component<ActionMenuProps, ActionMenuState> {
     }, 3500)
   }
 
+  // @ts-expect-error
   handleExportSuccess(resolution) {
     this.setExportInProgress(false)
 
@@ -205,6 +209,7 @@ class ActionMenu extends React.Component<ActionMenuProps, ActionMenuState> {
     $.flashMessage(I18n.t('Gradebook export has completed'))
   }
 
+  // @ts-expect-error
   handleExportError(error) {
     this.setExportInProgress(false)
 
@@ -291,7 +296,11 @@ class ActionMenu extends React.Component<ActionMenuProps, ActionMenuState> {
   renderPostGradesFeature() {
     const sisName = this.props.postGradesFeature.label || I18n.t('SIS')
     return (
-      <MenuItem onSelect={this.launchPostGrades} key="post_grades_feature_tool">
+      <MenuItem
+        onSelect={this.launchPostGrades}
+        key="post_grades_feature_tool"
+        data-testid="post_grades_feature_tool"
+      >
         <span data-menu-id="post_grades_feature_tool">
           {I18n.t('Sync to %{sisName}', {sisName})}
         </span>

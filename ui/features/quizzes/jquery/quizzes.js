@@ -18,15 +18,16 @@
 
 // Ignored rules can be removed incrementally
 // Resolving all these up-front is untenable and unlikely
-/* eslint-disable eqeqeq,@typescript-eslint/no-redeclare,@typescript-eslint/no-shadow */
-/* eslint-disable block-scoped-var,no-var,prefer-const,no-restricted-globals,vars-on-top */
-/* eslint-disable promise/catch-or-return,@typescript-eslint/no-unused-vars,no-empty */
-/* eslint-disable no-loop-func,no-constant-condition,no-alert */
+
+/* eslint-disable prefer-const */
+/* eslint-disable no-empty */
+/* eslint-disable no-redeclare */
+/* eslint-disable no-constant-condition */
 // xsslint jqueryObject.function makeFormAnswer makeDisplayAnswer
 // xsslint jqueryObject.property sortable placeholder
 // xsslint safeString.property question_text
 import regradeTemplate from '../jst/regrade.handlebars'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {find, forEach, keys, difference} from 'lodash'
 import $ from 'jquery'
 import calcCmd from './calcCmd'
@@ -52,7 +53,8 @@ import deparam from 'deparam'
 import SisValidationHelper from '@canvas/sis/SisValidationHelper'
 import LockManager from '@canvas/blueprint-courses/react/components/LockManager/index'
 import '@canvas/jquery/jquery.ajaxJSON'
-import '@canvas/datetime/jquery' /* time_field, datetime_field */
+import {unfudgeDateForProfileTimezone} from '@instructure/moment-utils'
+import {renderDatetimeField} from '@canvas/datetime/jquery/DatetimeField'
 import '@canvas/jquery/jquery.instructure_forms' /* formSubmit, fillFormData, getFormData, formErrors, errorBox */
 import 'jqueryui/dialog'
 import '@canvas/jquery/jquery.instructure_misc_helpers' /* replaceTags, /\$\.underscore/ */
@@ -70,7 +72,7 @@ import {underscoreString} from '@canvas/convert-case'
 import replaceTags from '@canvas/util/replaceTags'
 import * as returnToHelper from '@canvas/util/validateReturnToURL'
 
-const I18n = useI18nScope('quizzes_public')
+const I18n = createI18nScope('quizzes_public')
 
 let dueDateList, overrideView, quizModel, sectionList, correctAnswerVisibility, scoreValidation
 
@@ -123,6 +125,7 @@ const renderDueDates = lockedItems => {
     sectionList = new SectionList(ENV.SECTION_LIST)
 
     dueDateList = new DueDateList(quizModel.get('assignment_overrides'), sectionList, quizModel)
+    quizModel.set('post_to_sis', $('#quiz_post_to_sis').prop('checked'))
 
     overrideView = window.overrideView = new DueDateOverrideView({
       el: '.js-assignment-overrides',
@@ -135,7 +138,7 @@ const renderDueDates = lockedItems => {
       courseId: ENV.COURSE_ID,
     })
 
-    if (ENV.FEATURES?.differentiated_modules) {
+    if (ENV.FEATURES?.selective_release_ui_api) {
       overrideView.bind('tray:open', () => {
         $('#quiz_edit_wrapper .btn.save_quiz_button').prop('disabled', true)
         $('#quiz_edit_wrapper .btn.save_and_publish').prop('disabled', true)
@@ -144,6 +147,16 @@ const renderDueDates = lockedItems => {
       overrideView.bind('tray:close', () => {
         $('#quiz_edit_wrapper .btn.save_quiz_button').prop('disabled', false)
         $('#quiz_edit_wrapper .btn.save_and_publish').prop('disabled', false)
+      })
+
+      $('#quiz_post_to_sis').on('change', e => {
+        const postToSISChecked = e.target.checked
+        quizModel.set('post_to_sis', postToSISChecked)
+
+        // Disabling this to not run the Post to SIS validations on check/uncheck
+        if (!ENV.FEATURES?.selective_release_edit_page) {
+          overrideView.render()
+        }
       })
     }
 
@@ -1368,7 +1381,7 @@ correctAnswerVisibility = {
       const formattedDate = Handlebars.helpers.datetimeFormatted($field.val() || '')
 
       $field.val(formattedDate)
-      $field.datetime_field()
+      renderDatetimeField($field)
     })
 
     $('#quiz_options_form').on('xhrError', that.onFormError).on('serializing', that.serialize)
@@ -1481,7 +1494,7 @@ correctAnswerVisibility = {
 
       if ($field.val().length && $field.data().date) {
         date = $field.data().date
-        data['quiz[' + key + ']'] = $.unfudgeDateForProfileTimezone(date).toISOString()
+        data['quiz[' + key + ']'] = unfudgeDateForProfileTimezone(date).toISOString()
       } else {
         resetField(key)
       }
@@ -1947,7 +1960,7 @@ ready(function () {
 
   const $quiz_options_form = $('#quiz_options_form')
   const $quiz_edit_wrapper = $('#quiz_edit_wrapper')
-  $('.datetime_field').datetime_field()
+  renderDatetimeField($('.datetime_field'))
   $('#questions')
     .on('mouseover', '.group_top,.question,.answer_select,.comment', function (event) {
       $(this).addClass('hover')
@@ -2267,16 +2280,9 @@ ready(function () {
       data.allowed_attempts = attempts
       data['quiz[allowed_attempts]'] = attempts
       let overrides = overrideView.getOverrides()
-      data['quiz[only_visible_to_overrides]'] = !overrideView.overridesContainDefault()
+      data['quiz[only_visible_to_overrides]'] = overrideView.setOnlyVisibleToOverrides()
       if (overrideView.containsSectionsWithoutOverrides() && !hasCheckedOverrides) {
-        const sections = overrideView.sectionsWithoutOverrides()
         var missingDateView = new MissingDateDialog({
-          validationFn() {
-            return sections
-          },
-          labelFn(section) {
-            return section.get('name')
-          },
           success() {
             missingDateView.$dialog.dialog('close').remove()
             missingDateView.remove()
@@ -4957,7 +4963,7 @@ $.fn.formulaQuestion = function () {
     const mod = 0
     const finished = function () {
       $question.find('.supercalc').superCalc('clear_cached_finds')
-      $button.text('Generate').prop('disabled', false)
+      $button.text(I18n.t('buttons.generate', 'Generate')).prop('disabled', false)
       if (succeeded == 0) {
         alert(
           I18n.t(

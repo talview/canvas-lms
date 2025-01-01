@@ -38,6 +38,11 @@ export type EnrollmentConnection = {
   state: string
 }
 
+type AssignmentCheckpoint = {
+  tag: string
+  pointsPossible: number
+}
+
 export type AssignmentConnection = {
   id: string
   assignmentGroupId: string
@@ -62,6 +67,7 @@ export type AssignmentConnection = {
   gradingPeriodId?: string | null
   hasSubmittedSubmissions: boolean
   inClosedGradingPeriod: boolean | null
+  checkpoints?: AssignmentCheckpoint[]
 }
 
 export type AssignmentGroupConnection = {
@@ -113,6 +119,7 @@ export type SubmissionConnection = {
   userId: string
   gradingPeriodId?: string
   excused?: boolean
+  state: string
 }
 
 export type Attachment = {
@@ -124,7 +131,7 @@ export type Attachment = {
 
 export type CommentConnection = {
   id: string
-  comment: string
+  htmlComment: string
   mediaObject?: {
     id: string
     mediaDownloadUrl: string
@@ -176,6 +183,19 @@ export type GradebookStudentDetails = {
   sortableName: string
 }
 
+export type GradebookUserSubSubmissionDetails = {
+  grade: string | null
+  score: number | null
+  publishedGrade: string | null
+  publishedScore: string | null
+  assignmentId: string
+  gradeMatchesCurrentSubmission: boolean
+  subAssignmentTag: string
+  enteredGrade: string | null
+  enteredScore?: number | null
+  excused: boolean
+}
+
 export type GradebookUserSubmissionDetails = {
   assignmentId: string
   cachedDueDate: string | null
@@ -195,9 +215,11 @@ export type GradebookUserSubmissionDetails = {
   redoRequest: boolean
   score: null | number
   state: string
+  sticker: string | null
   submissionType?: string | null
   submittedAt: Date | null
   userId: string
+  subAssignmentSubmissions?: GradebookUserSubSubmissionDetails[]
 }
 
 export type GradebookStudentQueryResponse = {

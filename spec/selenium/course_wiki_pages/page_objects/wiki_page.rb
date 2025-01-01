@@ -21,6 +21,10 @@ require_relative "../../common"
 
 module CourseWikiPage
   #------------------------------ Selectors -----------------------------
+  def assign_to_card_selector
+    "[data-testid='item-assign-to-card']"
+  end
+
   def publish_btn_selector
     ".btn-publish"
   end
@@ -57,7 +61,15 @@ module CourseWikiPage
     "[data-testid='pending_changes_pill']"
   end
 
+  def editing_roles_input_selector
+    "#editing_roles"
+  end
+
   #------------------------------ Elements ------------------------------
+  def assign_to_card
+    f(assign_to_card_selector)
+  end
+
   def publish_btn
     f(publish_btn_selector)
   end
@@ -142,14 +154,30 @@ module CourseWikiPage
     find_button("Save")
   end
 
+  def editing_roles_input
+    f(editing_roles_input_selector)
+  end
+
   #------------------------------ Actions -------------------------------
 
   def visit_wiki_page_view(course_id, page_title)
     get "/courses/#{course_id}/pages/#{page_title}"
   end
 
+  def visit_group_wiki_page_view(group_id, page_title)
+    get "/groups/#{group_id}/pages/#{page_title}"
+  end
+
   def visit_wiki_edit_page(course_id, page_title)
     get "/courses/#{course_id}/pages/#{page_title}/edit"
+  end
+
+  def visit_group_wiki_edit_page(group_id, page_title)
+    get "/groups/#{group_id}/pages/#{page_title}/edit"
+  end
+
+  def replace_wiki_page_name(text)
+    edit_page_title_input.send_keys([:control, "a"], :backspace, text)
   end
 
   def publish_wiki_page

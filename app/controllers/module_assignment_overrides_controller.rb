@@ -23,8 +23,7 @@
 #
 # If any active AssignmentOverrides exist on a ContextModule, then only students who have an
 # applicable override can access the module and are assigned its items. AssignmentOverrides can
-# be created for a (group of) student(s) or a section. *This module overrides feature is still
-# under development and is not yet enabled.*
+# be created for a (group of) student(s) or a section.
 #
 # @model ModuleAssignmentOverride
 #     {
@@ -75,7 +74,7 @@
 class ModuleAssignmentOverridesController < ApplicationController
   include Api::V1::ModuleAssignmentOverride
 
-  before_action :require_feature_flag # remove when differentiated_modules flag is removed
+  before_action :require_feature_flag # remove when selective_release_ui_api flag is removed
   before_action :require_user
   before_action :require_context
   before_action :check_authorized_action
@@ -84,8 +83,6 @@ class ModuleAssignmentOverridesController < ApplicationController
   # @API List a module's overrides
   #
   # Returns a paginated list of AssignmentOverrides that apply to the ContextModule.
-  #
-  # Note: this API is still under development and will not function until the feature is enabled.
   #
   # @example_request
   #   curl https://<canvas>/api/v1/courses/:course_id/modules/:context_module_id/assignment_overrides \
@@ -104,8 +101,6 @@ class ModuleAssignmentOverridesController < ApplicationController
   #
   # Accepts a list of overrides and applies them to the ContextModule. Returns 204 No Content response
   # code if successful.
-  #
-  # Note: this API is still under development and will not function until the feature is enabled.
   #
   # @argument overrides[] [Required, Array]
   #   List of overrides to apply to the module. Overrides that already exist should include an ID
@@ -152,7 +147,7 @@ class ModuleAssignmentOverridesController < ApplicationController
   private
 
   def require_feature_flag
-    not_found unless Account.site_admin.feature_enabled? :differentiated_modules
+    not_found unless Account.site_admin.feature_enabled? :selective_release_ui_api
   end
 
   def check_authorized_action
@@ -172,6 +167,7 @@ class ModuleAssignmentOverridesController < ApplicationController
       update_existing_overrides(overrides_to_update)
       create_new_overrides(overrides_to_create)
       @context_module.update_assignment_submissions
+      @context_module.touch_context
     end
   end
 

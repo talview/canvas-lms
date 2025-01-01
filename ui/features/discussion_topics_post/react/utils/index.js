@@ -23,15 +23,20 @@ import {
 } from '../../graphql/Queries'
 import {Discussion} from '../../graphql/Discussion'
 import {DiscussionEntry} from '../../graphql/DiscussionEntry'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from '@canvas/rails-flash-notifications'
+import doFetchApi from '@canvas/do-fetch-api-effect'
 
-const I18n = useI18nScope('discussion_topics_post')
+const I18n = createI18nScope('discussion_topics_post')
 
-export const getSpeedGraderUrl = (authorId = null) => {
+export const getSpeedGraderUrl = (authorId = null, entryId = null) => {
   let speedGraderUrl = ENV.SPEEDGRADER_URL_TEMPLATE
   if (authorId !== null) {
     speedGraderUrl = speedGraderUrl.replace(/%3Astudent_id/, authorId)
+  }
+
+  if (entryId !== null) {
+    speedGraderUrl = speedGraderUrl.concat(`&entry_id=${entryId}`)
   }
 
   return speedGraderUrl
@@ -277,7 +282,7 @@ export const getOptimisticResponse = ({
   if (quotedEntry && Object.keys(quotedEntry).length !== 0) {
     quotedEntry = {
       createdAt: quotedEntry.createdAt,
-      previewMessage: quotedEntry.previewMessage,
+      message: quotedEntry.message,
       author: {
         shortName: quotedEntry.author.shortName,
         __typename: 'User',
@@ -335,6 +340,7 @@ export const getOptimisticResponse = ({
               __typename: 'AnonymousUser',
             }
           : null,
+        editedAt: null,
         editor: null,
         lastReply: null,
         permissions: {
@@ -354,10 +360,7 @@ export const getOptimisticResponse = ({
         attachment: attachment
           ? {...attachment, id: 'ATTACHMENT_PLACEHOLDER', __typename: 'File'}
           : null,
-        discussionEntryVersionsConnection: {
-          nodes: [],
-          __typename: 'DiscussionEntryVersionConnection',
-        },
+        discussionEntryVersions: [],
         reportTypeCounts: {
           inappropriateCount: 0,
           offensiveCount: 0,
@@ -368,10 +371,20 @@ export const getOptimisticResponse = ({
         depth,
         __typename: 'DiscussionEntry',
       },
+      mySubAssignmentSubmissions: [],
       errors: null,
       __typename: 'CreateDiscussionEntryPayload',
     },
   }
+}
+
+// data must contain data response to create discussion entry mutation
+export const getCheckpointSubmission = (data, subAssignmentTag) => {
+  return (
+    data.createDiscussionEntry.mySubAssignmentSubmissions?.find(
+      sub => sub.subAssignmentTag === subAssignmentTag
+    ) || {}
+  )
 }
 
 export const buildQuotedReply = (nodes, previewId) => {
@@ -380,10 +393,10 @@ export const buildQuotedReply = (nodes, previewId) => {
   nodes.every(reply => {
     if (reply._id === previewId) {
       preview = {
-        id: previewId,
+        _id: previewId,
         author: {shortName: getDisplayName(reply)},
         createdAt: reply.createdAt,
-        previewMessage: reply.message,
+        message: reply.message,
       }
       return false
     }
@@ -397,6 +410,17 @@ export const isAnonymous = discussionEntry =>
   discussionEntry.anonymousAuthor !== null &&
   discussionEntry.author === null
 
+const urlParams = new URLSearchParams(window.location.search)
+const hiddenUserId = urlParams.get('hidden_user_id')
+export const hideStudentNames = !!hiddenUserId
+
+export const userNameToShow = (originalName, authorId, course_roles) => {
+  if (hideStudentNames && course_roles?.includes('StudentEnrollment')) {
+    return hiddenUserId === authorId ? I18n.t('This Student') : I18n.t('Discussion Participant')
+  }
+  return originalName
+}
+
 export const getDisplayName = discussionEntry => {
   if (isAnonymous(discussionEntry)) {
     if (discussionEntry.anonymousAuthor.shortName === CURRENT_USER) {
@@ -407,7 +431,10 @@ export const getDisplayName = discussionEntry => {
     }
     return I18n.t('Anonymous %{id}', {id: discussionEntry.anonymousAuthor.id})
   }
-  return discussionEntry.author?.displayName || discussionEntry.author?.shortName
+
+  const author = discussionEntry.author
+  const name = author?.displayName || author?.shortName
+  return userNameToShow(name, author?._id, author?.courseRoles)
 }
 
 export const showErrorWhenMessageTooLong = message => {
@@ -428,3 +455,25 @@ export const showErrorWhenMessageTooLong = message => {
   }
   return false
 }
+
+export const getTranslation = async (text, translateTargetLanguage) => {
+  if (!text) return // Don't translate, if no content
+
+  const apiPath = `/courses/${ENV.course_id}/translate`
+
+  const {json} = await doFetchApi({
+    method: 'POST',
+    path: apiPath,
+    body: {
+      inputs: {
+        src_lang: 'en', // TODO: detect source language.
+        tgt_lang: translateTargetLanguage,
+        text,
+      },
+    },
+  })
+
+  return json.translated_text
+}
+
+export const translationSeparator = '\n\n----------\n\n\n'

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /*
  * Copyright (C) 2019 - present Instructure, Inc.
  *
@@ -23,7 +22,7 @@ import {Heading} from '@instructure/ui-heading'
 import {CloseButton} from '@instructure/ui-buttons'
 import {View} from '@instructure/ui-view'
 import {Modal} from '@instructure/ui-modal'
-import formatMessage from 'format-message'
+import formatMessage from '../../../../../format-message'
 import {ModalProps} from '@instructure/ui-modal/types'
 
 export function ExternalToolDialogModal(

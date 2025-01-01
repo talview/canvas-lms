@@ -20,11 +20,12 @@ import $ from 'jquery'
 import ModuleDuplicationSpinner from '../react/ModuleDuplicationSpinner'
 import React from 'react'
 import ReactDOM from 'react-dom'
+import {createRoot} from 'react-dom/client'
 import {reorderElements, renderTray} from '@canvas/move-item-tray'
 import LockIconView from '@canvas/lock-icon'
 import MasterCourseModuleLock from '../backbone/models/MasterCourseModuleLock'
 import ModuleFileDrop from '@canvas/context-module-file-drop'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import Helper from './context_modules_helper'
 import CyoeHelper from '@canvas/conditional-release-cyoe-helper'
 import ContextModulesView from '../backbone/views/context_modules' /* handles the publish/unpublish state */
@@ -34,12 +35,12 @@ import vddTooltipView from '../jst/_vddTooltip.handlebars'
 import Publishable from '../backbone/models/Publishable'
 import PublishButtonView from '@canvas/publish-button-view'
 import htmlEscape from '@instructure/html-escape'
-import {monitorLtiMessages} from '@canvas/lti/jquery/messages'
 import get from 'lodash/get'
 import axios from '@canvas/axios'
 import {showFlashError} from '@canvas/alerts/react/FlashAlert'
 import '@canvas/jquery/jquery.ajaxJSON'
-import '@canvas/datetime/jquery' /* dateString, datetimeString, time_field, datetime_field */
+import {dateString, datetimeString} from '@canvas/datetime/date-functions'
+import {renderDatetimeField} from '@canvas/datetime/jquery/DatetimeField'
 import '@canvas/jquery/jquery.instructure_forms' /* formSubmit, fillFormData, formErrors, errorBox */
 import 'jqueryui/dialog'
 import '@canvas/util/jquery/fixDialogButtons'
@@ -49,7 +50,7 @@ import '@canvas/jquery/jquery.simulate'
 import '@canvas/jquery-keycodes'
 import '@canvas/loading-image'
 import '@canvas/util/templateData' /* fillTemplateData, getTemplateData */
-import 'date-js' /* Date.parse */
+import '@instructure/date-js' /* Date.parse */
 import 'jqueryui/sortable'
 import '@canvas/rails-flash-notifications'
 import DirectShareCourseTray from '@canvas/direct-sharing/react/components/DirectShareCourseTray'
@@ -72,14 +73,15 @@ import {renderContextModulesPublishIcon} from '../utils/publishOneModuleHelper'
 import {underscoreString} from '@canvas/convert-case'
 import {selectContentDialog} from '@canvas/select-content-dialog'
 import DifferentiatedModulesTray from '../differentiated-modules'
-import ItemAssignToTray from '../differentiated-modules/react/Item/ItemAssignToTray'
+import ItemAssignToManager from '../differentiated-modules/react/Item/ItemAssignToManager'
 import {parseModule, parseModuleList} from '../differentiated-modules/utils/moduleHelpers'
 import {addModuleElement} from '../utils/moduleHelpers'
 import ContextModulesHeader from '../react/ContextModulesHeader'
+import doFetchApi from '@canvas/do-fetch-api-effect'
 
 if (!('INST' in window)) window.INST = {}
 
-const I18n = useI18nScope('context_modulespublic')
+const I18n = createI18nScope('context_modulespublic')
 
 // TODO: AMD don't export global, use as module
 /* global modules */
@@ -102,7 +104,19 @@ window.modules = (function () {
     },
 
     addModule(callback = () => {}) {
-      if (ENV.FEATURES.differentiated_modules) {
+      const $module = $('#context_module_blank').clone(true).attr('id', 'context_module_new')
+      $('#context_modules').append($module)
+
+      const opts = modules.sortable_module_options
+      opts.update = modules.updateModuleItemPositions
+      $module.find('.context_module_items').sortable(opts)
+      $('#context_modules.ui-sortable').sortable('refresh')
+      $('#context_modules .context_module .context_module_items.ui-sortable').each(function () {
+        $(this).sortable('refresh')
+        $(this).sortable('option', 'connectWith', '.context_module_items')
+      })
+
+      if (ENV.FEATURES?.selective_release_ui_api) {
         const options = {initialTab: 'settings'}
         const settings = {
           moduleList: parseModuleList(),
@@ -121,21 +135,9 @@ window.modules = (function () {
             $moduleElement.css('display', 'block')
           },
         }
-        const $module = $('#context_module_blank').clone(true).attr('id', 'context_module_new')
-        $('#context_modules').append($module)
-        // eslint-disable-next-line no-restricted-globals
+         
         renderDifferentiatedModulesTray(event.target, $module, settings, options)
       } else {
-        const $module = $('#context_module_blank').clone(true).attr('id', 'context_module_new')
-        $('#context_modules').append($module)
-        const opts = modules.sortable_module_options
-        opts.update = modules.updateModuleItemPositions
-        $module.find('.context_module_items').sortable(opts)
-        $('#context_modules.ui-sortable').sortable('refresh')
-        $('#context_modules .context_module .context_module_items.ui-sortable').each(function () {
-          $(this).sortable('refresh')
-          $(this).sortable('option', 'connectWith', '.context_module_items')
-        })
         modules.editModule($module)
       }
     },
@@ -242,7 +244,7 @@ window.modules = (function () {
               return
             }
             const progression = data.context_module_progression
-            // eslint-disable-next-line eqeqeq
+             
             if (progression.user_id == window.ENV.current_user_id) {
               let $user_progression = $user_progression_list.find(
                 '.progression_' + progression.context_module_id
@@ -292,6 +294,9 @@ window.modules = (function () {
             $.each(data, (id, info) => {
               const $context_module_item = $('#context_module_item_' + id)
               const data = {}
+              if (info.sub_assignments) {
+                updateSubAssignmentData($context_module_item, info.sub_assignments)
+              }
               if (info.points_possible != null) {
                 data.points_possible_display = I18n.t('points_possible_short', '%{points} pts', {
                   points: I18n.n(info.points_possible),
@@ -299,20 +304,24 @@ window.modules = (function () {
               }
               if (ENV.IN_PACED_COURSE && !ENV.IS_STUDENT) {
                 $context_module_item.find('.due_date_display').remove()
-              } else if (info.todo_date != null) {
-                data.due_date_display = $.dateString(info.todo_date)
+              } else if (info.todo_date != null && info.points_possible == null) {
+                data.due_date_display = dateString(info.todo_date)
               } else if (info.due_date != null) {
                 if (info.past_due != null) {
                   $context_module_item.data('past_due', true)
                 }
-                data.due_date_display = $.dateString(info.due_date)
+                data.due_date_display = dateString(info.due_date)
               } else if (info.has_many_overrides != null) {
                 data.due_date_display = I18n.t('Multiple Due Dates')
               } else if (info.vdd_tooltip != null) {
-                info.vdd_tooltip.link_href = $context_module_item.find('a.title').attr('href')
-                $context_module_item
-                  .find('.due_date_display')
-                  .html(vddTooltipView(info.vdd_tooltip))
+                if (info.vdd_tooltip.due_dates.length === 1) {
+                  data.due_date_display = dateString(info.vdd_tooltip.due_dates[0].due_at)
+                } else {
+                  info.vdd_tooltip.link_href = $context_module_item.find('a.title').attr('href')
+                  $context_module_item
+                    .find('.due_date_display')
+                    .html(vddTooltipView(info.vdd_tooltip))
+                }
               } else {
                 $context_module_item.find('.due_date_display').remove()
               }
@@ -351,18 +360,30 @@ window.modules = (function () {
       )
     },
 
-    loadMasterCourseData(tag_id) {
+    async loadMasterCourseData(tag_id) {
       if (ENV.MASTER_COURSE_SETTINGS) {
         // Grab the stuff for master courses if needed
         $.ajaxJSON(ENV.MASTER_COURSE_SETTINGS.MASTER_COURSE_DATA_URL, 'GET', {tag_id}, data => {
           if (data.tag_restrictions) {
-            $.each(data.tag_restrictions, (id, restriction) => {
-              const $item = $('#context_module_item_' + id).not('.master_course_content')
-              $item.addClass('master_course_content')
-              if (Object.keys(restriction).some(r => restriction[r])) {
-                $item.attr('data-master_course_restrictions', JSON.stringify(restriction)) // need it if user selects Edit from cog menu
+            Object.entries(data.tag_restrictions).forEach(([id, restriction]) => {
+              const item = document.querySelector(
+                `#context_module_item_${id}:not(.master_course_content)`
+              )
+              if (item) {
+                item.classList.add('master_course_content')
+                if (Object.keys(restriction).some(r => restriction[r])) {
+                  item.setAttribute('data-master_course_restrictions', JSON.stringify(restriction))
+                }
+
+                if (
+                  !(
+                    ENV.MASTER_COURSE_SETTINGS.IS_CHILD_COURSE &&
+                    ENV.HIDE_BLUEPRINT_LOCK_ICON_FOR_CHILDREN
+                  )
+                ) {
+                  this.initMasterCourseLockButton(item, restriction)
+                }
               }
-              this.initMasterCourseLockButton($item, restriction)
             })
           }
         })
@@ -603,18 +624,11 @@ window.modules = (function () {
       $item.addClass('indent_' + (data.indent || 0))
       $item.addClass(modules.itemClass(data))
 
-      const isValidContentType = [
-        'Assignment',
-        'Quizzes::Quiz',
-        'DiscussionTopic',
-        'WikiPage'
-      ].includes(data.content_type)
-      
       // This function is called twice, once with the data the user just entered
       // and again after the api request returns. The second time we have
       // all the real data, including the module item's id. Wait until then
       // to add the option.
-      if (isValidContentType && 'id' in data) {
+      if ('id' in data && data.can_manage_assign_to && data.content_type !== 'Attachment') {
         const $assignToMenuItem = $item.find('.assign-to-option')
         if ($assignToMenuItem.length) {
           $assignToMenuItem.removeClass('hidden')
@@ -628,6 +642,8 @@ window.modules = (function () {
           $a.attr('data-item-context-id', data.context_id)
           $a.attr('data-item-context-type', data.context_type)
           $a.attr('data-item-content-id', data.content_id)
+          $a.attr('data-item-has-assignment', data.assignment_id ? 'true' : 'false')
+          $a.attr('data-item-has-assignment-checkpoint', data.is_checkpointed ? 'true' : 'false')
         }
       }
 
@@ -803,19 +819,21 @@ window.modules = (function () {
       axis: 'y',
       containment: '#content',
     },
-    initMasterCourseLockButton($item, tagRestriction) {
+    async initMasterCourseLockButton(item, tagRestriction) {
       // add the lock button|icon
-      const $lockCell = $item.find('.lock-icon')
-      const data = $($lockCell).data() || {}
+      const lockCell = item.querySelector('.lock-icon')
+      const data = lockCell ? $($(lockCell)).data() : {}
+
+      const moduleItemId = data.moduleItemId
 
       const isMasterCourseMasterContent = !!(
-        'moduleItemId' in data && ENV.MASTER_COURSE_SETTINGS.IS_MASTER_COURSE
+        moduleItemId && ENV.MASTER_COURSE_SETTINGS.IS_MASTER_COURSE
       )
       const isMasterCourseChildContent = !!(
-        'moduleItemId' in data && ENV.MASTER_COURSE_SETTINGS.IS_CHILD_COURSE
+        moduleItemId && ENV.MASTER_COURSE_SETTINGS.IS_CHILD_COURSE
       )
       const restricted = !!(
-        'moduleItemId' in data && Object.keys(tagRestriction).some(r => tagRestriction[r])
+        moduleItemId && Object.keys(tagRestriction).some(r => tagRestriction[r])
       )
 
       const model = new MasterCourseModuleLock({
@@ -826,7 +844,7 @@ window.modules = (function () {
 
       const viewOptions = {
         model,
-        el: $lockCell[0],
+        el: lockCell,
         course_id: ENV.COURSE_ID,
         content_type: data.moduleType,
         content_id: data.contentId,
@@ -845,24 +863,25 @@ const renderDifferentiatedModulesTray = (
   options = {initialTab: 'settings'}
 ) => {
   const container = document.getElementById('differentiated-modules-mount-point')
-  ReactDOM.render(
+  if (container.reactRoot) container.reactRoot.unmount()
+  container.reactRoot = createRoot(container)
+  container.reactRoot.render(
     <DifferentiatedModulesTray
       onDismiss={() => {
-        ReactDOM.unmountComponentAtNode(container)
+        container.reactRoot.unmount()
         returnFocusTo.focus()
       }}
       initialTab={options.initialTab}
       moduleElement={moduleElement}
       courseId={ENV.COURSE_ID ?? ''}
       {...settingsProps}
-    />,
-    container
+    />
   )
 }
 
 // Based on the logic from ui/shared/context-modules/differentiated-modules/utils/moduleHelpers.ts
 const updateUnlockTime = function ($module, unlock_at) {
-  const friendlyDatetime = unlock_at ? $.datetimeString(unlock_at) : ''
+  const friendlyDatetime = unlock_at ? datetimeString(unlock_at) : ''
 
   const unlockAtElement = $module.find('.unlock_at')
   if (unlockAtElement.length) {
@@ -929,7 +948,7 @@ const updateOtherPrerequisites = function (id, name) {
   $('div.context_module .prerequisite_criterion .id').each(function (_, idNode) {
     const $id = $(idNode)
     const prereq_id = $id.text()
-    // eslint-disable-next-line eqeqeq
+     
     if (prereq_id == id) {
       const $crit = $id.closest('.prerequisite_criterion')
       $crit.find('.name').text(name)
@@ -959,13 +978,16 @@ const newPillMessage = function ($module, requirement_count) {
 const updatePublishMenuDisabledState = function (disabled) {
   if (ENV.FEATURES.instui_header) {
     // Send event to ContextModulesHeader component to update the publish menu
-    window.dispatchEvent(new CustomEvent('update-publish-menu-disabled-state', {detail: {disabled}}))
+    window.dispatchEvent(
+      new CustomEvent('update-publish-menu-disabled-state', {detail: {disabled}})
+    )
   } else {
     // Update the top level publish menu to reflect the new module
     const publishMenu = document.getElementById('context-modules-publish-menu')
     if (publishMenu) {
       const $publishMenu = $(publishMenu)
       $publishMenu.data('disabled', disabled)
+       
       ReactDOM.render(
         <ContextModulesPublishMenu
           courseId={$publishMenu.data('courseId')}
@@ -980,7 +1002,7 @@ const updatePublishMenuDisabledState = function (disabled) {
 
 modules.updatePublishMenuDisabledState = updatePublishMenuDisabledState
 
-modules.initModuleManagement = function (duplicate) {
+modules.initModuleManagement = async function (duplicate) {
   const moduleItems = {}
 
   // Create the context modules backbone view to manage the publish button.
@@ -1307,6 +1329,7 @@ modules.initModuleManagement = function (duplicate) {
     const spinner = <ModuleDuplicationSpinner />
     const $tempElement = $('<div id="temporary-spinner" class="item-group-condensed"></div>')
     $tempElement.insertAfter(duplicatedModuleElement)
+     
     ReactDOM.render(spinner, $('#temporary-spinner')[0])
     $.screenReaderFlashMessage(I18n.t('Duplicating Module, this may take some time'))
     const renderDuplicatedModule = function (response) {
@@ -1316,6 +1339,7 @@ modules.initModuleManagement = function (duplicate) {
       const newModuleId = response.data.context_module.id
       // This is terrible but then so is the whole file so it fits in
       const contextId = response.data.context_module.context_id
+      const moduleName = response.data.context_module.name
       const modulesPage = `/courses/${contextId}/modules`
       axios
         .get(modulesPage)
@@ -1327,11 +1351,13 @@ modules.initModuleManagement = function (duplicate) {
           const module_dnd = $newModule.find('.module_dnd')[0]
           if (module_dnd) {
             const contextModules = document.getElementById('context_modules')
+             
             ReactDOM.render(
               <ModuleFileDrop
                 courseId={ENV.course_id}
                 moduleId={newModuleId}
                 contextModules={contextModules}
+                moduleName={moduleName}
               />,
               module_dnd
             )
@@ -1384,9 +1410,9 @@ modules.initModuleManagement = function (duplicate) {
             }
           })
           const $prevModule = $(this).prev()
-          const $addModuleButton = ENV.FEATURES.instui_header ?
-            $('#context-modules-header-add-module-button') :
-            $('#content .header-bar .add_module_link')
+          const $addModuleButton = ENV.FEATURES.instui_header
+            ? $('#context-modules-header-add-module-button')
+            : $('#content .header-bar .add_module_link')
 
           const $toFocus = $prevModule.length
             ? $('.ig-header-admin .al-trigger', $prevModule)
@@ -1562,7 +1588,7 @@ modules.initModuleManagement = function (duplicate) {
             refreshDuplicateLinkStatus($currentModule)
           })
           $.flashMessage(
-            I18n.t('Module item %{module_item_name} was successfully deleted.', {
+            I18n.t('Module item %{module_item_name} was successfully removed.', {
               module_item_name: data.content_tag.title,
             })
           )
@@ -1718,7 +1744,7 @@ modules.initModuleManagement = function (duplicate) {
     $(event.currentTarget).addClass('screenreader-only')
   })
 
-  const add_module_link_handler = (event) => {
+  const add_module_link_handler = event => {
     event.preventDefault()
     const addModuleCallback = (data, $moduleElement) =>
       addModuleElement(
@@ -1962,13 +1988,10 @@ modules.initModuleManagement = function (duplicate) {
     modules.hideEditModule(true)
   })
   requestAnimationFrame(function () {
-    const $items = []
-    $('#context_modules .context_module_items').each(function () {
-      $items.push($(this))
-    })
+    const items = Array.from(document.querySelectorAll('#context_modules .context_module_items'))
     const next = function () {
-      if ($items.length > 0) {
-        const $item = $items.shift()
+      if (items.length > 0) {
+        const $item = $(items.shift())
         const opts = modules.sortable_module_options
         const k5TabsContainer = $('#k5-course-header').closest('.ic-Dashboard-tabs').eq(0)
         const k5ModulesContainer = $('#k5-modules-container')
@@ -2135,13 +2158,50 @@ function toggleModuleCollapse(event) {
   }
 }
 
-// THAT IS THE END
-
 function moduleContentIsHidden(contentEl) {
   return (
     contentEl.style.display === 'none' ||
     contentEl.parentElement.classList.contains('collapsed_module')
   )
+}
+
+function updateSubAssignmentData(contextModuleItem, subAssignments) {
+  subAssignments.forEach(subAssignment => {
+    const replyToTopicElement = contextModuleItem.find('.reply_to_topic_display')
+    if (!replyToTopicElement.length && !ENV.IS_STUDENT) {
+      // prepending reply to topic last so that it is listed first
+      contextModuleItem
+        .find('.ig-details')
+        .prepend('<div class="ig-details__item reply_to_entry_display"></div>')
+      contextModuleItem
+        .find('.ig-details')
+        .prepend('<div class="ig-details__item reply_to_topic_display"></div>')
+    }
+    const title =
+      subAssignment.sub_assignment_tag === 'reply_to_topic'
+        ? I18n.t('Reply to Topic')
+        : I18n.t('Required Replies (%{required_replies})', {
+            required_replies: subAssignment.replies_required,
+          })
+    let dueDate = ''
+    if (!(ENV.IN_PACED_COURSE && !ENV.IS_STUDENT)) {
+      if (subAssignment.has_many_overrides != null) {
+        dueDate = I18n.t('Multiple Due Dates')
+      } else if (subAssignment.vdd_tooltip != null) {
+        subAssignment.vdd_tooltip.link_href = contextModuleItem.find('a.title').attr('href')
+        dueDate = vddTooltipView(subAssignment.vdd_tooltip)
+      } else if (subAssignment.due_date) {
+        dueDate = dateString(subAssignment.due_date)
+      } else {
+        dueDate = I18n.t('No Due Date')
+      }
+      contextModuleItem
+        .find(`.${subAssignment.sub_assignment_tag}_display`)
+        .html(`<b>${title}:</b> ${dueDate}`)
+    } else {
+      contextModuleItem.find(`.${subAssignment.sub_assignment_tag}_display`).html(`<b>${title}</b>`)
+    }
+  })
 }
 
 // need the assignment data to check past due state
@@ -2181,7 +2241,7 @@ $(document).ready(function () {
     Helper.externalUrlLinkClick(event, $(this))
   })
 
-  $('.datetime_field').datetime_field()
+  renderDatetimeField($('.datetime_field'))
 
   $(document).on('mouseover', '.context_module', function () {
     $('.context_module_hover').removeClass('context_module_hover')
@@ -2255,6 +2315,9 @@ $(document).ready(function () {
   if (!ENV.disable_keyboard_shortcuts) {
     const $document = $(document)
     $document.keycodes('k up', _event => {
+      // If the vertical kebob pop-up menu is open then ignore the shortcut
+      if ($('.ui-menu.ui-state-open').length) return
+
       const params = {
         selectWhenModuleFocused: {
           item:
@@ -2273,6 +2336,9 @@ $(document).ready(function () {
 
     // "j" and "down arrow" move the focus down between modules and module items
     $document.keycodes('j down', _event => {
+      // If the vertical kebob pop-up menu is open then ignore the shortcut
+      if ($('.ui-menu.ui-state-open').length) return
+
       const params = {
         selectWhenModuleFocused: {
           item: $currentElem && $currentElem.find('.context_module_item:visible:first'),
@@ -2403,9 +2469,8 @@ $(document).ready(function () {
     $('.menu_tray_tool_link').click(openExternalTool)
   }
 
-  monitorLtiMessages()
-
   function renderCopyToTray(open, contentSelection, returnFocusTo) {
+     
     ReactDOM.render(
       <DirectShareCourseTray
         open={open}
@@ -2421,6 +2486,7 @@ $(document).ready(function () {
   }
 
   function renderSendToTray(open, contentSelection, returnFocusTo) {
+     
     ReactDOM.render(
       <DirectShareUserModal
         open={open}
@@ -2438,6 +2504,7 @@ $(document).ready(function () {
   function renderHeaderComponent() {
     const root = $('#context-modules-header-root')
     if (root[0]) {
+       
       ReactDOM.render(<ContextModulesHeader {...root.data('props')} />, root[0])
     }
   }
@@ -2488,7 +2555,7 @@ $(document).ready(function () {
 
   $(document).on('click', '.edit_module_link', function (event) {
     event.preventDefault()
-    if (ENV.FEATURES.differentiated_modules) {
+    if (ENV.FEATURES?.selective_release_ui_api) {
       const returnFocusTo = $(event.target).closest('ul').prev('.al-trigger')
       const moduleElement = $(event.target).parents('.context_module')[0]
       const settingsProps = parseModule(moduleElement)
@@ -2500,10 +2567,41 @@ $(document).ready(function () {
     }
   })
 
+  if (ENV.MODULE_FEATURES?.TEACHER_MODULE_SELECTION) {
+    $('#show_teacher_only_module_id').on('change', () => {
+      doFetchApi({
+        path: `/api/v1/courses/${ENV.COURSE_ID}/settings`,
+        method: 'PUT',
+        body: {show_teacher_only_module_id: $('#show_teacher_only_module_id').val()},
+      })
+        .then(_ => {
+          window.location.reload()
+        })
+        .catch(err => {
+          showFlashError(I18n.t('Cannot set the teacher view module'))(err)
+        })
+    })
+  }
+
+  if (ENV.MODULE_FEATURES?.STUDENT_MODULE_SELECTION) {
+    $('#show_student_only_module_id').on('change', () => {
+      doFetchApi({
+        path: `/api/v1/courses/${ENV.COURSE_ID}/settings`,
+        method: 'PUT',
+        body: {show_student_only_module_id: $('#show_student_only_module_id').val()},
+      }).catch(err => {
+        showFlashError(I18n.t('Cannot set the student view module'))(err)
+      })
+    })
+  }
+
   function handleRemoveDueDateInput(itemProps) {
-    switch(itemProps.moduleItemType) {
+    switch (itemProps.moduleItemType) {
       case 'discussion':
       case 'discussion_topic':
+        if (itemProps.moduleItemHasAssignment === 'true') {
+          return false
+        } else return true
       case 'page':
       case 'wiki_page':
         return true
@@ -2513,16 +2611,17 @@ $(document).ready(function () {
   }
 
   function renderItemAssignToTray(open, returnFocusTo, itemProps) {
-    ReactDOM.render(
-      <ItemAssignToTray
+    const container = document.getElementById('differentiated-modules-mount-point')
+    if (container.reactRoot) container.reactRoot.unmount()
+    container.reactRoot = createRoot(container)
+    container.reactRoot.render(
+      <ItemAssignToManager
         open={open}
         onClose={() => {
-          ReactDOM.unmountComponentAtNode(
-            document.getElementById('differentiated-modules-mount-point')
-          )
+          container.reactRoot.unmount()
         }}
         onDismiss={() => {
-          renderItemAssignToTray(false, returnFocusTo, itemProps)
+          container.reactRoot.unmount()
           returnFocusTo.focus()
         }}
         courseId={itemProps.courseId}
@@ -2534,8 +2633,8 @@ $(document).ready(function () {
         locale={ENV.LOCALE || 'en'}
         timezone={ENV.TIMEZONE || 'UTC'}
         removeDueDateInput={handleRemoveDueDateInput(itemProps)}
-      />,
-      document.getElementById('differentiated-modules-mount-point')
+        isCheckpointed={itemProps.moduleItemHasCheckpoint === 'true'}
+      />
     )
   }
 
@@ -2544,7 +2643,7 @@ $(document).ready(function () {
   function parseModuleItemElement(element) {
     const pointsPossibleElem = element?.querySelector('.points_possible_display')
     const points = parseFloat(pointsPossibleElem?.textContent)
-    // eslint-disable-next-line no-restricted-globals
+     
     return {pointsPossible: isNaN(points) ? undefined : points}
   }
 
@@ -2556,6 +2655,9 @@ $(document).ready(function () {
     const moduleItemType = event.target.getAttribute('data-item-type')
     const courseId = event.target.getAttribute('data-item-context-id')
     const moduleItemContentId = event.target.getAttribute('data-item-content-id')
+    const moduleItemHasAssignment = event.target.getAttribute('data-item-has-assignment')
+    const moduleItemHasCheckpoint = event.target.getAttribute('data-item-has-assignment-checkpoint')
+
     const itemProps = parseModuleItemElement(
       document.getElementById(`context_module_item_${moduleItemId}`)
     )
@@ -2564,6 +2666,8 @@ $(document).ready(function () {
       moduleItemName,
       moduleItemType,
       moduleItemContentId,
+      moduleItemHasAssignment,
+      moduleItemHasCheckpoint,
       ...itemProps,
     })
   })

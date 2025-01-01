@@ -372,7 +372,7 @@ class BigBlueButtonConference < WebConference
     additional_params = {}
 
     if config[:send_avatar]
-      additional_params[:avatarUrl] = user.avatar_url
+      additional_params[:avatarURL] = user.avatar_url
     end
 
     unless user.pronouns.nil?
@@ -409,8 +409,8 @@ class BigBlueButtonConference < WebConference
                            end
   end
 
-  def generate_request(*args)
-    self.class.generate_request(*args)
+  def generate_request(*)
+    self.class.generate_request(*)
   end
 
   def send_request(action, options)

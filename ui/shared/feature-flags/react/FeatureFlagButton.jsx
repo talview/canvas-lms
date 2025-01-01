@@ -17,8 +17,8 @@
  */
 
 import React, {useState, useRef, useEffect} from 'react'
-import {bool, object, string} from 'prop-types'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {bool, object, string, func} from 'prop-types'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {Text} from '@instructure/ui-text'
 import {Flex} from '@instructure/ui-flex'
 import {
@@ -36,7 +36,7 @@ import {showConfirmationDialog} from './ConfirmationDialog'
 
 import * as flagUtils from './util'
 
-const I18n = useI18nScope('feature_flags')
+const I18n = createI18nScope('feature_flags')
 
 function setFlag(flagName, state) {
   return doFetchApi({
@@ -53,7 +53,13 @@ function removeFlag(flagName) {
   })
 }
 
-function FeatureFlagButton({featureFlag, disableDefaults, displayName}) {
+function FeatureFlagButton({
+  featureFlag,
+  disableDefaults,
+  displayName,
+  appliesTo,
+  onStateChange = () => {},
+}) {
   const [updatedFlag, setUpdatedFlag] = useState(undefined)
   const [apiBusy, setApiBusy] = useState(false)
   const enclosingDivEl = useRef(null)
@@ -79,9 +85,11 @@ function FeatureFlagButton({featureFlag, disableDefaults, displayName}) {
         // Update to match the new state since this returns the old version not the new one
         json.state = json.parent_state
         setUpdatedFlag(json)
+        onStateChange(json.state)
       } else {
         const {json} = await setFlag(effectiveFlag.feature, state)
         setUpdatedFlag(json)
+        onStateChange(json.state)
       }
     } catch (e) {
       showFlashAlert({
@@ -102,7 +110,7 @@ function FeatureFlagButton({featureFlag, disableDefaults, displayName}) {
   // Show the appropriate text depending
   // Also if we are in a course context then our FFs can't ever be inherited
   const allowsDefaults = flagUtils.doesAllowDefaults(effectiveFlag, disableDefaults)
-  const description = flagUtils.buildDescription(effectiveFlag, allowsDefaults)
+  const description = flagUtils.buildDescription(effectiveFlag, allowsDefaults, appliesTo)
 
   const isLocked = flagUtils.isLocked(effectiveFlag)
 
@@ -199,6 +207,8 @@ FeatureFlagButton.propTypes = {
   featureFlag: object.isRequired,
   displayName: string,
   disableDefaults: bool,
+  appliesTo: string,
+  onStateChange: func,
 }
 
 export default React.memo(FeatureFlagButton)

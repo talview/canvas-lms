@@ -24,7 +24,7 @@ describe BasicLTI::QuizzesNextLtiResponse do
     @root_account = @course.root_account
     @account = account_model(root_account: @root_account, parent_account: @root_account)
     @course.update_attribute(:account, @account)
-    @user = factory_with_protected_attributes(User, name: "some user", workflow_state: "registered")
+    @user = User.create!(name: "some user", workflow_state: "registered")
     @course.enroll_student(@user)
   end
 
@@ -331,7 +331,7 @@ describe BasicLTI::QuizzesNextLtiResponse do
           BasicLTI::BasicOutcomes.process_request(tool, xml)
 
           submission = assignment.submissions.where(user_id: @user.id).first
-          expect(submission.workflow_state).to eq Submission.workflow_states.pending_review
+          expect(submission.workflow_state).to eq "pending_review"
         end
       end
 

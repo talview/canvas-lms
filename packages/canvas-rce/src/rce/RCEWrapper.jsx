@@ -20,6 +20,7 @@ import React, {Suspense} from 'react'
 import {Editor} from '@tinymce/tinymce-react'
 import _ from 'lodash'
 import {StoreProvider} from './plugins/shared/StoreContext'
+import {RCEWrapperInterface} from './types'
 
 import {IconKeyboardShortcutsLine} from '@instructure/ui-icons'
 import {Alert} from '@instructure/ui-alerts'
@@ -70,6 +71,12 @@ import {IconMoreSolid} from '@instructure/ui-icons/es/svg'
 import EncryptedStorage from '../util/encrypted-storage'
 import buildStyle from './style'
 import {externalToolsForToolbar} from './plugins/instructure_rce_external_tools/RceToolWrapper'
+import {
+  getMenubarForVariant,
+  getMenuForVariant,
+  getToolbarForVariant,
+  getStatusBarFeaturesForVariant,
+} from './RCEVariants'
 
 const RestoreAutoSaveModal = React.lazy(() => import('./RestoreAutoSaveModal'))
 const RceHtmlEditor = React.lazy(() => import('./RceHtmlEditor'))
@@ -180,6 +187,7 @@ class RCEWrapper extends React.Component {
     features: {},
     timezone: Intl?.DateTimeFormat()?.resolvedOptions()?.timeZone,
     canvasOrigin: '',
+    variant: 'full',
   }
 
   static skinCssInjected = false
@@ -252,6 +260,7 @@ class RCEWrapper extends React.Component {
         typeof IntersectionObserver === 'undefined' ||
         maxInitRenderedRCEs <= 0 ||
         currentRCECount < maxInitRenderedRCEs,
+      AIToolsOpen: false,
     }
     this._statusBarId = `${this.state.id}_statusbar`
 
@@ -266,6 +275,8 @@ class RCEWrapper extends React.Component {
     this.resourceType = props.resourceType
     this.resourceId = props.resourceId
 
+    this.variant = window.RCE_VARIANT || props.variant // to facilitate testing
+
     this.tinymceInitOptions = this.wrapOptions(props.editorOptions)
 
     alertHandler.alertFunc = this.addAlert
@@ -275,6 +286,8 @@ class RCEWrapper extends React.Component {
     this.resizeObserver = new ResizeObserver(_entries => {
       this._handleFullscreenResize()
     })
+
+    this.AIToolsTray = undefined
   }
 
   // when the RCE is put into fullscreen we need to move the div
@@ -305,6 +318,8 @@ class RCEWrapper extends React.Component {
       rce_transform_loaded_content = false,
       media_links_use_attachment_id = false,
       rce_find_replace = false,
+      file_verifiers_for_quiz_links = false,
+      consolidated_media_player = false,
     } = this.props.features
 
     return {
@@ -312,7 +327,9 @@ class RCEWrapper extends React.Component {
       explicit_latex_typesetting,
       rce_transform_loaded_content,
       media_links_use_attachment_id,
+      file_verifiers_for_quiz_links,
       rce_find_replace,
+      consolidated_media_player,
     }
   }
 
@@ -442,6 +459,19 @@ class RCEWrapper extends React.Component {
     const editor = this.mceInstance()
     const element = contentInsertion.insertContent(editor, code)
     this.contentInserted(element)
+  }
+
+  replaceCode(code) {
+    if (
+      code !== '' &&
+      window.confirm(
+        formatMessage(
+          'Content in the editor will be changed. Press Cancel to keep the original content.'
+        )
+      )
+    ) {
+      this.mceInstance().setContent(code)
+    }
   }
 
   insertEmbedCode(code) {
@@ -605,7 +635,7 @@ class RCEWrapper extends React.Component {
     return this.state.id
   }
 
-   getHtmlEditorStorage() {
+  getHtmlEditorStorage() {
     const cookieValue = getCookie('rce.htmleditor')
     if (cookieValue) {
       document.cookie = `rce.htmleditor=${cookieValue};path=/;max-age=0`
@@ -734,16 +764,6 @@ class RCEWrapper extends React.Component {
         this.mceInstance().focus()
         break
       case PRETTY_HTML_EDITOR_VIEW:
-        {
-          const cmta = this._elementRef.current.querySelector('.CodeMirror textarea')
-          if (cmta) {
-            cmta.focus()
-          } else {
-            window.setTimeout(() => {
-              this._elementRef.current.querySelector('.CodeMirror textarea')?.focus()
-            }, 200)
-          }
-        }
         break
       case RAW_HTML_EDITOR_VIEW:
         this.getTextarea().focus()
@@ -877,10 +897,6 @@ class RCEWrapper extends React.Component {
     const ifr = this.iframe
     ifr && ifr.parentElement.classList.add('active')
 
-    this.handleFocus(event)
-  }
-
-  handleFocusHtmlEditor = event => {
     this.handleFocus(event)
   }
 
@@ -1022,6 +1038,7 @@ class RCEWrapper extends React.Component {
       })
     }
   }
+
   /**
    * Fix keyboard navigation in the expanded toolbar
    *
@@ -1407,6 +1424,72 @@ class RCEWrapper extends React.Component {
     }
   }
 
+  handleAIClick = () => {
+    import('./plugins/shared/ai_tools')
+      .then(module => {
+        this.AIToolsTray = module.AIToolsTray
+
+        this.setState({
+          AIToolsOpen: true,
+          AITToolsFocusReturn: document.activeElement,
+        })
+      })
+      .catch(ex => {
+        // eslint-disable-next-line no-console
+        console.error('Failed loading the AIToolsTray', ex)
+      })
+  }
+
+  closeAITools = () => {
+    this.setState({AIToolsOpen: false})
+  }
+
+  AIToolsExited = () => {
+    if (this.state.AITToolsFocusReturn === this.iframe) {
+      // launched using a kb shortcut
+      // the iframe has focus so we need to forward it on to tinymce editor
+      this.editor.focus(false)
+    } else if (
+      this.state.AITToolsFocusReturn === document.getElementById(`show-on-focus-btn-${this.id}`)
+    ) {
+      // launched from showOnFocus button
+      // edge case where focusing KBShortcutFocusReturn doesn't work
+      this._showOnFocusButton?.focus()
+    } else {
+      // launched from kb shortcut button on status bar
+      this.state.AITToolsFocusReturn?.focus()
+    }
+  }
+
+  handleInsertAIContent = content => {
+    const editor = this.mceInstance()
+    contentInsertion.insertContent(editor, content)
+  }
+
+  handleReplaceAIContent = content => {
+    const ed = this.mceInstance()
+    const selection = ed.selection
+    if (selection.getContent().length > 0) {
+      selection.setContent(content)
+    } else {
+      ed.selection.select(ed.getBody(), true)
+      selection.setContent(content)
+    }
+  }
+
+  getCurrentContentForAI = () => {
+    const selected = this.mceInstance().selection.getContent()
+    return selected
+      ? {
+          type: 'selection',
+          content: selected,
+        }
+      : {
+          type: 'full',
+          content: this.mceInstance().getContent(),
+        }
+  }
+
   setFocusAbilityForHeader = focusable => {
     // Sets aria-hidden to prevent screen readers focus in RCE menus and toolbar
     const header = this._elementRef.current.querySelector('.tox-editor-header')
@@ -1508,9 +1591,9 @@ class RCEWrapper extends React.Component {
       // This is just so we inject the helper class names that tinyMCE uses for
       // things like table resizing and stuff.
       content_css: options.content_css || [],
-      content_style: contentCSS,
+      content_style: contentCSS + (options.content_style || ''),
 
-      menubar: mergeMenuItems('edit view insert format tools table', possibleNewMenubarItems),
+      menubar: mergeMenuItems(getMenubarForVariant(this.variant), possibleNewMenubarItems),
 
       // default menu options listed at https://www.tiny.cloud/docs/configure/editor-appearance/#menu
       // tinymce's default edit and table menus are fine
@@ -1518,75 +1601,10 @@ class RCEWrapper extends React.Component {
       // since we currently can't effectively paste using the clipboard api anyway.
       // we include all the canvas specific items in the menu and toolbar
       // and rely on tinymce only showing them if the plugin is provided.
-      menu: mergeMenu(
-        {
-          edit: {
-            title: formatMessage('Edit'),
-            items: `undo redo | cut copy paste | selectall`,
-          },
-          format: {
-            title: formatMessage('Format'),
-            items:
-              'bold italic underline strikethrough superscript subscript codeformat | formats blockformats fontformats fontsizes align directionality | forecolor backcolor | removeformat',
-          },
-          insert: {
-            title: formatMessage('Insert'),
-            items:
-              'instructure_links instructure_image instructure_media instructure_document instructure_icon_maker | instructure_equation inserttable instructure_media_embed | hr',
-          },
-          tools: {
-            title: formatMessage('Tools'),
-            items: 'instructure_wordcount lti_tools_menuitem instructure_search_and_replace',
-          },
-          view: {
-            title: formatMessage('View'),
-            items: 'instructure_fullscreen instructure_exit_fullscreen instructure_html_view',
-          },
-        },
-        options.menu
-      ),
+      menu: mergeMenu(getMenuForVariant(this.variant), options.menu),
 
       toolbar: mergeToolbar(
-        [
-          {
-            name: formatMessage('Styles'),
-            items: ['fontsizeselect', 'formatselect'],
-          },
-          {
-            name: formatMessage('Formatting'),
-            items: [
-              'bold',
-              'italic',
-              'underline',
-              'forecolor',
-              'backcolor',
-              'inst_subscript',
-              'inst_superscript',
-            ],
-          },
-          {
-            name: formatMessage('Content'),
-            items: [
-              'instructure_links',
-              'instructure_image',
-              'instructure_record',
-              'instructure_documents',
-              'instructure_icon_maker',
-            ],
-          },
-          {
-            name: formatMessage('External Tools'),
-            items: [...this.ltiToolFavorites, 'lti_tool_dropdown', 'lti_mru_button'],
-          },
-          {
-            name: formatMessage('Alignment and Lists'),
-            items: ['align', 'bullist', 'inst_indent', 'inst_outdent'],
-          },
-          {
-            name: formatMessage('Miscellaneous'),
-            items: ['removeformat', 'table', 'instructure_equation', 'instructure_media_embed'],
-          },
-        ],
+        getToolbarForVariant(this.variant, this.ltiToolFavorites),
         options.toolbar
       ),
 
@@ -1612,6 +1630,7 @@ class RCEWrapper extends React.Component {
           'lists',
           'textpattern',
           'hr',
+          'instructure_color',
           'instructure-ui-icons',
           'instructure_condensed_buttons',
           'instructure_links',
@@ -1737,22 +1756,12 @@ class RCEWrapper extends React.Component {
 
   setEditorView(view) {
     switch (view) {
-      case RAW_HTML_EDITOR_VIEW:
-        this.getTextarea().removeAttribute('aria-hidden')
-        this.getTextarea().labels?.[0]?.removeAttribute('aria-hidden')
-        this.mceInstance().hide()
-        break
-      case PRETTY_HTML_EDITOR_VIEW:
-        this.getTextarea().setAttribute('aria-hidden', true)
-        this.getTextarea().labels?.[0]?.setAttribute('aria-hidden', true)
-        this.mceInstance().hide()
-        this._elementRef.current.querySelector('.CodeMirror')?.CodeMirror.setCursor(0, 0)
-        break
       case WYSIWYG_VIEW:
         this.setCode(this.textareaValue())
-        this.getTextarea().setAttribute('aria-hidden', true)
-        this.getTextarea().labels?.[0]?.setAttribute('aria-hidden', true)
         this.mceInstance().show()
+        break
+      default:
+        this.mceInstance().hide()
     }
   }
 
@@ -1808,7 +1817,6 @@ class RCEWrapper extends React.Component {
               this.getTextarea().value = value
               this.handleTextareaChange()
             }}
-            onFocus={this.handleFocusHtmlEditor}
           />
         </View>
       </Suspense>
@@ -1829,6 +1837,7 @@ class RCEWrapper extends React.Component {
         />
       )
     }
+    const statusBarFeatures = getStatusBarFeaturesForVariant(this.variant, this.props.ai_text_tools)
     return (
       <>
         <style>{this.style.css}</style>
@@ -1846,6 +1855,7 @@ class RCEWrapper extends React.Component {
                 key={this.id}
                 className={`${this.style.classNames.root} rce-wrapper`}
                 ref={this._elementRef}
+                style={this.variant === 'full' ? {marginBottom: '.5rem'} : undefined}
                 onFocus={this.handleFocusRCE}
                 onBlur={this.handleBlurRCE}
               >
@@ -1888,26 +1898,30 @@ class RCEWrapper extends React.Component {
                     liveRegion={this.props.liveRegion}
                   />
                 </div>
-                <StatusBar
-                  id={this._statusBarId}
-                  rceIsFullscreen={this._isFullscreen()}
-                  readOnly={this.props.readOnly}
-                  onChangeView={newView => this.toggleView(newView)}
-                  path={this.state.path}
-                  wordCount={this.state.wordCount}
-                  editorView={this.state.editorView}
-                  preferredHtmlEditor={this.getHtmlEditorStorage()}
-                  onResize={this.onResize}
-                  onKBShortcutModalOpen={this.openKBShortcutModal}
-                  onA11yChecker={this.onA11yChecker}
-                  onFullscreen={this.handleClickFullscreen}
-                  a11yBadgeColor={this.style.theme.canvasBadgeBackgroundColor}
-                  a11yErrorsCount={this.state.a11yErrorsCount}
-                  onWordcountModalOpen={() =>
-                    launchWordcountModal(this.mceInstance(), document, {skipEditorFocus: true})
-                  }
-                  disabledPlugins={this.pluginsToExclude}
-                />
+                {statusBarFeatures.length > 0 && (
+                  <StatusBar
+                    id={this._statusBarId}
+                    rceIsFullscreen={this._isFullscreen()}
+                    readOnly={this.props.readOnly}
+                    onChangeView={newView => this.toggleView(newView)}
+                    path={this.state.path}
+                    wordCount={this.state.wordCount}
+                    editorView={this.state.editorView}
+                    preferredHtmlEditor={this.getHtmlEditorStorage()}
+                    onResize={this.onResize}
+                    onKBShortcutModalOpen={this.openKBShortcutModal}
+                    onA11yChecker={this.onA11yChecker}
+                    onFullscreen={this.handleClickFullscreen}
+                    a11yBadgeColor={this.style.theme.canvasBadgeBackgroundColor}
+                    a11yErrorsCount={this.state.a11yErrorsCount}
+                    onWordcountModalOpen={() =>
+                      launchWordcountModal(this.mceInstance(), document, {skipEditorFocus: true})
+                    }
+                    disabledPlugins={this.pluginsToExclude}
+                    features={statusBarFeatures}
+                    onAI={this.handleAIClick}
+                  />
+                )}
                 {this.props.trayProps?.containingContext && (
                   <CanvasContentTray
                     mountNode={instuiPopupMountNode}
@@ -1926,6 +1940,19 @@ class RCEWrapper extends React.Component {
                   onDismiss={this.closeKBShortcutModal}
                   open={this.state.KBShortcutModalOpen}
                 />
+                {this.props.ai_text_tools && this.AIToolsTray && (
+                  <this.AIToolsTray
+                    open={this.state.AIToolsOpen}
+                    container={document.querySelector('[role="main"]')}
+                    mountNode={instuiPopupMountNode}
+                    contextId={trayProps.contextId}
+                    contextType={trayProps.contextId}
+                    currentContent={this.getCurrentContentForAI()}
+                    onClose={this.closeAITools}
+                    onInsertContent={this.handleInsertAIContent}
+                    onReplaceContent={this.handleReplaceAIContent}
+                  />
+                )}
                 {this.state.confirmAutoSave ? (
                   <Suspense fallback={<Spinner renderTitle={renderLoading} size="small" />}>
                     <RestoreAutoSaveModal

@@ -27,7 +27,7 @@ if (!('INST' in window)) window.INST = {}
  * in templating engines or other contexts where you have pre-escaped strings
  * or strings with HTML content that should be rendered as-is.
  */
-class SafeString {
+export class SafeString {
   /**
    * @param {string | any} string - The string or value to be marked as safe. If not a string, it will be converted to one.
    */
@@ -73,7 +73,7 @@ const ENTITIES = {
 }
 
 /**
- * @param {string} str - The string to be escaped.
+ * @param {string|undefined} str - The string to be escaped.
  * @returns {string} The escaped string with HTML special characters replaced by entities.
  *
  * @example
@@ -83,6 +83,7 @@ const ENTITIES = {
  * // safeString would be: "&lt;script&gt;alert('XSS')&lt;/script&gt;"
  */
 export function htmlEscape(str) {
+  if (typeof str === 'undefined') return ''
   return str.replace(/[&<>"'\/`=]/g, c => ENTITIES[c])
 }
 
@@ -92,7 +93,7 @@ export function htmlEscape(str) {
  * the input as is. This utility function is intended to help prevent XSS
  * attacks by sanitizing strings or to safely convert numbers to strings.
  *
- * @param {string|number} strOrNumber - The input to be escaped or converted to a string.
+ * @param {string|number|undefined} strOrNumber - The input to be escaped or converted to a string.
  * @returns {string|*} - If the input is a string or number, returns an escaped
  * string. Otherwise, returns the input unchanged.
  *
@@ -111,14 +112,19 @@ export function htmlEscape(str) {
  * This is a no-op!
  * Don’t call htmlEscape with an object.
  */
+
 export default function escape(strOrNumber) {
-  if (typeof strOrNumber === 'string') {
-    return htmlEscape(strOrNumber)
-  } else if (typeof strOrNumber === 'number') {
-    return escape(strOrNumber.toString())
+  switch (typeof strOrNumber) {
+    case 'string':
+    case 'undefined':
+      return htmlEscape(strOrNumber)
+    case 'number':
+      return escape(strOrNumber.toString())
+    default:
+      return strOrNumber
   }
-  return strOrNumber
 }
+
 escape.SafeString = SafeString
 
 INST.htmlEscape = escape

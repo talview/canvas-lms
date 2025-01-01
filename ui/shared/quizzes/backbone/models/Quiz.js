@@ -22,12 +22,12 @@ import Assignment from '@canvas/assignments/backbone/models/Assignment'
 import DateGroup from '@canvas/date-group/backbone/models/DateGroup'
 import AssignmentOverrideCollection from '@canvas/assignments/backbone/collections/AssignmentOverrideCollection'
 import DateGroupCollection from '@canvas/date-group/backbone/collections/DateGroupCollection'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import '@canvas/jquery/jquery.ajaxJSON'
 import '@canvas/jquery/jquery.instructure_misc_helpers'
 import PandaPubPoller from '@canvas/panda-pub-poller'
 
-const I18n = useI18nScope('modelsQuiz')
+const I18n = createI18nScope('modelsQuiz')
 
 export default class Quiz extends Backbone.Model {
   initialize() {
@@ -389,7 +389,7 @@ export default class Quiz extends Backbone.Model {
 
   isOnlyVisibleToOverrides(overrideFlag) {
     if (!(arguments.length > 0)) {
-      if (ENV.FEATURES?.differentiated_modules && this.get('visible_to_everyone') != null) {
+      if (ENV.FEATURES?.selective_release_ui_api && this.get('visible_to_everyone') != null) {
         return !this.get('visible_to_everyone')
       }
       return this.get('only_visible_to_overrides') || false

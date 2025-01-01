@@ -22,9 +22,9 @@ import {Button} from '@instructure/ui-buttons'
 import {CSVLink} from 'react-csv'
 import {IconExportLine} from '@instructure/ui-icons'
 import useCSVExport, {EXPORT_COMPLETE, EXPORT_FAILED, EXPORT_PENDING} from './hooks/useCSVExport'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
-const I18n = useI18nScope('learning_mastery_gradebook')
+const I18n = createI18nScope('learning_mastery_gradebook')
 
 const ExportCSVButton = ({courseId, gradebookFilters}) => {
   const csvElementRef = useRef(null)
@@ -62,7 +62,7 @@ const ExportCSVButton = ({courseId, gradebookFilters}) => {
         filename={`course-${courseId}-gradebook-export.csv`}
         data-testid="csv-link"
       >
-        <span ref={csvElementRef}/>
+        <span ref={csvElementRef} />
       </CSVLink>
     </>
   )

@@ -20,7 +20,7 @@ import {AnonymousUser} from './AnonymousUser'
 import {Discussion} from './Discussion'
 import {Course} from './Course'
 import {DiscussionEntry} from './DiscussionEntry'
-import gql from 'graphql-tag'
+import {gql} from '@apollo/client'
 import {PageInfo} from './PageInfo'
 import {GroupSet} from './GroupSet'
 import {Group} from './Group'
@@ -73,10 +73,8 @@ export const DISCUSSION_QUERY = gql`
         searchEntryCount(filter: $filter, searchTerm: $searchTerm)
         groupSet {
           ...GroupSet
-          groupsConnection {
-            nodes {
-              ...Group
-            }
+          groups {
+            ...Group
           }
         }
       }
@@ -88,6 +86,39 @@ export const DISCUSSION_QUERY = gql`
   ${PageInfo.fragment}
   ${GroupSet.fragment}
   ${Group.fragment}
+`
+export const STUDENT_DISCUSSION_QUERY = gql`
+  query GetDiscussionQuery(
+    $discussionID: ID!
+    $perPage: Int!
+    $userSearchId: String
+    $sort: DiscussionSortOrderType
+  ) {
+    legacyNode(_id: $discussionID, type: Discussion) {
+      ... on Discussion {
+        ...Discussion
+        anonymousAuthor {
+          ...AnonymousUser
+        }
+        discussionEntriesConnection(sortOrder: $sort, userSearchId: $userSearchId) {
+          nodes {
+            _id
+            rootEntryId
+            anonymousAuthor {
+              ...AnonymousUser
+            }
+            rootEntryPageNumber(perPage: $perPage)
+          }
+          pageInfo {
+            ...PageInfo
+          }
+        }
+      }
+    }
+  }
+  ${AnonymousUser.fragment}
+  ${Discussion.fragment}
+  ${PageInfo.fragment}
 `
 
 export const DISCUSSION_ENTRIES_BY_STUDENT_QUERY = gql`

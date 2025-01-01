@@ -16,7 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import React from 'react'
 import ReactDOM from 'react-dom'
@@ -32,7 +32,6 @@ import iframeAllowances from '@canvas/external-apps/iframeAllowances'
 import SelectContent from '../select_content'
 import setDefaultToolValues from '../setDefaultToolValues'
 import {findLinkForService, getUserServices} from '@canvas/services/findLinkForService'
-import '@canvas/datetime/jquery' /* datetime_field */
 import '@canvas/jquery/jquery.ajaxJSON'
 import '@canvas/jquery/jquery.instructure_forms' /* formSubmit, ajaxJSONFiles, getFormData, errorBox */
 import 'jqueryui/dialog'
@@ -88,7 +87,7 @@ type LtiLaunchDefinition = {
   placements: Record<SelectContentPlacementType, LtiLaunchPlacement>
 }
 
-const I18n = useI18nScope('select_content_dialog')
+const I18n = createI18nScope('select_content_dialog')
 
 const SelectContentDialog = {}
 
@@ -100,7 +99,7 @@ export const externalContentReadyHandler = (event: MessageEvent, tool: LtiLaunch
   if (item['@type'] === 'LtiLinkItem' && item.url) {
     handleContentItemResult(item, tool)
   } else {
-    // eslint-disable-next-line no-alert
+     
     window.alert(SelectContent.errorForUrlItem(item))
 
     resetExternalToolFields()
@@ -130,9 +129,11 @@ const isEqualOrIsArrayWithEqualValue = (
 ) => value === toCompare || (Array.isArray(value) && value[0] === toCompare)
 
 export const deepLinkingResponseHandler = (event: MessageEvent<DeepLinkResponse>) => {
+  // Handles lti_msg / lti_errormsg
+  contentItemProcessorPrechecks(event.data)
+
   if (event.data.content_items.length > 1) {
     try {
-      contentItemProcessorPrechecks(event.data)
       const result = event.data.content_items
 
       const $dialog = $('#resource_selection_dialog')
@@ -149,7 +150,7 @@ export const deepLinkingResponseHandler = (event: MessageEvent<DeepLinkResponse>
       }
     } catch (e) {
       $.flashError(I18n.t('Error retrieving content'))
-      // eslint-disable-next-line no-console
+       
       console.error(e)
     } finally {
       const $dialog = $('#resource_selection_dialog')
@@ -157,7 +158,6 @@ export const deepLinkingResponseHandler = (event: MessageEvent<DeepLinkResponse>
     }
   } else if (event.data.content_items.length === 1) {
     try {
-      contentItemProcessorPrechecks(event.data)
       const result = event.data.content_items[0]
       const $dialog = $('#resource_selection_dialog')
       $dialog.off('dialogbeforeclose', dialogCancelHandler)
@@ -167,13 +167,19 @@ export const deepLinkingResponseHandler = (event: MessageEvent<DeepLinkResponse>
         $.flashError(I18n.t('Selected content is not an LTI link.'))
         return
       }
+
+      if (event.data.reloadpage) {
+        window.location.reload()
+        return
+      }
+
       const tool: LtiLaunchDefinition = $(
         '#context_external_tools_select .tools .tool.selected'
       ).data('tool')
       handleContentItemResult(result, tool)
     } catch (e) {
       $.flashError(I18n.t('Error retrieving content'))
-      // eslint-disable-next-line no-console
+       
       console.error(e)
     } finally {
       const $dialog = $('#resource_selection_dialog')
@@ -214,10 +220,10 @@ export function closeAll() {
 }
 
 export function dialogCancelHandler(
-  // eslint-disable-next-line no-undef
+   
   event: JQuery.TriggeredEvent<HTMLElement, any, any, any>
 ) {
-  // eslint-disable-next-line no-alert
+   
   const response = window.confirm(
     I18n.t('Are you sure you want to cancel? Changes you made may not be saved.')
   )
@@ -227,7 +233,7 @@ export function dialogCancelHandler(
 }
 
 export function beforeUnloadHandler(
-  // eslint-disable-next-line no-undef
+   
   e: JQuery.TriggeredEvent<Window & typeof globalThis, any, any, any>
 ) {
   return ((e as typeof e & {returnValue: string}).returnValue = I18n.t(
@@ -255,12 +261,7 @@ export function handleContentItemResult(
   }
   const populateUrl = (url: string) => {
     if (url && url !== '') {
-      if (
-        $('#external_tool_create_url').val() === '' ||
-        window.ENV.FEATURES.lti_overwrite_user_url_input_select_content_dialog
-      ) {
-        $('#external_tool_create_url').val(url)
-      }
+      $('#external_tool_create_url').val(url)
     }
   }
   if (typeof result.url !== 'undefined' && result.url !== '') {
@@ -283,6 +284,10 @@ export function handleContentItemResult(
   setJsonValueIfDefined('#external_tool_create_line_item', result.lineItem)
   setJsonValueIfDefined('#external_tool_create_submission', result.submission)
   setJsonValueIfDefined('#external_tool_create_available', result.available)
+  setJsonValueIfDefined(
+    '#external_tool_create_preserve_existing_assignment_name',
+    result['https://canvas.instructure.com/lti/preserveExistingAssignmentName']
+  )
   if ('text' in result && typeof result.text === 'string') {
     $('#external_tool_create_description').val(result.text)
   }
@@ -303,9 +308,7 @@ export const Events = {
   },
 
   onContextExternalToolSelect(
-    // eslint-disable-next-line no-undef
-    e: JQuery.ClickEvent<HTMLElement, undefined, any, any>,
-    // eslint-disable-next-line no-undef
+    e: Pick<JQuery.ClickEvent<HTMLElement, undefined, any, any>, 'preventDefault'>,
     existingTool: JQuery<HTMLElement>
   ) {
     e.preventDefault()
@@ -375,28 +378,37 @@ export const Events = {
 
         const $iframe = $dialog.find('#resource_selection_iframe')
 
-        const measurements = () => ({
-          iframeWidth: numberOrZero($iframe.outerWidth(true)),
-          iframeHeight: numberOrZero($iframe.outerHeight(true)),
-        })
+        let origIframeWidthStr = $iframe.css('width')
+        let origIframeHeightStr = $iframe.css('height')
+
+        const looksLikePixelMeasurement = (str: string) =>
+          str.match(/[0-9]/) && !str.match(/(%|em)/)
 
         $external_content_info_alerts.on('focus', function () {
-          const {iframeWidth, iframeHeight} = measurements()
+          origIframeWidthStr = $iframe.css('width')
+          origIframeHeightStr = $iframe.css('height')
+          const iframeWidth = parseInt(origIframeWidthStr, 10)
+          const iframeHeight = parseInt(origIframeHeightStr, 10)
           $iframe.css('border', '2px solid #0374B5')
           $(this).removeClass('screenreader-only')
           const alertHeight = numberOrZero($(this).outerHeight(true))
-          $iframe
-            .css('height', `${iframeHeight - alertHeight - 4}px`)
-            .css('width', `${iframeWidth - 4}px`)
+
+          // I'm not sure if the measurements can ever not be of the form
+          // /[0-9]+px/, but just in case it can, don't grossly misinterpret
+          // them
+          if (looksLikePixelMeasurement(origIframeWidthStr)) {
+            $iframe.css('width', `${iframeWidth - 4}px`)
+          }
+          if (looksLikePixelMeasurement(origIframeHeightStr)) {
+            $iframe.css('height', `${iframeHeight - alertHeight - 4}px`)
+          }
           $dialog.scrollLeft(0).scrollTop(0)
         })
 
         $external_content_info_alerts.on('blur', function () {
-          const {iframeWidth, iframeHeight} = measurements()
-          const alertHeight = numberOrZero($(this).outerHeight(true))
           $dialog.find('#resource_selection_iframe').css('border', 'none')
           $(this).addClass('screenreader-only')
-          $iframe.css('height', `${iframeHeight + alertHeight}px`).css('width', `${iframeWidth}px`)
+          $iframe.css('height', origIframeHeightStr).css('width', origIframeWidthStr)
           $dialog.scrollLeft(0).scrollTop(0)
         })
 
@@ -416,6 +428,7 @@ export const Events = {
                 .attr('src', '/images/ajax-loader-medium-444.gif')
             },
             open: () => {
+              $dialog.parent().find('.ui-dialog-titlebar-close').focus()
               window.addEventListener('message', ltiPostMessageHandlerForTool)
             },
             title: I18n.t('link_from_external_tool', 'Link Resource from External Tool'),
@@ -517,6 +530,9 @@ export function extractContextExternalToolItemData() {
     'item[description]': $('#external_tool_create_description').val(),
     'item[submission]': $('#external_tool_create_submission').val(),
     'item[available]': $('#external_tool_create_available').val(),
+    'item[preserveExistingAssignmentName]': $(
+      '#external_tool_create_preserve_existing_assignment_name'
+    ).val(),
   } as const
 }
 
@@ -531,6 +547,7 @@ export function resetExternalToolFields() {
   $('#external_tool_create_assignment_id').val('')
   $('#external_tool_create_iframe_width').val('')
   $('#external_tool_create_iframe_height').val('')
+  $('#external_tool_create_preserve_existing_assignment_name').val('')
 }
 
 export type SelectContentDialogOptions = {
@@ -812,9 +829,9 @@ $(document).ready(function () {
               if (
                 !Object.keys(ENV.MODULE_FILE_DETAILS).find(fdkey => {
                   file_matches =
-                    // eslint-disable-next-line eqeqeq
+                     
                     ENV.MODULE_FILE_DETAILS[fdkey].content_id == attachment.replacingFileId &&
-                    ENV.MODULE_FILE_DETAILS[fdkey].module_id == adding_to_module_id // eslint-disable-line eqeqeq
+                    ENV.MODULE_FILE_DETAILS[fdkey].module_id == adding_to_module_id  
                   if (file_matches) ENV.MODULE_FILE_DETAILS[fdkey].content_id = attachment.id
                   return file_matches
                 })
@@ -842,6 +859,7 @@ $(document).ready(function () {
             fileSelectBox?.setDirty()
             renderCurrentUploads()
           } else if (typeof url !== 'undefined') {
+            // @ts-expect-error
             $.ajaxJSON(
               url,
               'POST',
@@ -919,6 +937,7 @@ $(document).ready(function () {
         $select.find('.message').text('Loading...')
         const url = $('#select_context_content_dialog .external_tools_url').attr('href')
         if (typeof url !== 'undefined') {
+          // @ts-expect-error
           $.ajaxJSON(
             url,
             'GET',
@@ -1082,6 +1101,7 @@ function renderFileUploadForm() {
     // toggle from current uploads to the choose files button
     $('#module_attachment_upload_form').show()
     $('#module_attachment_upload_progress').hide()
+     
     upload_form = ReactDOM.render(
       <UploadForm {...folderProps} />,
       $('#module_attachment_upload_form')[0]
@@ -1090,6 +1110,7 @@ function renderFileUploadForm() {
 }
 
 function renderCurrentUploads() {
+   
   ReactDOM.render(
     <CurrentUploads onUploadChange={handleUploadOnChange} />,
     $('#module_attachment_upload_progress')[0]

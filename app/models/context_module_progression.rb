@@ -42,7 +42,7 @@ class ContextModuleProgression < ActiveRecord::Base
 
   def set_completed_at
     if completed?
-      self.completed_at ||= Time.now
+      self.completed_at ||= Time.zone.now
     else
       self.completed_at = nil
     end
@@ -314,10 +314,10 @@ class ContextModuleProgression < ActiveRecord::Base
     end
   end
 
-  def update_requirement_met!(*args)
+  def update_requirement_met!(*)
     retry_count = 0
     begin
-      if update_requirement_met(*args)
+      if update_requirement_met(*)
         save!
         delay_if_production.evaluate!
       end
@@ -504,6 +504,7 @@ class ContextModuleProgression < ActiveRecord::Base
       .readonly(false)
       .where(context_modules: { context_type: "Course", context_id: course_id })
   }
+  scope :compleleted, -> { where(workflow_state: "completed") }
 
   workflow do
     state :locked

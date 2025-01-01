@@ -16,24 +16,34 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+import {MockedProvider} from '@apollo/client/testing'
 import {AlertManagerContext} from '@canvas/alerts/react/AlertManager'
-import {render, fireEvent} from '@testing-library/react'
-import React from 'react'
-import {DiscussionPostToolbar} from '../DiscussionPostToolbar'
-import {updateUserDiscussionsSplitscreenViewMock} from '../../../../graphql/Mocks'
-import {ChildTopic} from '../../../../graphql/ChildTopic'
+import {assignLocation, openWindow} from '@canvas/util/globalUtils'
 import {waitFor} from '@testing-library/dom'
-import {MockedProvider} from '@apollo/react-testing'
+import {fireEvent, render} from '@testing-library/react'
+import React from 'react'
+import {ChildTopic} from '../../../../graphql/ChildTopic'
+import {updateUserDiscussionsSplitscreenViewMock} from '../../../../graphql/Mocks'
+import * as constants from '../../../utils/constants'
+import {DiscussionManagerUtilityContext} from '../../../utils/constants'
+import {DiscussionPostToolbar} from '../DiscussionPostToolbar'
+
+jest.mock('@canvas/util/globalUtils', () => ({
+  assignLocation: jest.fn(),
+  openWindow: jest.fn(),
+}))
 
 jest.mock('../../../utils', () => ({
   ...jest.requireActual('../../../utils'),
   responsiveQuerySizes: () => ({desktop: {maxWidth: '1024px'}}),
 }))
+
+jest.mock('../../../utils/constants')
+
 const onFailureStub = jest.fn()
 const onSuccessStub = jest.fn()
-const openMock = jest.fn()
 
-beforeAll(() => {
+beforeEach(() => {
   window.matchMedia = jest.fn().mockImplementation(() => {
     return {
       matches: true,
@@ -58,7 +68,7 @@ beforeAll(() => {
 afterEach(() => {
   onFailureStub.mockClear()
   onSuccessStub.mockClear()
-  openMock.mockClear()
+  jest.clearAllMocks()
 })
 
 const setup = (props, mocks) => {
@@ -67,9 +77,11 @@ const setup = (props, mocks) => {
       <AlertManagerContext.Provider
         value={{setOnFailure: onFailureStub, setOnSuccess: onSuccessStub}}
       >
-        <DiscussionPostToolbar {...props} />
+        <DiscussionManagerUtilityContext.Provider value={{translationLanguages: {current: []}}}>
+          <DiscussionPostToolbar {...props} />
+        </DiscussionManagerUtilityContext.Provider>
       </AlertManagerContext.Provider>
-    </MockedProvider>
+    </MockedProvider>,
   )
 }
 
@@ -99,7 +111,7 @@ describe('DiscussionPostToolbar', () => {
           userSplitScreenPreference: false,
           closeView: jest.fn(),
         },
-        updateUserDiscussionsSplitscreenViewMock({discussionsSplitscreenView: true})
+        updateUserDiscussionsSplitscreenViewMock({discussionsSplitscreenView: true}),
       )
 
       const splitscreenButton = getByTestId('splitscreenButton')
@@ -213,24 +225,82 @@ describe('DiscussionPostToolbar', () => {
   })
 
   describe('Assign To', () => {
-    beforeAll(()=>{
+    beforeEach(() => {
       ENV.FEATURES = {
-        differentiated_modules: true
+        selective_release_ui_api: true,
       }
     })
 
-    it('renders the Assign To button if user can edit', ()=>{
+    it('renders the Assign To button if user can manageAssignTo and in a course discussion', () => {
       const {getByRole} = setup({
-        canEdit: true
+        manageAssignTo: true,
+        showAssignTo: true,
       })
       expect(getByRole('button', {name: 'Assign To'})).toBeInTheDocument()
     })
 
-    it('does not render the Assign To button if user can not edit', ()=>{
+    it('does not render the Assign To button if in speedGrader', () => {
+      constants.isSpeedGraderInTopUrl = jest.fn().mockReturnValue(true)
+
+      const container = setup({
+        manageAssignTo: true,
+        discussionTopic: {
+          _id: '1',
+          contextType: 'Course',
+          groupSet: null,
+          assignment: true,
+        },
+      })
+      expect(container.queryByTestId('assign-to-button')).toBeNull()
+    })
+
+    it('does not render the Assign To button if user can not manageAssignTo', () => {
       const {queryByRole} = setup({
-        canEdit: false
+        manageAssignTo: false,
+        contextType: 'Course',
       })
       expect(queryByRole('button', {name: 'Assign To'})).not.toBeInTheDocument()
+    })
+
+    it('does not render the Assign To button if a group discussion', () => {
+      const {queryByText} = setup({
+        manageAssignTo: true,
+        contextType: 'Group',
+      })
+      expect(queryByText('Assign To')).not.toBeInTheDocument()
+    })
+
+    it('does not render the Assign To button if an ungraded group discussion in course context', () => {
+      const {queryByTestId} = setup({
+        manageAssignTo: true,
+        contextType: 'Course',
+        isGraded: false,
+        isGroupDiscussion: true,
+      })
+      expect(queryByTestId('manage-assign-to')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('Discussion Summary', () => {
+    it('should render the discussion summary button if user can summarize and summary is not enabled', () => {
+      ENV.user_can_summarize = true
+      const {queryByTestId} = setup({isSummaryEnabled: false})
+
+      expect(queryByTestId('summarize-button')).toBeTruthy()
+    })
+
+    it('should not render the discussion summary button if summary is enabled', () => {
+      ENV.user_can_summarize = true
+      const {queryByTestId} = setup({isSummaryEnabled: true})
+
+      expect(queryByTestId('summarize-button')).toBeNull()
+    })
+
+    it('should not render the discussion summary button if user can not summarize', () => {
+      ENV.user_can_summarize = false
+      const {queryByTestId} = setup({isSummaryEnabled: false})
+
+      expect(queryByTestId('summarize-button')).toBeNull()
     })
   })
 })

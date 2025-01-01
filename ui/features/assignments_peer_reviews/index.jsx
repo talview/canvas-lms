@@ -15,13 +15,13 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
 import React from 'react'
 import ReactDOM from 'react-dom'
 import $ from 'jquery'
 import '@canvas/jquery/jquery.ajaxJSON'
-import '@canvas/datetime/jquery'
+import {datetimeString} from '@canvas/datetime/date-functions'
 import '@canvas/jquery/jquery.instructure_forms'
 import '@canvas/jquery/jquery.instructure_misc_helpers'
 import '@canvas/jquery/jquery.instructure_misc_plugins'
@@ -30,7 +30,7 @@ import '@canvas/util/templateData'
 import replaceTags from '@canvas/util/replaceTags'
 import FilterPeerReview from './react/FilterPeerReview'
 
-const I18n = useI18nScope('assignments.peer_reviews')
+const I18n = createI18nScope('assignments.peer_reviews')
 
 $(document).ready(() => {
   $('.peer_review').hover(
@@ -132,7 +132,7 @@ $(document).ready(() => {
       $review.slideDown()
       $review.find('a').first().focus()
       const assessor_name = $(this).parents('.student_reviews').find('.assessor_name').text()
-      const time = $.datetimeString(data.assessment_request.updated_at)
+      const time = datetimeString(data.assessment_request.updated_at)
       $review.find('.reminder_peer_review_link').attr(
         'title',
         I18n.t('titles.reminder', 'Remind %{assessor} about Assessment, last notified %{time}', {
@@ -157,7 +157,7 @@ $(document).ready(() => {
     return $.ajaxJSON($link.attr('href'), 'POST', {}, data => {
       $link.parents('.peer_review').loadingImage('remove')
       const assessor_name = $link.parents('.student_reviews').find('.assessor_name').text()
-      const time = $.datetimeString(data.assessment_request.updated_at)
+      const time = datetimeString(data.assessment_request.updated_at)
       $link.attr(
         'title',
         I18n.t('titles.remind', 'Remind %{assessor} about Assessment, last notified %{time}', {
@@ -173,5 +173,6 @@ $(document).ready(() => {
     $('.peer_review.assigned .remind_peer_review_link').click()
   })
 
+   
   ReactDOM.render(<FilterPeerReview />, document.getElementById('filter_peer_review'))
 })

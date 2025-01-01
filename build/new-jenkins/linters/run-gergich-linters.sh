@@ -8,9 +8,10 @@ if [ "$GERRIT_PROJECT" == "canvas-lms" ]; then
     gergich comment "{\"path\":\"/COMMIT_MSG\",\"position\":1,\"severity\":\"warn\",\"message\":\"$message\"}"
   fi
 
-  # when modifying Dockerfile or Dockerfile.jenkins*, Dockerfile.template must also be modified.
+  # when modifying Dockerfile, Dockerfile.jenkins, or Dockerfile.production, Dockerfile.template must also be modified.
   ruby build/dockerfile_writer.rb --env development --compose-file docker-compose.yml,docker-compose.override.yml --in build/Dockerfile.template --out Dockerfile
   ruby build/dockerfile_writer.rb --env jenkins --compose-file docker-compose.yml,docker-compose.override.yml --in build/Dockerfile.template --out Dockerfile.jenkins
+  ruby build/dockerfile_writer.rb --env production --compose-file docker-compose.yml,docker-compose.override.yml --in build/Dockerfile.template --out Dockerfile.production
   if ! git diff --exit-code Dockerfile; then
     message="Dockerfile and build/Dockerfile.template need to be kept in sync. Update Dockerfile by running the command given at the top.\\n"
     gergich comment "{\"path\":\"\Dockerfile\",\"position\":1,\"severity\":\"error\",\"message\":\"$message\"}"
@@ -19,16 +20,20 @@ if [ "$GERRIT_PROJECT" == "canvas-lms" ]; then
     message="Dockerfile.jenkins and build/Dockerfile.template need to be kept in sync. Update Dockerfile.jenkins by running the command given at the top.\\n"
     gergich comment "{\"path\":\"\Dockerfile.jenkins\",\"position\":1,\"severity\":\"error\",\"message\":\"$message\"}"
   fi
+  if ! git diff --exit-code Dockerfile.production; then
+    message="Dockerfile.production and build/Dockerfile.template need to be kept in sync. Update Dockerfile.production by running the command given at the top.\\n"
+    gergich comment "{\"path\":\"\Dockerfile.production\",\"position\":1,\"severity\":\"error\",\"message\":\"$message\"}"
+  fi
 fi
 
-cp ui/shared/apollo/fragmentTypes.json ui/shared/apollo/fragmentTypes.json.old
+cp ui/shared/apollo-v3/possibleTypes.json ui/shared/apollo-v3/possibleTypes.json.old
 
 # always keep the graphQL schema up-to-date
 bin/rails graphql:schema RAILS_ENV=test
 
-if ! diff ui/shared/apollo/fragmentTypes.json ui/shared/apollo/fragmentTypes.json.old; then
-  message="ui/shared/apollo/fragmentTypes.json needs to be kept up-to-date. Run bundle exec rake graphql:schema and push the changes.\\n"
-  gergich comment "{\"path\":\"ui/shared/apollo/fragmentTypes.json\",\"position\":1,\"severity\":\"error\",\"message\":\"$message\"}"
+if ! diff ui/shared/apollo-v3/possibleTypes.json ui/shared/apollo-v3/possibleTypes.json.old; then
+  message="ui/shared/apollo-v3/possibleTypes.json needs to be kept up-to-date. Run bundle exec rake graphql:schema and push the changes.\\n"
+  gergich comment "{\"path\":\"ui/shared/apollo-v3/possibleTypes.json\",\"position\":1,\"severity\":\"error\",\"message\":\"$message\"}"
 fi
 
 gergich capture custom:./build/gergich/xsslint:Gergich::XSSLint 'node script/xsslint.js'
@@ -47,18 +52,11 @@ if ! git diff HEAD~1 --exit-code -GENV -- 'packages/canvas-rce/**/*.js' 'package
   gergich comment "{\"path\":\"/COMMIT_MSG\",\"position\":1,\"severity\":\"error\",\"message\":\"$message\"}"
 fi
 
-node ui-build/webpack/generatePluginBundles.js
-ruby script/tsc & TSC_PID=$!
 ruby script/stylelint
 ruby script/rlint --no-fail-on-offense
-[ "${SKIP_ESLINT-}" != "true" ] && ruby script/eslint
 ruby script/lint_commit_message
-node script/yarn-validate-workspace-deps.js 2>/dev/null < <(yarn --silent workspaces info --json)
-node_modules/.bin/depcruise ./ --include-only "^(ui|packages)"
-node ui-build/tools/component-info.mjs -i -v -g
 
 bin/rails css:styleguide doc:api
 
-wait $TSC_PID
 gergich status
 echo "LINTER OK!"

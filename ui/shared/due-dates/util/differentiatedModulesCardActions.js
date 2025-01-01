@@ -31,6 +31,8 @@ const CardActions = {
       return this.handleSectionAdd(newAssignee, overridesFromRow)
     } else if (newAssignee.group_id) {
       return this.handleGroupAdd(newAssignee, overridesFromRow)
+    } else if (newAssignee.course_id) {
+      return this.handleCourseAdd(newAssignee, overridesFromRow)
     } else if (newAssignee.noop_id) {
       return this.handleNoopAdd(newAssignee, overridesFromRow)
     } else {
@@ -49,11 +51,23 @@ const CardActions = {
     return union(overridesFromRow, [newOverride])
   },
 
+  // -- Adding Course --
+
+  handleCourseAdd(assignee, overridesFromRow) {
+    const newOverride = this.newOverrideForCard({
+      course_id: assignee.course_id,
+      title: assignee.name,
+    })
+
+    return union(overridesFromRow, [newOverride])
+  },
+
   // -- Adding Groups --
 
   handleGroupAdd(assignee, overridesFromRow) {
     const newOverride = this.newOverrideForCard({
       group_id: assignee.group_id,
+      group_category_id: assignee.group_category_id,
       title: assignee.name,
     })
 
@@ -74,14 +88,17 @@ const CardActions = {
     const existingStudentIds = existingOverride.student_ids
     const newStudentIds = existingStudentIds.concat(assignee.id)
 
-    const newOverride = {...existingOverride, student_ids: newStudentIds}
+    const existingStudents = existingOverride.students
+    const newStudents = existingStudents.concat(assignee)
+
+    const newOverride = {...existingOverride, student_ids: newStudentIds, students: newStudents}
     delete newOverride.title
 
     return chain(overridesFromRow).difference([existingOverride]).union([newOverride]).value()
   },
 
   createNewAdhocOverrideForRow(assignee, overridesFromRow) {
-    const freshOverride = this.newOverrideForCard({student_ids: []})
+    const freshOverride = this.newOverrideForCard({student_ids: [], students: []})
     return this.addStudentToExistingAdhocOverride(assignee, freshOverride, overridesFromRow)
   },
 
@@ -129,6 +146,12 @@ const CardActions = {
   },
 
   removeForType(selector, assigneeToRemove, overridesFromRow) {
+    if (assigneeToRemove.course_section_id === '0') {
+      // the simplest way to make sure the correct 'everyone' is always removed is to treat
+      // course overrides like regular everyone cards and then check for course overrides
+      const courseOverride = overridesFromRow.filter(override => override.course_id !== undefined)
+      if (courseOverride?.length > 0) return difference(overridesFromRow, courseOverride)
+    }
     const overrideToRemove = find(
       overridesFromRow,
       override => override[selector] == assigneeToRemove[selector]
@@ -149,7 +172,13 @@ const CardActions = {
       return difference(overridesFromRow, [adhocOverride])
     }
 
-    const newOverride = {...adhocOverride, student_ids: newStudentIds}
+    const newOverride = {
+      ...adhocOverride,
+      student_ids: newStudentIds,
+      students: adhocOverride.students.filter(
+        student => student.id !== assigneeToRemove.student_id
+      ),
+    }
     delete newOverride.title
 
     return chain(overridesFromRow).difference([adhocOverride]).union([newOverride]).value()
@@ -165,6 +194,10 @@ const CardActions = {
       lock_at_overridden: !!dates.lock_at,
       unlock_at: dates.unlock_at,
       unlock_at_overridden: !!dates.unlock_at,
+      reply_to_topic_due_at: dates.reply_to_topic_due_at,
+      reply_to_topic_due_at_overridden: !!dates.reply_to_topic_due_at,
+      required_replies_due_at: dates.required_replies_due_at,
+      required_replies_due_at_overridden: !!dates.required_replies_due_at,
       rowKey,
     }
 

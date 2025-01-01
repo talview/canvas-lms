@@ -19,14 +19,14 @@
 import React from 'react'
 import ReactDOM from 'react-dom'
 import round from '@canvas/round'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import isNumber from 'lodash/isNumber'
 import GradeFormatHelper from '@canvas/grading/GradeFormatHelper'
 import {EmojiPicker, EmojiQuickPicker} from '@canvas/emoji'
 import '@canvas/jquery/jquery.ajaxJSON'
 import '@canvas/jquery/jquery.instructure_forms' /* ajaxJSONFiles */
-import '@canvas/datetime/jquery' /* datetimeString */
+import {datetimeString} from '@canvas/datetime/date-functions'
 import '@canvas/jquery/jquery.instructure_misc_plugins' /* fragmentChange, showIf */
 import '@canvas/loading-image'
 import '@canvas/util/templateData'
@@ -34,8 +34,10 @@ import '@canvas/media-comments'
 import '@canvas/media-comments/jquery/mediaCommentThumbnail'
 import 'jquery-scroll-to-visible/jquery.scrollTo'
 import '@canvas/rubrics/jquery/rubric_assessment'
+import sanitizeHtml from 'sanitize-html-with-tinymce'
+import {containsHtmlTags, formatMessage} from '@canvas/util/TextHelper'
 
-const I18n = useI18nScope('submissions')
+const I18n = createI18nScope('submissions')
 /* global rubricAssessment */
 
 const rubricAssessments = ENV.rubricAssessments
@@ -63,7 +65,7 @@ function submissionLoaded(data) {
         continue
       }
       const $comment = $('#comment_blank').clone(true).removeAttr('id')
-      comment.posted_at = $.datetimeString(comment.created_at)
+      comment.posted_at = datetimeString(comment.created_at)
       $comment.fillTemplateData({
         data: comment,
         id: 'submission_comment_' + comment.id,
@@ -244,15 +246,25 @@ function insertEmoji(emoji) {
 export function setup() {
   $(document).ready(function () {
     if (ENV.EMOJIS_ENABLED) {
+       
       ReactDOM.render(
         <EmojiPicker insertEmoji={insertEmoji} />,
         document.getElementById('emoji-picker-container')
       )
+       
       ReactDOM.render(
         <EmojiQuickPicker insertEmoji={insertEmoji} />,
         document.getElementById('emoji-quick-picker-container')
       )
     }
+    const comments = document.getElementsByClassName('comment_content')
+    Array.from(comments).forEach(comment => {
+      const content = comment.dataset.content
+      const formattedComment = containsHtmlTags(content)
+        ? sanitizeHtml(content)
+        : formatMessage(content)
+      comment.innerHTML = formattedComment
+    })
     $('.comments .comment_list .play_comment_link').mediaCommentThumbnail('small')
     $(window).bind('resize', windowResize).triggerHandler('resize')
     $('.comments_link').click(event => {

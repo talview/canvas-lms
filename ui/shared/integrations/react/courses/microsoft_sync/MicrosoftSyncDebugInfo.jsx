@@ -16,9 +16,8 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import $ from 'jquery'
-import '@canvas/datetime/jquery' // $.datetimeString
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {datetimeString} from '@canvas/datetime/date-functions'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import React, {useState} from 'react'
 
 import {List} from '@instructure/ui-list'
@@ -27,7 +26,7 @@ import {Link} from '@instructure/ui-link'
 import {Tooltip} from '@instructure/ui-tooltip'
 import {ToggleGroup} from '@instructure/ui-toggle-details'
 
-const I18n = useI18nScope('course_settings')
+const I18n = createI18nScope('course_settings')
 
 const usersList = userIds => {
   if (userIds && userIds.length > 0) {
@@ -47,7 +46,7 @@ const debugInfoItem = (item, index) => {
   if (item && item.msg && item.msg.length > 0) {
     return (
       <List.Item key={index}>
-        <Tooltip renderTip={$.datetimeString(item.timestamp)}>{item.msg}</Tooltip>
+        <Tooltip renderTip={datetimeString(item.timestamp)}>{item.msg}</Tooltip>
         {usersList(item.user_ids)}
       </List.Item>
     )

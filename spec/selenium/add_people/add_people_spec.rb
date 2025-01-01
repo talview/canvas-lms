@@ -45,7 +45,7 @@ describe "add_people" do
       # open the add people modal dialog
       f("a#addUsers").click
       expect(f(".addpeople")).to be_displayed
-      expect(f("#application")).to have_attribute("aria-hidden", "true")
+      expect(f("#drawer-layout-mount-point")).to have_attribute("aria-hidden", "true")
 
       # can't click the 'login id' radio button directly, since it's covered
       # with inst-ui prettiness and selenium won't allow it.
@@ -111,18 +111,7 @@ describe "add_people" do
       expect(msg).to be_displayed
     end
 
-    it "includes only manageable roles (non-granular)" do
-      @course.root_account.disable_feature!(:granular_permissions_manage_users)
-      @course.account.role_overrides.create! role: teacher_role,
-                                             permission: :manage_students,
-                                             enabled: false
-      get "/courses/#{@course.id}/users"
-      f("#addUsers").click
-      expect(INSTUI_Select_options("#peoplesearch_select_role").map(&:text)).not_to include "Student"
-    end
-
-    it "includes only manageable roles (granular)" do
-      @course.root_account.enable_feature!(:granular_permissions_manage_users)
+    it "includes only manageable roles" do
       @course.account.role_overrides.create! role: teacher_role,
                                              permission: :add_student_to_course,
                                              enabled: false

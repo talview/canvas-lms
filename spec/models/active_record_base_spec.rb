@@ -630,20 +630,18 @@ describe ActiveRecord::Base do
 
     let_once(:u) { User.create!(name: "abcdefg") }
 
-    let(:exec_query_method) { ($canvas_rails == "7.0") ? :exec_query : :internal_exec_query }
-
     def assert_bare_update
-      allow(User.connection).to receive(exec_query_method).and_call_original
+      allow(User.connection).to receive(:internal_exec_query).and_call_original
       expect(User.connection).to receive(:exec_update).once.and_call_original
       yield
-      expect(User.connection).not_to have_received(exec_query_method)
+      expect(User.connection).not_to have_received(:internal_exec_query)
     end
 
     def assert_multi_stage_update
-      allow(User.connection).to receive(exec_query_method).and_call_original
+      allow(User.connection).to receive(:internal_exec_query).and_call_original
       expect(User.connection).to receive(:exec_update).once.and_call_original
       yield
-      expect(User.connection).to have_received(exec_query_method).once
+      expect(User.connection).to have_received(:internal_exec_query).once
     end
 
     it "just does a bare update, instead of an ordered select and then update" do
@@ -906,6 +904,80 @@ describe ActiveRecord::Base do
       c = Course.create!(name: "some name")
       Course.where(id: c).update_all(name: "sadness")
       expect(c.discussion_topics.temp_record.course.name).to eq c.name
+    end
+  end
+
+  describe "#insert" do
+    let!(:base_user) { User.create! }
+
+    context "when the item is not present in the DB" do
+      let(:timestamp) { Time.utc(1991, 4, 25, 1, 2, 3) }
+
+      let!(:new_user) do
+        Timecop.freeze(timestamp) do
+          User.new(workflow_state: 0).insert
+        end
+      end
+
+      it "creates a new record" do
+        expect(User.all).to eq [base_user, new_user]
+      end
+
+      it "sets the timestamps correctly" do
+        expect(new_user.created_at).to eq timestamp
+        expect(new_user.updated_at).to eq timestamp
+      end
+
+      it "sets the ActiveRecord state properly" do
+        user = User.new(workflow_state: 0)
+        expect(user.persisted?).to be false
+
+        user.insert
+        expect(user.persisted?).to be true
+      end
+
+      it "validates the model" do
+        user = User.new(workflow_state: 0, name: "a" * 256)
+
+        expect { user.insert }.to raise_error(/Name is too long/)
+      end
+
+      it "invokes the save callbacks" do
+        user = User.new(workflow_state: 0)
+
+        expect(user).to receive(:infer_defaults)
+
+        user.insert
+      end
+
+      it "invokes the create callbacks" do
+        user = User.new(workflow_state: 0)
+
+        expect(user).to receive(:set_default_feature_flags)
+
+        user.insert
+      end
+    end
+
+    context "when the item is already present in the DB" do
+      it "it does not create a new record" do
+        base_user.insert(on_conflict: -> {})
+        expect(User.all).to eq [base_user]
+      end
+
+      context "when on_conflict is specified" do
+        it "calls the on_conflict callback" do
+          on_conflict = -> {}
+          expect(on_conflict).to receive(:call)
+          base_user.insert(on_conflict:)
+        end
+      end
+
+      context "when on_conflict is not specified" do
+        it "raises ActiveRecord::RecordNotUnique" do
+          expect { base_user.insert }.to raise_error ActiveRecord::RecordNotUnique
+        end
+      end
     end
   end
 end

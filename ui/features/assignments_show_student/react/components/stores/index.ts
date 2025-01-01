@@ -16,11 +16,13 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import create from 'zustand'
+import {create} from 'zustand'
 import type {RubricsStore} from '../../../assignments_show_student.d'
 
+// @ts-expect-error
 const store = create<RubricsStore>(() => ({
   displayedAssessment: null,
+  isSavingRubricAssessment: false,
 }))
 
 export default store

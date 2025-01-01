@@ -18,6 +18,8 @@
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
+require_relative "../lti_1_3_spec_helper"
+
 describe DeveloperKeysController do
   let(:test_domain_root_account) { Account.create! }
   let(:site_admin_key) { DeveloperKey.create!(name: "Site Admin Key", visible: false) }
@@ -71,6 +73,13 @@ describe DeveloperKeysController do
           expect(expected_id).to eq(dk.global_id)
         end
 
+        it "references the API endpoint in the Link (pagination) header" do
+          get "index", params: { account_id: Account.site_admin.id }, format: :json
+          route = Rails.application.routes.url_helpers.api_v1_account_developer_keys_path(Account.site_admin)
+          expect(response.headers["Link"]).to include(route)
+          expect(response.headers["Link"]).to include("http")
+        end
+
         it "does not include non-siteadmin keys" do
           site_admin_key = DeveloperKey.create!
           DeveloperKey.create!(account: Account.default)
@@ -80,9 +89,32 @@ describe DeveloperKeysController do
           expect(json_parse.pluck("id")).to match_array [site_admin_key.global_id]
         end
 
-        it "includes valid LTI scopes in js env" do
-          get "index", params: { account_id: Account.site_admin.id }
-          expect(assigns[:js_env][:validLtiScopes]).to eq TokenScopes::LTI_SCOPES
+        it "includes public LTI scopes for that root account (possible feature-flag-gated) in js env" do
+          sample_scopes_for_root_account =
+            TokenScopes::LTI_SCOPES.except(TokenScopes::LTI_ASSET_REPORT_SCOPE)
+
+          acct_id_from_stub = nil
+          expect(TokenScopes).to receive(:public_lti_scopes_hash_for_account) do |acct|
+            acct_id_from_stub = acct.id
+            sample_scopes_for_root_account
+          end
+
+          get "index", params: { account_id: Account.default.id }
+          expect(acct_id_from_stub).to eq(Account.default.id)
+
+          expect(assigns[:js_env][:validLtiScopes]).to \
+            eq(sample_scopes_for_root_account)
+        end
+
+        context "when the platform_notification_service feature flag is disabled" do
+          before do
+            Account.default.disable_feature!(:platform_notification_service)
+          end
+
+          it "excludes the platform_notification_service scope" do
+            get "index", params: { account_id: Account.site_admin.id }
+            expect(assigns[:js_env][:validLtiScopes]).to eq TokenScopes::LTI_SCOPES.except(TokenScopes::LTI_PNS_SCOPE)
+          end
         end
 
         it "includes all valid LTI placements in js env" do
@@ -90,11 +122,6 @@ describe DeveloperKeysController do
           Account.site_admin.enable_feature! :conference_selection_lti_placement
           get "index", params: { account_id: Account.site_admin.id }
           expect(assigns.dig(:js_env, :validLtiPlacements)).to match_array Lti::ResourcePlacement.public_placements(Account.site_admin)
-        end
-
-        it 'includes the "includes parameter" release flag' do
-          get "index", params: { account_id: Account.site_admin.id }
-          expect(assigns.dig(:js_env, :includesFeatureFlagEnabled)).to be false
         end
 
         describe "js bundles" do
@@ -468,6 +495,33 @@ describe DeveloperKeysController do
         expect(expected_id).to eq root_account_key.global_id
       end
 
+      context "an overlay exists for one of the keys" do
+        # bring in tool_configuration
+        include_context "lti_1_3_spec_helper"
+        let(:developer_key) do
+          developer_key_model(account: test_domain_root_account, public_jwk_url: "http://example.com", is_lti_key: true)
+        end
+        let(:overlay) do
+          Lti::Overlay.create!(account: test_domain_root_account,
+                               registration: tool_configuration.lti_registration,
+                               updated_by: user_model,
+                               data: {
+                                 "placements" => {
+                                   "course_navigation" => {
+                                     "text" => "some great little text"
+                                   }
+                                 }
+                               })
+        end
+
+        it "applies the overlay to the returned configuration" do
+          overlay
+          get "index", params: { account_id: test_domain_root_account.id }, format: :json
+          result = json_parse.first.dig("tool_configuration", "extensions", 0, "settings", "placements")
+          expect(result.find { |p| p["placement"] == "course_navigation" }["text"]).to eq "some great little text"
+        end
+      end
+
       context 'with "inherited" parameter' do
         it "does not include account developer keys" do
           root_account_key
@@ -527,11 +581,14 @@ describe DeveloperKeysController do
     end
 
     describe "Should be able to create developer key" do
+      include_context "lti_1_3_spec_helper"
+
       let(:create_params) do
         {
           account_id: test_domain_root_account.id,
           developer_key: {
-            redirect_uri: "http://example.com/sdf"
+            redirect_uri: "http://example.com/sdf",
+            name: "test tool"
           }
         }
       end

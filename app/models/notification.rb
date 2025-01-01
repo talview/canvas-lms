@@ -369,6 +369,8 @@ class Notification < Switchman::UnshardedRecord
   # (it's actually just the titleized message template filename)
   def names
     t "names.manually_created_access_token_created", "Manually Created Access Token Created"
+    t "names.access_token_created_on_behalf_of_user", "Access Token Created On Behalf Of User"
+    t "names.access_token_deleted", "Access Token Deleted"
     t "names.account_user_notification", "Account User Notification"
     t "names.account_user_registration", "Account User Registration"
     t "Annotation Notification"
@@ -419,6 +421,7 @@ class Notification < Switchman::UnshardedRecord
     t "names.new_user", "New User"
     t "names.pseudonym_registration", "Pseudonym Registration"
     t "names.pseudonym_registration_done", "Pseudonym Registration Done"
+    t "names.account_verification", "Account Verification"
     t "names.report_generated", "Report Generated"
     t "names.report_generation_failed", "Report Generation Failed"
     t "names.rubric_assessment_invitation", "Rubric Assessment Invitation"
@@ -451,6 +454,7 @@ class Notification < Switchman::UnshardedRecord
     t "names.upcoming_assignment_alert", "Upcoming Assignment Alert"
   end
 
+  # Category names should be producible by .titleize, eg due_date => Due Date
   # TODO: i18n ... show these anywhere we show the category today
   def category_names
     t "categories.all_submissions", "All Submissions"

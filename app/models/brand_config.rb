@@ -38,8 +38,8 @@ class BrandConfig < ActiveRecord::Base
 
   after_save :clear_cache
 
-  has_many :accounts, foreign_key: "brand_config_md5"
-  has_many :shared_brand_configs, foreign_key: "brand_config_md5"
+  has_many :accounts, foreign_key: "brand_config_md5", inverse_of: :brand_config
+  has_many :shared_brand_configs, foreign_key: "brand_config_md5", inverse_of: :brand_config
 
   # belongs_to :parent, class_name: "BrandConfig", foreign_key: "parent_md5"
   def parent
@@ -141,8 +141,8 @@ class BrandConfig < ActiveRecord::Base
     save! unless dup?
   end
 
-  def to_json(*args)
-    BrandableCSS.all_brand_variable_values(self).to_json(*args)
+  def to_json(*)
+    BrandableCSS.all_brand_variable_values(self).to_json(*)
   end
 
   def to_js
@@ -260,7 +260,7 @@ class BrandConfig < ActiveRecord::Base
       # When someone is actively working in the theme editor, it just saves one
       # in their session, so only delete stuff that is more than a week old,
       # to not clear out a theme someone was working on.
-      .where(["created_at < ?", 1.week.ago])
+      .where(created_at: ...1.week.ago)
       .where.not(Account.where("brand_config_md5=brand_configs.md5").arel.exists)
       .where.not(SharedBrandConfig.where("brand_config_md5=brand_configs.md5").arel.exists)
       .delete_all

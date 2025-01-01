@@ -24,8 +24,13 @@ import {
   getOptimisticResponse,
   buildQuotedReply,
   getDisplayName,
+  getCheckpointSubmission,
 } from '../../utils'
-import {DiscussionManagerUtilityContext} from '../../utils/constants'
+import {
+  DiscussionManagerUtilityContext,
+  REPLY_TO_TOPIC,
+  REPLY_TO_ENTRY,
+} from '../../utils/constants'
 import {AlertManagerContext} from '@canvas/alerts/react/AlertManager'
 import {CloseButton} from '@instructure/ui-buttons'
 import {
@@ -40,24 +45,26 @@ import errorShipUrl from '@canvas/images/ErrorShip.svg'
 import {Flex} from '@instructure/ui-flex'
 import GenericErrorPage from '@canvas/generic-error-page'
 import {Heading} from '@instructure/ui-heading'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {SplitScreenThreadsContainer} from '../SplitScreenThreadsContainer/SplitScreenThreadsContainer'
 import {SplitScreenParent} from './SplitScreenParent'
-import LoadingIndicator from '@canvas/loading-indicator'
 import PropTypes from 'prop-types'
 import React, {useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
-import {useMutation, useQuery} from 'react-apollo'
+import {useApolloClient, useMutation, useQuery} from '@apollo/client'
 import {View} from '@instructure/ui-view'
 import * as ReactDOMServer from 'react-dom/server'
 import useCreateDiscussionEntry from '../../hooks/useCreateDiscussionEntry'
+import {LoadingSpinner} from '../../components/LoadingSpinner/LoadingSpinner'
 
-const I18n = useI18nScope('discussion_topics_post')
+const I18n = createI18nScope('discussion_topics_post')
 
 export const SplitScreenViewContainer = props => {
+  const client = useApolloClient()
   const {setOnFailure, setOnSuccess} = useContext(AlertManagerContext)
   const {replyFromId, setReplyFromId} = useContext(DiscussionManagerUtilityContext)
   const [fetchingMoreOlderReplies, setFetchingMoreOlderReplies] = useState(false)
   const [fetchingMoreNewerReplies, setFetchingMoreNewerReplies] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
   const closeButtonRef = useRef()
 
   const replyButtonRef = useRef()
@@ -78,16 +85,24 @@ export const SplitScreenViewContainer = props => {
     props.setHighlightEntryId(newDiscussionEntry._id)
   }
 
-  const onEntryCreationCompletion = data => {
-    props.setHighlightEntryId(data.createDiscussionEntry.discussionEntry._id)
-    if (splitScreenEntryOlderDirection.data.legacyNode.depth > 3) {
-      props.onOpenSplitScreenView(data.createDiscussionEntry.discussionEntry.rootEntryId, false)
-    } else if (splitScreenEntryOlderDirection.data.legacyNode.depth === 3) {
-      props.onOpenSplitScreenView(data.createDiscussionEntry.discussionEntry.parentId, false)
+  const onEntryCreationCompletion = (data, success) => {
+    if (success) {
+      props.setRCEOpen(false)
+      props.setHighlightEntryId(data.createDiscussionEntry.discussionEntry._id)
+      if (splitScreenEntryOlderDirection.data.legacyNode.depth > 3) {
+        props.onOpenSplitScreenView(data.createDiscussionEntry.discussionEntry.rootEntryId, false)
+      } else if (splitScreenEntryOlderDirection.data.legacyNode.depth === 3) {
+        props.onOpenSplitScreenView(data.createDiscussionEntry.discussionEntry.parentId, false)
+      }
+      props.setReplyToTopicSubmission(getCheckpointSubmission(data, REPLY_TO_TOPIC))
+      props.setReplyToEntrySubmission(getCheckpointSubmission(data, REPLY_TO_ENTRY))
     }
   }
 
-  const {createDiscussionEntry} = useCreateDiscussionEntry(onEntryCreationCompletion, updateCache)
+  const {createDiscussionEntry, isSubmitting} = useCreateDiscussionEntry(
+    onEntryCreationCompletion,
+    updateCache
+  )
 
   const [deleteDiscussionEntry] = useMutation(DELETE_DISCUSSION_ENTRY, {
     onCompleted: data => {
@@ -104,6 +119,7 @@ export const SplitScreenViewContainer = props => {
     onCompleted: data => {
       if (!data.updateDiscussionEntry.errors) {
         setOnSuccess(I18n.t('The reply was successfully updated.'))
+        setIsEditing(false)
       } else {
         setOnFailure(I18n.t('There was an unexpected error while updating the reply.'))
       }
@@ -157,7 +173,7 @@ export const SplitScreenViewContainer = props => {
     updateDiscussionEntryParticipant({
       variables: {
         discussionEntryId: discussionEntry._id,
-        rating: discussionEntry.entryParticipants?.rating ? 'not_liked' : 'liked',
+        rating: discussionEntry.entryParticipant?.rating ? 'not_liked' : 'liked',
       },
     })
   }
@@ -173,7 +189,7 @@ export const SplitScreenViewContainer = props => {
   }
 
   const onDelete = discussionEntry => {
-    // eslint-disable-next-line no-alert
+     
     if (window.confirm(I18n.t('Are you sure you want to delete this entry?'))) {
       deleteDiscussionEntry({
         variables: {
@@ -183,19 +199,22 @@ export const SplitScreenViewContainer = props => {
     }
   }
 
-  const onUpdate = (discussionEntry, message, file) => {
+  const onUpdate = (message, quotedEntryId, file) => {
+    const discussionEntry = splitScreenEntryOlderDirection.data.legacyNode
+
     updateDiscussionEntry({
       variables: {
         discussionEntryId: discussionEntry._id,
         message,
         fileId: file?._id,
         removeAttachment: !file?._id,
+        quotedEntryId,
       },
     })
   }
 
   const onOpenInSpeedGrader = discussionEntry => {
-    window.open(getSpeedGraderUrl(discussionEntry.author._id), '_blank')
+    window.open(getSpeedGraderUrl(discussionEntry.author._id, discussionEntry._id), '_blank')
   }
 
   // This reply method is used for the split-screen reply
@@ -260,17 +279,18 @@ export const SplitScreenViewContainer = props => {
     return mentionsValue
   }
 
+  const splitScreenEntryOlderDirectionVariables = {
+    discussionEntryID: props.discussionEntryId,
+    last: ENV.split_screen_view_initial_page_size,
+    sort: 'asc',
+    ...(props.relativeEntryId &&
+      props.relativeEntryId !== props.discussionEntryId && {
+        relativeEntryId: props.relativeEntryId,
+      }),
+    includeRelativeEntry: !!props.relativeEntryId,
+  }
   const splitScreenEntryOlderDirection = useQuery(DISCUSSION_SUBENTRIES_QUERY, {
-    variables: {
-      discussionEntryID: props.discussionEntryId,
-      last: ENV.split_screen_view_initial_page_size,
-      sort: 'asc',
-      ...(props.relativeEntryId &&
-        props.relativeEntryId !== props.discussionEntryId && {
-          relativeEntryId: props.relativeEntryId,
-        }),
-      includeRelativeEntry: !!props.relativeEntryId,
-    },
+    variables: splitScreenEntryOlderDirectionVariables,
   })
 
   const splitScreenEntryNewerDirection = useQuery(DISCUSSION_SUBENTRIES_QUERY, {
@@ -327,10 +347,26 @@ export const SplitScreenViewContainer = props => {
         includeRelativeEntry: false,
       },
       updateQuery: (previousResult, {fetchMoreResult}) => {
-        splitScreenEntryOlderDirection.data.legacyNode.discussionSubentriesConnection.nodes = [
-          ...splitScreenEntryOlderDirection.data.legacyNode.discussionSubentriesConnection?.nodes,
+        const queryResult = JSON.parse(
+          JSON.stringify(
+            client.readQuery({
+              query: DISCUSSION_SUBENTRIES_QUERY,
+              variables: splitScreenEntryOlderDirectionVariables,
+            })
+          )
+        )
+
+        queryResult.legacyNode.discussionSubentriesConnection.nodes = [
+          ...queryResult.legacyNode.discussionSubentriesConnection?.nodes,
           ...fetchMoreResult.legacyNode.discussionSubentriesConnection?.nodes,
         ]
+
+        client.writeQuery({
+          query: DISCUSSION_SUBENTRIES_QUERY,
+          variables: splitScreenEntryOlderDirectionVariables,
+          data: queryResult,
+        })
+
         setFetchingMoreNewerReplies(false)
         return {
           legacyNode: {
@@ -363,7 +399,7 @@ export const SplitScreenViewContainer = props => {
 
   const renderErrorOrLoading = useMemo(() => {
     if (entriesAreLoading()) {
-      return <LoadingIndicator />
+      return <LoadingSpinner />
     } else {
       return (
         <GenericErrorPage
@@ -386,7 +422,7 @@ export const SplitScreenViewContainer = props => {
       !fetchingMoreOlderReplies
     ) {
       const isOnSubentries =
-        splitScreenEntryOlderDirection.data.legacyNode?.discussionSubentriesConnection?.nodes.some(
+        splitScreenEntryOlderDirection.data?.legacyNode?.discussionSubentriesConnection?.nodes.some(
           entry => entry._id === props.highlightEntryId
         )
 
@@ -419,6 +455,8 @@ export const SplitScreenViewContainer = props => {
           }
           onToggleRating={() => toggleRating(splitScreenEntryOlderDirection.data.legacyNode)}
           onSave={onUpdate}
+          isEditing={isEditing}
+          setIsEditing={setIsEditing}
           onOpenSplitScreenView={props.onOpenSplitScreenView}
           setRCEOpen={props.setRCEOpen}
           RCEOpen={props.RCEOpen}
@@ -441,8 +479,8 @@ export const SplitScreenViewContainer = props => {
                 canReplyAnonymously={props.discussionTopic?.canReplyAnonymously}
                 onSubmit={(message, quotedEntryId, file, anonymousAuthorState) => {
                   onReplySubmit(message, file, quotedEntryId, anonymousAuthorState)
-                  props.setRCEOpen(false)
                 }}
+                isSubmitting={isSubmitting}
                 onCancel={() => {
                   props.setRCEOpen(false)
                   setTimeout(() => {
@@ -558,6 +596,8 @@ SplitScreenViewContainer.propTypes = {
   setHighlightEntryId: PropTypes.func,
   relativeEntryId: PropTypes.string,
   isTrayFinishedOpening: PropTypes.bool,
+  setReplyToTopicSubmission: PropTypes.func,
+  setReplyToEntrySubmission: PropTypes.func,
 }
 
 export default SplitScreenViewContainer

@@ -34,10 +34,10 @@ import {updateModuleUI} from '../utils/moduleHelpers'
 import {showFlashAlert} from '@canvas/alerts/react/FlashAlert'
 import type {Module, ModuleItem, Requirement} from './types'
 import RelockModulesDialog from '@canvas/relock-modules-dialog'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import LoadingOverlay from './LoadingOverlay'
 
-const I18n = useI18nScope('differentiated_modules')
+const I18n = createI18nScope('differentiated_modules')
 
 export type SettingsPanelProps = {
   bodyHeight: string
@@ -75,11 +75,17 @@ const doRequest = (
     method,
     body: convertModuleSettingsForApi(data),
   })
+    // @ts-expect-error
     .then((response: {json: Record<string, any>}) => {
       onSuccess(response.json)
-      showFlashAlert({
-        type: 'success',
-        message: successMessage,
+      // add the alert in the next event cycle so that the alert is added to the DOM's aria-live
+      // region after focus changes, thus preventing the focus change from interrupting the alert
+      setTimeout(() => {
+        showFlashAlert({
+          type: 'success',
+          message: successMessage,
+          politeness: 'polite',
+        })
       })
     })
     .catch((e: Error) =>
@@ -215,7 +221,7 @@ export default function SettingsPanel({
     const handleRequest = moduleId ? updateModule : createModule
 
     setLoading(true)
-    // eslint-disable-next-line promise/catch-or-return
+     
     handleRequest({moduleId, moduleElement, addModuleUI, data: state})
       .finally(() => setLoading(false))
       .then(() => (onDidSubmit ? onDidSubmit() : onDismiss()))
@@ -243,6 +249,7 @@ export default function SettingsPanel({
           <TextInput
             data-testid="module-name-input"
             renderLabel={I18n.t('Module Name')}
+            isRequired={true}
             inputRef={el => (nameInputRef.current = el)}
             value={state.moduleName}
             messages={state.nameInputMessages}

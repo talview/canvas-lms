@@ -17,23 +17,20 @@
  */
 
 import React from 'react'
-import {Portal} from '@instructure/ui-portal'
-import TopNav from './TopNav'
-import {QueryProvider} from '@canvas/query'
+import {type ITopNavProps} from './TopNav'
+import {createRoot} from 'react-dom/client'
+import {TopNavPortalBase, getMountPoint} from './TopNavPortalBase'
 
-const TopNavPortal = () => {
-  const mountPoint: HTMLElement | null = document.getElementById('react-instui-topnav')
-  if (!mountPoint) {
-    return null
+const TopNavPortal: React.FC<ITopNavProps> = props => {
+  return <TopNavPortalBase {...props} />
+}
+
+export const initializeTopNavPortal = (props?: ITopNavProps): void => {
+  const mountPoint = getMountPoint()
+  if (mountPoint) {
+    const root = createRoot(mountPoint)
+    root.render(<TopNavPortal {...props} />)
   }
-
-  return (
-    <Portal open={true} mountNode={mountPoint}>
-      <QueryProvider>
-        <TopNav />
-      </QueryProvider>
-    </Portal>
-  )
 }
 
 export default TopNavPortal

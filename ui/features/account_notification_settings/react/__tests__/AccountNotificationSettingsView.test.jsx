@@ -15,9 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License along
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-import {createCache} from '@canvas/apollo'
+import {createCache} from '@canvas/apollo-v3'
 import {render, screen, within} from '@testing-library/react'
-import {MockedProvider} from '@apollo/react-testing'
+import {MockedProvider} from '@apollo/client/testing'
 import mockGraphqlQuery from '@canvas/graphql-query-mock'
 import React from 'react'
 import {COURSE_NOTIFICATIONS_QUERY} from '@canvas/notification-preferences-course/graphql/Queries'
@@ -70,6 +70,7 @@ async function mockAccountNotificationsQuery(queryOverrides) {
         },
       },
       result: queryResult,
+      maxUsageCount: 2,
     },
   ]
 }

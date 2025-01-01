@@ -16,19 +16,18 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import '@canvas/jquery/jquery.ajaxJSON' /* ajaxJSON */
 import '@canvas/jquery/jquery.instructure_forms' /* formSubmit, getFormData, formErrors */
 import 'jqueryui/dialog'
 import '@canvas/jquery/jquery.instructure_misc_helpers' /* replaceTags */
 import '@canvas/jquery/jquery.instructure_misc_plugins' /* confirmDelete, showIf, .dim */
-import '@canvas/datetime/jquery'
 import '@canvas/jquery-keycodes' /* keycodes */
 import '@canvas/loading-image' /* loadingImage */
 import '@canvas/util/templateData'
 
-const I18n = useI18nScope('add_bank')
+const I18n = createI18nScope('add_bank')
 /* fillTemplateData, getTemplateData */
 
 export default function addBank(bank) {

@@ -138,8 +138,12 @@ describe SplitUsers do
       it "ignores user merge data items that are in a failed state" do
         UserMerge.from(restored_user).into(source_user)
         UserMerge.from(user3).into(source_user)
-        UserMergeData.where(user_id: source_user).take.update(workflow_state: "failed")
-        expect_any_instance_of(SplitUsers).to receive(:split_users).once
+        UserMergeData.find_by(user_id: source_user).update(workflow_state: "failed")
+
+        double = double(SplitUsers)
+        allow(SplitUsers).to receive(:new).and_return(double)
+        expect(double).to receive(:split_users).once
+
         SplitUsers.split_db_users(source_user)
       end
 
@@ -704,7 +708,7 @@ describe SplitUsers do
 
         @shard1.activate do
           UserMerge.from(restored_user).into(shard1_source_user)
-          cc = shard1_source_user.reload.communication_channels.where(path: "a@example.com").take
+          cc = shard1_source_user.reload.communication_channels.find_by(path: "a@example.com")
           n = Notification.create!(name: "Assignment Createds", subject: "Tests", category: "TestNevers")
           NotificationPolicyOverride.create(notification: n, communication_channel: cc, frequency: "immediately", context: shard1_course)
           SplitUsers.split_db_users(shard1_source_user)

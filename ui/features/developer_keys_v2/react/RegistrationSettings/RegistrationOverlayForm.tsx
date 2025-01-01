@@ -16,7 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {Button} from '@instructure/ui-buttons'
 import {Checkbox} from '@instructure/ui-checkbox'
 import {Flex} from '@instructure/ui-flex'
@@ -30,7 +30,7 @@ import * as React from 'react'
 import type {StoreApi} from 'zustand'
 import {type LtiPlacement, i18nLtiPlacement} from '../../model/LtiPlacements'
 import type {LtiRegistration} from '../../model/LtiRegistration'
-import {i18nLtiScope} from '../../model/LtiScopes'
+import {i18nLtiScope} from '@canvas/lti/model/i18nLtiScope'
 import {
   canvasPlatformSettings,
   type PlacementOverlay,
@@ -38,7 +38,7 @@ import {
 } from './RegistrationOverlayState'
 import {RegistrationPrivacyField} from './RegistrationPrivacyField'
 
-const I18n = useI18nScope('react_developer_keys')
+const I18n = createI18nScope('react_developer_keys')
 
 export const RegistrationOverlayForm = (props: {
   ltiRegistration: LtiRegistration
@@ -57,8 +57,8 @@ export const RegistrationOverlayForm = (props: {
   } = React.useMemo(() => actions, [actions])
 
   React.useEffect(() => {
-    props.store.subscribe(state => {
-      setState(state)
+    props.store.subscribe(s => {
+      setState(s)
     })
     return () => {
       props.store.destroy()
@@ -74,11 +74,12 @@ export const RegistrationOverlayForm = (props: {
       <Flex justifyItems="space-between" alignItems="center">
         <Flex.Item>
           <Text as="div" size="x-large" transform="capitalize">
-            {state.developerKeyName} {I18n.t('Settings')}
+            {state.nickname} {I18n.t('Settings')}
           </Text>
         </Flex.Item>
         <Flex.Item>
           <Button
+            // @ts-expect-error
             renderIcon={IconResetLine}
             margin="0 0 0 small"
             onClick={() => {
@@ -127,7 +128,7 @@ export const RegistrationOverlayForm = (props: {
                 return [placement, placementOverlay] as const
               }
             })
-            .map(([placement, placementOverlay]) => {
+            .map(([_placement, placementOverlay]) => {
               const disabled = state.registration.disabledPlacements.includes(placementOverlay.type)
               return (
                 <div>
@@ -201,8 +202,8 @@ const PlacementOverlayForm = React.memo((props: PlacementOverlayFormProps) => {
                       renderLabel={I18n.t('Title')}
                       value={placementOverlay.label}
                       onChange={(event, value) => {
-                        updatePlacement(placementOverlay.type)(placementOverlay => ({
-                          ...placementOverlay,
+                        updatePlacement(placementOverlay.type)(po => ({
+                          ...po,
                           label: value,
                         }))
                       }}
@@ -213,8 +214,8 @@ const PlacementOverlayForm = React.memo((props: PlacementOverlayFormProps) => {
                       renderLabel={I18n.t('Icon URL')}
                       value={placementOverlay.icon_url}
                       onChange={(event, value) => {
-                        updatePlacement(placementOverlay.type)(placementOverlay => ({
-                          ...placementOverlay,
+                        updatePlacement(placementOverlay.type)(po => ({
+                          ...po,
                           icon_url: value,
                         }))
                       }}

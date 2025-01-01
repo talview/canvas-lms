@@ -29,6 +29,7 @@ import {
   CREATE_DISCUSSION_ENTRY,
   DELETE_DISCUSSION_TOPIC,
   UPDATE_DISCUSSION_READ_STATE,
+  UPDATE_DISCUSSION_THREAD_READ_STATE,
   UPDATE_DISCUSSION_TOPIC,
   UPDATE_USER_DISCUSSION_SPLITSCREEN_PREFERENCE,
 } from './Mutations'
@@ -47,7 +48,7 @@ export const getDiscussionQueryMock = ({
   perPage = 20,
   rootEntries = true,
   searchTerm = '',
-  sort = 'desc',
+  sort = null,
   shouldError = false,
   isGroup = true,
   unreadBefore = '',
@@ -86,6 +87,9 @@ export const getDiscussionQueryMock = ({
           }
           if (sort === 'asc') {
             return Discussion.mock({
+              participant: {
+                sortOrder: 'asc',
+              },
               discussionEntriesConnection: {
                 nodes: [
                   DiscussionEntry.mock({
@@ -138,7 +142,7 @@ export const getAnonymousDiscussionQueryMock = ({
   perPage = 20,
   rootEntries = true,
   searchTerm = '',
-  sort = 'desc',
+  sort = null,
   shouldError = false,
   unreadBefore = '',
 } = {}) => [
@@ -381,6 +385,7 @@ export const updateDiscussionEntryMock = ({
   message = '<p>This is the parent reply</p>',
   fileId = '7',
   removeAttachment = !fileId,
+  quotedEntryId = null,
 } = {}) => [
   {
     request: {
@@ -390,6 +395,7 @@ export const updateDiscussionEntryMock = ({
         message,
         ...(fileId !== null && {fileId}),
         removeAttachment,
+        quotedEntryId,
       },
     },
     result: {
@@ -538,6 +544,35 @@ export const updateDiscussionReadStateMock = ({
             _id: discussionTopicId,
           }),
           __typename: 'UpdateDiscussionReadStatePayload',
+        },
+      },
+    },
+  },
+]
+
+export const updateDiscussionThreadReadStateMock = ({
+  discussionEntryId = 'discussion-entry-default-mock',
+  read = true,
+} = {}) => [
+  {
+    request: {
+      query: UPDATE_DISCUSSION_THREAD_READ_STATE,
+      variables: {
+        discussionEntryId,
+        read,
+      },
+    },
+    result: {
+      data: {
+        updateDiscussionThreadReadState: {
+          discussionEntry: DiscussionEntry.mock({
+            id: discussionEntryId,
+            _id: discussionEntryId,
+            read,
+            anonymousAuthor: AnonymousUser.mock({shortName: 'current_user'}),
+          }),
+          errors: null,
+          __typename: 'UpdateDiscussionThreadReadStatePayload',
         },
       },
     },

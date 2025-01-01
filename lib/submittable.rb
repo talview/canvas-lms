@@ -28,8 +28,22 @@ module Submittable
     }
 
     klass.scope :joins_assignment_student_visibilities, lambda { |user_ids, course_ids|
-      joins(:assignment_student_visibilities)
-        .where(assignment_student_visibilities: { user_id: user_ids, course_id: course_ids })
+      if Account.site_admin.feature_enabled?(:selective_release_backend)
+        visible_assignment_ids = AssignmentVisibility::AssignmentVisibilityService.assignments_visible_to_students(user_ids:, course_ids:).map(&:assignment_id)
+
+        if visible_assignment_ids.any?
+          if first.is_a?(Assignment)
+            where(id: visible_assignment_ids)
+          else
+            where(assignment_id: visible_assignment_ids)
+          end
+        else
+          none # Return no records if no assignment IDs are visible
+        end
+      else
+        joins(:assignment_student_visibilities)
+          .where(assignment_student_visibilities: { user_id: user_ids, course_id: course_ids })
+      end
     }
 
     klass.extend ClassMethods
@@ -42,6 +56,13 @@ module Submittable
       a.submission_types = name
       a.saved_by = name.to_sym
       a.workflow_state = published? ? "published" : "unpublished"
+      if a.has_sub_assignments
+        a.sub_assignments.each do |checkpoint|
+          checkpoint.workflow_state = published? ? "published" : "unpublished"
+          checkpoint.save!
+        end
+        Checkpoints::AssignmentAggregatorService.call(assignment: a)
+      end
     end
   end
 

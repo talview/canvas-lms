@@ -24,7 +24,7 @@ import {View} from '@instructure/ui-view'
 import {Text} from '@instructure/ui-text'
 import {Alert} from '@instructure/ui-alerts'
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import React from 'react'
 import PropTypes from 'prop-types'
 import AdminTable from './AdminTable'
@@ -35,7 +35,7 @@ import {showFlashAlert, showFlashSuccess} from '@canvas/alerts/react/FlashAlert'
 import DateHelper from '@canvas/datetime/dateHelper'
 import {DynamicRegistrationModal} from './dynamic_registration/DynamicRegistrationModal'
 
-const I18n = useI18nScope('react_developer_keys')
+const I18n = createI18nScope('react_developer_keys')
 /**
  * @see {@link DeveloperKeysApp.developerKeySaveSuccessfulHandler}
  * @description
@@ -139,12 +139,18 @@ class DeveloperKeysApp extends React.Component {
    * workaround and do it.
    * @todo Find a better way to avoid modal-focus-screenreader-bulldozing so
    * this isn't necessary.
-   * @param {string} warningMessage - A warning message to show to the user.
+   * @param {string | string[]} warningMessage - A warning message or a list of warning messages to show to the user.
    */
   developerKeySaveSuccessfulHandler(warningMessage) {
     setTimeout(() => {
       showFlashSuccess(I18n.t('Save successful.'))()
-      if (warningMessage) {
+      if (Array.isArray(warningMessage)) {
+        for (const message of warningMessage) {
+          if (message) {
+            showFlashAlert({message, type: 'warning'})
+          }
+        }
+      } else if (warningMessage) {
         showFlashAlert({message: warningMessage, type: 'warning'})
       }
     }, ALERT_WAIT_TIME)

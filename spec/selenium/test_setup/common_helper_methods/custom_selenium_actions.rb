@@ -549,7 +549,7 @@ module CustomSeleniumActions
              else
                f("#{form} #{submit_button_css}")
              end
-    scroll_to(button)
+    scroll_into_view(button)
     driver.action.move_to(button).click.perform
   end
 
@@ -615,6 +615,12 @@ module CustomSeleniumActions
   def drag_and_drop_element(source, target)
     driver.action.drag_and_drop(source, target).perform
     wait_for_ajaximations
+  end
+
+  ##
+  ## drags the source element by dx to the right and dy down
+  def drag_and_drop_element_by(source, dx, dy)
+    driver.action.drag_and_drop_by(source, dx, dy).perform
   end
 
   ##
@@ -685,8 +691,12 @@ module CustomSeleniumActions
     wait_for_ajaximations
   end
 
-  def scroll_into_view(selector)
-    driver.execute_script("$(#{selector.to_json})[0].scrollIntoView()")
+  def scroll_into_view(target)
+    if target.is_a?(Selenium::WebDriver::Element)
+      driver.execute_script("arguments[0].scrollIntoView(true);", target)
+    else
+      driver.execute_script("$(#{target.to_json})[0].scrollIntoView()")
+    end
   end
 
   # see packages/jquery-scroll-to-visible
@@ -721,5 +731,14 @@ module CustomSeleniumActions
     element.click
   rescue
     click_repeat(element)
+  end
+
+  # If you want to simulate a user's internet connection turning offline, use these methods.
+  def turn_off_network
+    driver.network_conditions = { offline: true, latency: 0, throughput: 0 }
+  end
+
+  def turn_on_network
+    driver.network_conditions = { offline: false, latency: 0, throughput: -1 }
   end
 end

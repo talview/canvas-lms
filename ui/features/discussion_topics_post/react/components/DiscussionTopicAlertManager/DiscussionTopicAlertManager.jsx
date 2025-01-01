@@ -19,7 +19,7 @@
 import DateHelper from '@canvas/datetime/dateHelper'
 import {Discussion} from '../../../graphql/Discussion'
 import {responsiveQuerySizes} from '../../utils'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
 import React from 'react'
 
@@ -27,7 +27,7 @@ import {Alert} from '@instructure/ui-alerts'
 import {Text} from '@instructure/ui-text'
 import {Responsive} from '@instructure/ui-responsive/lib/Responsive'
 
-const I18n = useI18nScope('discussion_posts')
+const I18n = createI18nScope('discussion_posts')
 
 export const DiscussionTopicAlertManager = props => {
   const getAnonymousAlertText = () => {
@@ -138,13 +138,7 @@ export const DiscussionTopicAlertManager = props => {
           applicableAlerts.push(
             <Alert key="locked-for-user" renderCloseButtonLabel="Close" margin="0 0 x-small">
               <Text data-testid="locked-for-user" size={responsiveProps?.alert?.textSize}>
-                {I18n.t('This topic will be available %{delayedPostAt}.', {
-                  delayedPostAt: props.discussionTopic.assignment
-                    ? DateHelper.formatDatetimeForDiscussions(
-                        props.discussionTopic.assignment.unlockAt
-                      )
-                    : DateHelper.formatDatetimeForDiscussions(props.discussionTopic.delayedPostAt),
-                })}
+                {props.discussionTopic.lockInformation}
               </Text>
             </Alert>
           )
@@ -159,6 +153,26 @@ export const DiscussionTopicAlertManager = props => {
             </Alert>
           )
         }
+
+        if (ENV.checkpointed_discussion_without_feature_flag) {
+          applicableAlerts.push(
+            <Alert
+              key="checkpointed-discussion-without-feature-flag"
+              variant="warning"
+              margin="0 0 x-small"
+            >
+              <Text
+                data-testid="checkpointed-discussion-without-feature-flag"
+                size={responsiveProps?.alert?.textSize}
+              >
+                {I18n.t(
+                  'This discussion includes graded checkpoints, but the Discussion Checkpoints feature flag is currently disabled at the root account level. To enable this functionality, please contact an administrator to activate the feature flag.'
+                )}
+              </Text>
+            </Alert>
+          )
+        }
+
         return applicableAlerts
       }}
     />

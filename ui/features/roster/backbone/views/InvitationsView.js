@@ -15,15 +15,16 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
 import $ from 'jquery'
 import {last} from 'lodash'
 import DialogBaseView from '@canvas/dialog-base-view'
+import {datetimeString} from '@canvas/datetime/date-functions'
 import invitationsViewTemplate from '../../jst/InvitationsView.handlebars'
 import '@canvas/rails-flash-notifications'
 
-const I18n = useI18nScope('course_settings')
+const I18n = createI18nScope('course_settings')
 
 export default class InvitationsView extends DialogBaseView {
   dialogOptions() {
@@ -50,7 +51,7 @@ export default class InvitationsView extends DialogBaseView {
     this.showDialogButtons()
 
     const data = this.model.toJSON()
-    data.time = $.datetimeString(last(this.model.get('enrollments')).updated_at)
+    data.time = datetimeString(last(this.model.get('enrollments')).updated_at)
     this.$el.html(invitationsViewTemplate(data))
 
     const pending = this.invitationIsPending()
@@ -86,11 +87,7 @@ export default class InvitationsView extends DialogBaseView {
     e.preventDefault()
     this.close()
     for (e of this.model.get('enrollments')) {
-      if (ENV.FEATURES.granular_permissions_manage_users) {
-        if (ENV.permissions.active_granular_enrollment_permissions.includes(e.type)) {
-          this.sendInvitation(e)
-        }
-      } else {
+      if (ENV.permissions.active_granular_enrollment_permissions.includes(e.type)) {
         this.sendInvitation(e)
       }
     }

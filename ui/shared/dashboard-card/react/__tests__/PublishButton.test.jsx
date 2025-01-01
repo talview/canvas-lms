@@ -30,7 +30,7 @@ function createMockProps(opts = {}) {
     pagesUrl: '',
     defaultView: 'modules',
     frontPageTitle: '',
-    courseNickname: 'nickname',
+    courseNickname: 'the_course_nickname',
     onSuccess: null,
     ...opts,
   }
@@ -105,6 +105,6 @@ describe('PublishButton', () => {
 
   it('renders SR content correctly', () => {
     const wrapper = render(<PublishButton {...createMockProps({defaultView: 'assignments'})} />)
-    expect(wrapper.queryByText('nickname')).toBeInTheDocument()
+    expect(wrapper.queryByText('nickname', {exact: false})).toBeInTheDocument()
   })
 })

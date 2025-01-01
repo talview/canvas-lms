@@ -346,11 +346,16 @@ describe CanvasCache::Redis do
       end
 
       let(:raw_client) do
-        router = client.instance_variable_get(:@router)
+        router = client.send(:router)
         router.find_node(router.find_node_key(""))
       end
 
       include_examples "disconnect_if_idle"
+    end
+
+    it "works with a cluster that hasn't connected yet" do
+      r = Redis::Cluster.new(nodes: ["rediss://somewhere:6379"])
+      r._client.disconnect_if_idle(1)
     end
   end
 end

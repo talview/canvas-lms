@@ -24,15 +24,15 @@ class Login::OAuthBaseController < ApplicationController
   before_action :forbid_on_files_domain
   before_action :run_login_hooks, :fix_ms_office_redirects, only: :new
 
-  def new
-    # a subclass might explicitly set the AAC, so that we don't need to infer
-    # it from the URL
-    return if @aac
+  protected
+
+  def aac
+    return @aac if @aac
 
     auth_type = params[:controller].sub(%r{^login/}, "")
     # ActionController::TestCase can't deal with aliased controllers, so we have to
     # explicitly specify this
-    auth_type = params[:auth_type] if Rails.env.test?
+    auth_type = params[:auth_type] if Rails.env.test? && params[:auth_type]
     scope = @domain_root_account.authentication_providers.active.where(auth_type:)
     @aac = if params[:id]
              scope.find(params[:id])
@@ -40,8 +40,6 @@ class Login::OAuthBaseController < ApplicationController
              scope.first!
            end
   end
-
-  protected
 
   def timeout_protection
     timeout_options = { raise_on_timeout: true, fallback_timeout_length: 10.seconds }
@@ -61,25 +59,28 @@ class Login::OAuthBaseController < ApplicationController
     false
   end
 
-  def find_pseudonym(unique_ids, provider_attributes = {})
-    if unique_ids.nil?
-      unknown_user_url = @domain_root_account.unknown_user_url.presence || login_url
+  def find_pseudonym(unique_ids, provider_attributes = {}, token = nil)
+    unique_ids = unique_ids.first if unique_ids.is_a?(Array)
+
+    unique_id = unique_ids.is_a?(Hash) ? unique_ids[@aac.login_attribute] : unique_ids
+    if unique_id.nil?
       logger.warn "Received OAuth2 login with no unique_id"
-      flash[:delegated_message] =
+      return redirect_to_unknown_user_url(
         t("Authentication with %{provider} was successful, but no unique ID for logging in to Canvas was provided.",
           provider: @aac.class.display_name)
-      return redirect_to unknown_user_url
+      )
     end
 
-    pseudonym = nil
-    unique_ids = Array(unique_ids)
-    unique_ids.any? do |unique_id|
-      pseudonym = @domain_root_account.pseudonyms.for_auth_configuration(unique_id, @aac)
+    pseudonym = @domain_root_account.pseudonyms.for_auth_configuration(unique_ids, @aac)
+    if !pseudonym && need_email_verification?(unique_ids, @aac)
+      increment_statsd(:failure, reason: :need_email_verification)
+      return
     end
+
     if pseudonym
       @aac.apply_federated_attributes(pseudonym, provider_attributes)
-    elsif !unique_ids.empty? && @aac.jit_provisioning?
-      pseudonym = @aac.provision_user(unique_ids.first, provider_attributes)
+    elsif @aac.jit_provisioning?
+      pseudonym = @aac.provision_user(unique_ids, provider_attributes)
     end
 
     if pseudonym && (user = pseudonym.login_assertions_for_user)
@@ -88,13 +89,13 @@ class Login::OAuthBaseController < ApplicationController
         PseudonymSession.create!(pseudonym, false)
       end
       session[:login_aac] = @aac.global_id
+      @aac.try(:persist_to_session, session, token) if token
 
       successful_login(user, pseudonym)
     else
-      unknown_user_url = @domain_root_account.unknown_user_url.presence || login_url
-      logger.warn "Received OAuth2 login for unknown user: #{unique_ids.inspect}, redirecting to: #{unknown_user_url}."
-      flash[:delegated_message] = t "Canvas doesn't have an account for user: %{user}", user: unique_ids.first
-      redirect_to unknown_user_url
+      logger.warn "Received OAuth2 login for unknown user: #{unique_ids.inspect}"
+      redirect_to_unknown_user_url(t("Canvas doesn't have an account for user: %{user}", user: unique_id))
+      increment_statsd(:failure, reason: :unknown_user)
     end
   end
 end

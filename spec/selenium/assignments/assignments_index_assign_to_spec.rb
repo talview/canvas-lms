@@ -20,6 +20,7 @@ require_relative "../../spec_helper"
 require_relative "page_objects/assignments_index_page"
 require_relative "../helpers/items_assign_to_tray"
 require_relative "../helpers/context_modules_common"
+require_relative "../../helpers/selective_release_common"
 
 shared_examples_for "selective_release assign to tray" do |context|
   include AssignmentsIndexPage
@@ -116,6 +117,18 @@ shared_examples_for "selective_release assign to tray" do |context|
     expect(assign_to_until_time(0).attribute("value")).to eq("9:00 PM")
   end
 
+  it "does not Save assigment if no changes have been made" do
+    get @mod_url
+
+    click_manage_assignment_button(@assignment1.id)
+    click_assign_to_menu_link(@assignment1.id)
+
+    expect(item_tray_exists?).to be true
+    click_save_button
+    expect(element_exists?(loading_spinner_selector)).to be_falsey
+    expect(item_tray_exists?).to be false
+  end
+
   it "assigns student for a NQ quiz and saves" do
     new_quiz_assignment = @course.assignments.create!(title: "new quizzes assignment")
     new_quiz_assignment.quiz_lti!
@@ -172,6 +185,30 @@ shared_examples_for "selective_release assign to tray" do |context|
 
     check_element_has_focus close_button
   end
+
+  it "does not show the button when the user does not have the manage_assignments_edit permission" do
+    get @mod_url
+    click_manage_assignment_button(@assignment1.id)
+    expect(element_exists?(assign_to_menu_link_selector(@assignment1.id))).to be_truthy
+
+    RoleOverride.create!(context: @mod_course.account, permission: "manage_assignments_edit", role: teacher_role, enabled: false)
+    get @mod_url
+    click_manage_assignment_button(@assignment1.id)
+    expect(element_exists?(assign_to_menu_link_selector(@assignment1.id))).to be_falsey
+  end
+
+  it "shows the button based off the moderate_forum permission for graded discussions on the assignments index" do
+    discussion = DiscussionTopic.create_graded_topic!(course: @course, title: "graded topic")
+
+    get @mod_url
+    click_manage_assignment_button(discussion.assignment.id)
+    expect(element_exists?(assign_to_menu_link_selector(discussion.assignment.id))).to be_truthy
+
+    RoleOverride.create!(context: @mod_course.account, permission: "moderate_forum", role: teacher_role, enabled: false)
+    get @mod_url
+    click_manage_assignment_button(discussion.assignment.id)
+    expect(element_exists?(assign_to_menu_link_selector(discussion.assignment.id))).to be_falsey
+  end
 end
 
 describe "assignments index menu tool placement" do
@@ -179,6 +216,7 @@ describe "assignments index menu tool placement" do
   include AssignmentsIndexPage
   include ItemsAssignToTray
   include ContextModulesCommon
+  include SelectiveReleaseCommon
 
   before :once do
     differentiated_modules_on

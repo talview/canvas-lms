@@ -152,6 +152,21 @@ describe('PostToolbar', () => {
       })
       expect(queryByText('Subscribed')).toBeFalsy()
     })
+
+    it('makes the button disabled if cannot subscribe', () => {
+      window.ENV.current_user_roles = ['student']
+      const onToggleSubscriptionMock = jest.fn()
+      const {queryAllByText} = setup({
+        onToggleSubscription: onToggleSubscriptionMock,
+        discussion: Discussion.mock({
+          subscriptionDisabledForUser: true,
+          groupSet: null,
+        }),
+        isSubscribed: false,
+      })
+      const buttonElement = queryAllByText('Reply to subscribe')[0].closest('button')
+      expect(buttonElement.disabled).toBe(true)
+    })
   })
 
   describe('menu options', () => {
@@ -302,7 +317,7 @@ describe('PostToolbar', () => {
       it('does not render if the callback is not provided', () => {
         const {queryByText, getByTestId} = setup()
         fireEvent.click(getByTestId('discussion-post-menu-trigger'))
-        expect(queryByText('Open in Speedgrader')).toBeFalsy()
+        expect(queryByText('Open in SpeedGrader')).toBeFalsy()
       })
 
       it('calls provided callback when clicked', () => {
@@ -310,7 +325,7 @@ describe('PostToolbar', () => {
         const {getByTestId, getByText} = setup({onOpenSpeedgrader: onOpenSpeedgraderMock})
         fireEvent.click(getByTestId('discussion-post-menu-trigger'))
         expect(onOpenSpeedgraderMock.mock.calls.length).toBe(0)
-        fireEvent.click(getByText('Open in Speedgrader'))
+        fireEvent.click(getByText('Open in SpeedGrader'))
         expect(onOpenSpeedgraderMock.mock.calls.length).toBe(1)
       })
     })

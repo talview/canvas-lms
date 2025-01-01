@@ -16,7 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import {clone} from 'lodash'
 import Backbone from '@canvas/backbone'
@@ -30,7 +30,6 @@ import '@canvas/jquery/jquery.ajaxJSON'
 import '@canvas/jquery/jquery.instructure_forms'
 import 'jqueryui/dialog'
 import '@canvas/jquery/jquery.instructure_misc_helpers'
-import '@canvas/datetime/jquery'
 import '@canvas/jquery-keycodes'
 import '@canvas/loading-image'
 import '@canvas/rails-flash-notifications'
@@ -41,8 +40,9 @@ import React from 'react'
 import ReactDOM from 'react-dom'
 import {VideoConferenceModal} from './react/components/VideoConferenceModal/VideoConferenceModal'
 import getCookie from '@instructure/get-cookie'
+import {initializeTopNavPortalWithDefaults} from '@canvas/top-navigation/react/TopNavPortalWithDefaults'
 
-const I18n = useI18nScope('conferences')
+const I18n = createI18nScope('conferences')
 
 if (ENV.can_create_conferences) {
   if (ENV.render_alternatives) {
@@ -103,6 +103,17 @@ const ConferencesRouter = Backbone.Router.extend({
       20000
     )
 
+    const handleBreadCrumbSetter = ({getCrumbs, setCrumbs}) => {
+      const currentCrumbs = getCrumbs()
+      currentCrumbs.at(-1).url = ''
+      setCrumbs(currentCrumbs)
+    }
+
+    initializeTopNavPortalWithDefaults({
+      getBreadCrumbSetter: handleBreadCrumbSetter,
+      useStudentView: true,
+    })
+
     $('.new-conference-btn').on('click', () => this.create())
   },
 
@@ -147,6 +158,7 @@ const ConferencesRouter = Backbone.Router.extend({
           }) || []
 
         const menuData = availableAttendeesList.concat(availableSectionsList, availableGroupsList)
+         
         ReactDOM.render(
           <VideoConferenceModal
             open={true}
@@ -154,6 +166,7 @@ const ConferencesRouter = Backbone.Router.extend({
             availableAttendeesList={menuData}
             onDismiss={() => {
               window.location.hash = ''
+               
               ReactDOM.render(<span />, document.getElementById('react-conference-modal-container'))
             }}
             onSubmit={async (e, data) => {
@@ -330,6 +343,7 @@ const ConferencesRouter = Backbone.Router.extend({
         }
       })
 
+       
       ReactDOM.render(
         <VideoConferenceModal
           open={true}
@@ -350,6 +364,7 @@ const ConferencesRouter = Backbone.Router.extend({
           endCalendarDate={attributes.end_at}
           onDismiss={() => {
             window.location.hash = ''
+             
             ReactDOM.render(<span />, document.getElementById('react-conference-modal-container'))
           }}
           onSubmit={async (e, data) => {

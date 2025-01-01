@@ -16,11 +16,12 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import gql from 'graphql-tag'
+import {gql} from '@apollo/client'
 import qs from 'qs'
 import {executeQuery} from '@canvas/query/graphql'
 import type {RubricFormProps} from '../types/RubricForm'
-import type {Rubric} from '@canvas/rubrics/react/types/rubric'
+import type {Rubric, RubricAssociation} from '@canvas/rubrics/react/types/rubric'
+import {mapRubricUnderscoredKeysToCamelCase} from '@canvas/rubrics/react/utils'
 import getCookie from '@instructure/get-cookie'
 
 const RUBRIC_QUERY = gql`
@@ -32,6 +33,7 @@ const RUBRIC_QUERY = gql`
       hidePoints
       buttonDisplay
       ratingOrder
+      freeFormCriterionComments
       workflowState
       pointsPossible
       unassessed
@@ -48,6 +50,8 @@ const RUBRIC_QUERY = gql`
           title
         }
         learningOutcomeId
+        ignoreForScoring
+        masteryPoints
         points
         longDescription
         description
@@ -63,6 +67,7 @@ export type RubricQueryResponse = Pick<
   | 'title'
   | 'criteria'
   | 'hidePoints'
+  | 'freeFormCriterionComments'
   | 'pointsPossible'
   | 'buttonDisplay'
   | 'ratingOrder'
@@ -85,9 +90,25 @@ export const fetchRubric = async (id?: string): Promise<RubricQueryResponse | nu
   return rubric
 }
 
-export const saveRubric = async (rubric: RubricFormProps): Promise<RubricQueryResponse> => {
-  const {id, title, hidePoints, accountId, courseId, ratingOrder, buttonDisplay, workflowState} =
-    rubric
+export type SaveRubricResponse = {
+  rubric: Rubric
+  rubricAssociation: RubricAssociation
+}
+export const saveRubric = async (
+  rubric: RubricFormProps,
+  assignmentId?: string
+): Promise<SaveRubricResponse> => {
+  const {
+    id,
+    title,
+    hidePoints,
+    freeFormCriterionComments,
+    accountId,
+    courseId,
+    ratingOrder,
+    buttonDisplay,
+    workflowState,
+  } = rubric
   const urlPrefix = accountId ? `/accounts/${accountId}` : `/courses/${courseId}`
   const url = `${urlPrefix}/rubrics/${id ?? ''}`
   const method = id ? 'PATCH' : 'POST'
@@ -103,6 +124,7 @@ export const saveRubric = async (rubric: RubricFormProps): Promise<RubricQueryRe
         title: criterion.outcome?.title,
       },
       learning_outcome_id: criterion.learningOutcomeId,
+      ignore_for_scoring: criterion.ignoreForScoring,
       criterion_use_range: criterion.criterionUseRange,
       ratings: criterion.ratings.map(rating => ({
         description: rating.description,
@@ -124,14 +146,16 @@ export const saveRubric = async (rubric: RubricFormProps): Promise<RubricQueryRe
       rubric: {
         title,
         hide_points: hidePoints,
+        free_form_comments: freeFormCriterionComments,
         criteria,
         button_display: buttonDisplay,
         rating_order: ratingOrder,
         workflow_state: workflowState,
       },
       rubric_association: {
-        association_id: accountId ?? courseId,
-        association_type: accountId ? 'Account' : 'Course',
+        association_id: assignmentId ?? accountId ?? courseId,
+        association_type: assignmentId ? 'Assignment' : accountId ? 'Account' : 'Course',
+        purpose: assignmentId ? 'grading' : undefined,
       },
     }),
   })
@@ -140,22 +164,14 @@ export const saveRubric = async (rubric: RubricFormProps): Promise<RubricQueryRe
     throw new Error(`Failed to save rubric: ${response.statusText}`)
   }
 
-  const {rubric: savedRubric, error} = await response.json()
+  const {rubric: savedRubric, rubric_association, error} = await response.json()
 
   if (error) {
     throw new Error(`Failed to save rubric`)
   }
 
   return {
-    id: savedRubric.id,
-    title: savedRubric.title,
-    hidePoints: savedRubric.hide_points,
-    criteria: savedRubric.criteria,
-    pointsPossible: savedRubric.points_possible,
-    buttonDisplay: savedRubric.button_display,
-    ratingOrder: savedRubric.rating_order,
-    workflowState: savedRubric.workflow_state,
-    unassessed: rubric.unassessed,
-    hasRubricAssociations: rubric.hasRubricAssociations,
+    rubric: mapRubricUnderscoredKeysToCamelCase(savedRubric),
+    rubricAssociation: rubric_association,
   }
 }

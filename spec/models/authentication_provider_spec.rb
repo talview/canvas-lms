@@ -21,6 +21,18 @@
 describe AuthenticationProvider do
   let(:account) { Account.default }
 
+  describe ".singleton?" do
+    subject { described_class.singleton? }
+
+    it { is_expected.to be false }
+  end
+
+  describe ".restorable?" do
+    subject { described_class.restorable? }
+
+    it { is_expected.to be false }
+  end
+
   context "password" do
     it "decrypts the password to the original value" do
       c = AuthenticationProvider.new
@@ -83,7 +95,90 @@ describe AuthenticationProvider do
     end
   end
 
+  describe "#duplicated_in_account?" do
+    subject { authentication_provider.duplicated_in_account? }
+
+    context "when the account lacks other auth provider with the same auth type" do
+      context "and the auth provider is singleton" do
+        let(:authentication_provider) { account.authentication_providers.create!(auth_type: "apple") }
+
+        it { is_expected.to be false }
+      end
+
+      context "and the auth provider is not singleton" do
+        let(:authentication_provider) { account.authentication_providers.create!(auth_type: "cas") }
+
+        it { is_expected.to be false }
+      end
+    end
+
+    context "when the account has another auth provider with the same auth type" do
+      context "and the auth provider is singleton" do
+        let(:authentication_provider) { account.authentication_providers.create!(auth_type: "apple") }
+
+        before do
+          account.authentication_providers.create!(auth_type: "apple")
+        end
+
+        it { is_expected.to be true }
+      end
+
+      context "and the auth provider is not singleton" do
+        let(:authentication_provider) { account.authentication_providers.create!(auth_type: "cas") }
+
+        before do
+          account.authentication_providers.create!(auth_type: "cas")
+        end
+
+        it { is_expected.to be false }
+      end
+    end
+  end
+
+  describe ".find_restorable_provider" do
+    subject(:restorable_duplicate) do
+      described_class.find_restorable_provider(
+        root_account: account,
+        auth_type:
+      )
+    end
+
+    context "when the auth provider is not singleton" do
+      let(:auth_type) { "cas" }
+
+      it { is_expected.to be_nil }
+    end
+
+    context "when the auth provider is singleton, but not restorable" do
+      let(:auth_type) { "apple" }
+
+      it { is_expected.to be_nil }
+    end
+
+    context "when the auth provider is singleton and restorable" do
+      let(:auth_type) { "apple" }
+
+      before do
+        allow(AuthenticationProvider::Apple).to receive_messages(restorable?: true, singleton?: true)
+      end
+
+      context "and the account contains a duplicate auth provider" do
+        let!(:existing_auth_provider) { account.authentication_providers.create!(auth_type: "apple", workflow_state: "deleted") }
+
+        it "returns the duplicate auth provider" do
+          expect(restorable_duplicate).to eq(existing_auth_provider)
+        end
+      end
+
+      context "and the account does not contain a duplicate auth provider" do
+        it { is_expected.to be_nil }
+      end
+    end
+  end
+
   describe "#destroy" do
+    subject(:destroy_authentication_provider) { aac.destroy }
+
     let!(:aac) { account.authentication_providers.create!(auth_type: "cas") }
 
     it "retains the database row" do
@@ -111,6 +206,29 @@ describe AuthenticationProvider do
       pseudonym.save!
       aac.destroy
       expect(pseudonym.reload.workflow_state).to eq("deleted")
+    end
+
+    context "when the authentication provider is restorable" do
+      let!(:pseudonym) do
+        user = user_model
+
+        user.pseudonyms.create!(
+          unique_id: "user@test.com",
+          authentication_provider: aac
+        )
+      end
+
+      before do
+        allow(aac.class).to receive(:restorable?).and_return(true)
+      end
+
+      it "does not modify pseudonyms" do
+        expect { destroy_authentication_provider }.not_to change { pseudonym.reload.workflow_state }
+      end
+
+      it "soft deletes the authentication provider" do
+        expect { destroy_authentication_provider }.to change { aac.reload.workflow_state }.from("active").to("deleted")
+      end
     end
   end
 
@@ -141,7 +259,7 @@ describe AuthenticationProvider do
     end
 
     it "respects deletions for position management" do
-      aac3 = account.authentication_providers.create!(auth_type: "twitter")
+      aac3 = account.authentication_providers.create!(auth_type: "google")
       expect(aac2.reload.position).to eq(2)
       aac2.destroy
       expect(aac1.reload.position).to eq(1)
@@ -187,9 +305,25 @@ describe AuthenticationProvider do
         expect(aac).not_to be_valid
       end
 
-      it "rejects unknown keys for attriutes" do
+      it "rejects unknown keys for attributes" do
         aac = Account.default.authentication_providers.new(auth_type: "saml",
-                                                           federated_attributes: { "integration_id" => { "garbage" => "internal_id" } })
+                                                           federated_attributes: { "integration_id" => { "attribute" => "internal_id", "garbage" => "internal_id" } })
+        expect(aac).not_to be_valid
+      end
+
+      it "requires attribute key for hash attributes" do
+        aac = Account.default.authentication_providers.new(auth_type: "saml",
+                                                           federated_attributes: { "integration_id" => { "provisioning_only" => true } })
+        expect(aac).not_to be_valid
+      end
+
+      it "only accepts autoconfirm for email" do
+        aac = Account.default.authentication_providers.new(auth_type: "saml",
+                                                           federated_attributes: { "email" => { "attribute" => "email", "autoconfirm" => true } })
+        expect(aac).to be_valid
+
+        aac = Account.default.authentication_providers.new(auth_type: "saml",
+                                                           federated_attributes: { "integration_id" => { "attribute" => "internal_id", "autoconfirm" => true } })
         expect(aac).not_to be_valid
       end
     end
@@ -216,10 +350,16 @@ describe AuthenticationProvider do
     before do
       # ensure the federated_attributes hash is normalized
       aac.valid?
-      user_with_pseudonym
+      user_with_pseudonym(active_all: true)
     end
 
     it "handles most attributes" do
+      notification = Notification.create!(name: "Confirm Email Communication Channel", category: "TestImmediately")
+      cc = CommunicationChannel.new
+      expect(CommunicationChannel).to receive(:new) { |attrs|
+        cc.attributes = attrs
+        cc
+      }
       aac.apply_federated_attributes(@pseudonym,
                                      {
                                        "display_name" => "Mr. Cutler",
@@ -233,8 +373,9 @@ describe AuthenticationProvider do
                                      },
                                      purpose: :provisioning)
       @user.reload
+      expect(cc.messages_sent.keys).to eq [notification.name]
       expect(@user.short_name).to eq "Mr. Cutler"
-      expect(@user.communication_channels.email.active.pluck(:path)).to include("cody@school.edu")
+      expect(@user.communication_channels.email.in_state("unconfirmed").pluck(:path)).to include("cody@school.edu")
       expect(@pseudonym.integration_id).to eq "abc123"
       expect(@user.locale).to eq "es"
       expect(@user.name).to eq "Cody Cutrer"
@@ -265,7 +406,7 @@ describe AuthenticationProvider do
                                        "timezone" => "America/New_York"
                                      })
       @user.reload
-      expect(@user.communication_channels.email.active.pluck(:path)).to include("cody@school.edu")
+      expect(@user.communication_channels.email.in_state("unconfirmed").pluck(:path)).to include("cody@school.edu")
       expect(@pseudonym.integration_id).not_to eq "abc123"
       expect(@user.locale).to eq "es"
       expect(@user.name).to eq "Cody Cutrer"
@@ -291,6 +432,44 @@ describe AuthenticationProvider do
                                      purpose: :provisioning)
       expect(@pseudonym.sis_user_id).to eq "test"
       expect(@pseudonym.integration_id).to eq "testfrd"
+    end
+
+    it "supports multiple emails" do
+      aac.apply_federated_attributes(@pseudonym, { "email" => %w[cody@school.edu student@school.edu] })
+      @user.reload
+      expect(@user.communication_channels.email.pluck(:path)).to eq(%w[nobody@example.com cody@school.edu student@school.edu])
+    end
+
+    it "can autoconfirm emails" do
+      aac.federated_attributes["email"]["autoconfirm"] = true
+      aac.apply_federated_attributes(@pseudonym,
+                                     {
+                                       "email" => "cody@school.edu",
+                                       "internal_id" => "abc123",
+                                       "locale" => "es",
+                                       "name" => "Cody Cutrer",
+                                       "sis_id" => "28",
+                                       "sortable_name" => "Cutrer, Cody",
+                                       "timezone" => "America/New_York"
+                                     })
+      @user.reload
+      expect(@user.communication_channels.email.in_state("active").pluck(:path)).to include("cody@school.edu")
+    end
+
+    it "does not autoconfirm emails for some social providers" do
+      aac = AuthenticationProvider::Microsoft.new(federated_attributes: { "email" => { "attribute" => "email", "autoconfirm" => true } })
+      aac.apply_federated_attributes(@pseudonym,
+                                     {
+                                       "email" => "cody@school.edu",
+                                       "internal_id" => "abc123",
+                                       "locale" => "es",
+                                       "name" => "Cody Cutrer",
+                                       "sis_id" => "28",
+                                       "sortable_name" => "Cutrer, Cody",
+                                       "timezone" => "America/New_York"
+                                     })
+      @user.reload
+      expect(@user.communication_channels.email.in_state("unconfirmed").pluck(:path)).to include("cody@school.edu")
     end
 
     context "admin_roles" do
@@ -350,6 +529,31 @@ describe AuthenticationProvider do
         @user.reload
         expect(@user.locale).to eq "en-GB"
       end
+
+      it "supports multiple incoming values, selecting the first available match" do
+        allow(I18n).to receive(:available_locales).and_return(%w[fr en])
+        aac.apply_federated_attributes(@pseudonym, { "locale" => %w[ab-CD fr-FR] })
+        @user.reload
+        expect(@user.locale).to eq "fr"
+      end
+    end
+  end
+
+  describe "#provision_user" do
+    let(:auth_provider) { account.authentication_providers.create!(auth_type: "microsoft", tenant: "microsoft", login_attribute: "sub") }
+
+    it "works" do
+      p = auth_provider.provision_user("unique_id")
+      expect(p.unique_id).to eq "unique_id"
+      expect(p.login_attribute).to eq "sub"
+      expect(p.unique_ids).to eq({})
+    end
+
+    it "handles a hash of unique ids" do
+      p = auth_provider.provision_user("sub" => "unique_id", "tid" => "abc")
+      expect(p.unique_id).to eq "unique_id"
+      expect(p.login_attribute).to eq "sub"
+      expect(p.unique_ids).to eq({ "sub" => "unique_id", "tid" => "abc" })
     end
   end
 

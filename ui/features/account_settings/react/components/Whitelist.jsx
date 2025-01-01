@@ -16,8 +16,8 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {Component} from 'react'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import React, {Component, createRef} from 'react'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {connect} from 'react-redux'
 import {arrayOf, bool, func, objectOf, oneOf, shape, string, number} from 'prop-types'
 import {Alert} from '@instructure/ui-alerts'
@@ -37,7 +37,7 @@ import EmptyDesert from '@canvas/images/react/EmptyDesert'
 
 import {addDomain, removeDomain, copyInheritedIfNeeded} from '../actions'
 
-const I18n = useI18nScope('security_panel')
+const I18n = createI18nScope('security_panel')
 
 const PROTOCOL_REGEX = /^(?:(ht|f)tp(s?)\:\/\/)?/
 
@@ -62,6 +62,8 @@ export class Whitelist extends Component {
   static defaultProps = {
     inherited: false,
   }
+
+  domainNameInputRef = createRef()
 
   state = {
     addDomainInputValue: '',
@@ -100,10 +102,11 @@ export class Whitelist extends Component {
         errors: [
           {
             text: I18n.t('Invalid domain'),
-            type: 'error',
+            type: 'newError',
           },
         ],
       })
+      this.domainNameInputRef.current.focus()
     }
   }
 
@@ -158,6 +161,7 @@ export class Whitelist extends Component {
         </View>
 
         <form
+          noValidate={true}
           onSubmit={e => {
             e.preventDefault()
             this.handleSubmit()
@@ -182,11 +186,13 @@ export class Whitelist extends Component {
           <Flex>
             <Flex.Item shouldGrow={true} shouldShrink={true} padding="0 medium 0 0">
               <TextInput
+                ref={this.domainNameInputRef}
                 renderLabel={I18n.t('Domain Name')}
                 placeholder="http://somedomain.com"
                 value={this.state.addDomainInputValue}
                 messages={this.state.errors}
                 disabled={(this.props.inherited && this.props.isSubAccount) || domainLimitReached}
+                isRequired={true}
                 onChange={e => {
                   this.setState({addDomainInputValue: e.currentTarget.value})
                 }}

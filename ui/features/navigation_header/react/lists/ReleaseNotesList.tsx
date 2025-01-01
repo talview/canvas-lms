@@ -17,7 +17,7 @@
  */
 
 import React, {useState, useEffect} from 'react'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import useDateTimeFormat from '@canvas/use-date-time-format-hook'
 import {Checkbox} from '@instructure/ui-checkbox'
 import {Link} from '@instructure/ui-link'
@@ -34,7 +34,7 @@ import {ScreenReaderContent, PresentationContent} from '@instructure/ui-a11y-con
 import {IconWarningSolid} from '@instructure/ui-icons'
 import {getSetting, setSetting} from '@canvas/settings-query/react/settingsQuery'
 
-const I18n = useI18nScope('Navigation')
+const I18n = createI18nScope('Navigation')
 
 export default function ReleaseNotesList() {
   const queryClient = useQueryClient()
@@ -48,7 +48,9 @@ export default function ReleaseNotesList() {
     queryKey: ['settings', 'release_notes_badge_disabled'],
     queryFn: getSetting,
     enabled: countsEnabled && ENV.FEATURES.embedded_release_notes,
-    fetchAtLeastOnce: true,
+    meta: {
+      fetchAtLeastOnce: true,
+    },
   })
 
   const mutation = useMutation({
@@ -70,7 +72,9 @@ export default function ReleaseNotesList() {
     queryKey: ['releaseNotes'],
     queryFn: releaseNotesQuery,
     enabled: countsEnabled && ENV.FEATURES.embedded_release_notes,
-    fetchAtLeastOnce: true,
+    meta: {
+      fetchAtLeastOnce: true,
+    },
   })
 
   const [wasFetchingReleaseNotes, setWasFetchingReleaseNotes] = useState(isFetching)

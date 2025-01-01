@@ -28,12 +28,12 @@ import {Text} from '@instructure/ui-text'
 import {Modal} from '@instructure/ui-modal'
 import {View} from '@instructure/ui-view'
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {dateString, dateTimeString, dateRangeString} from '../../utilities/dateUtils'
 import {convertApiUserContent} from '../../utilities/contentUtils'
 import {userShape} from '../plannerPropTypes'
 
-const I18n = useI18nScope('planner')
+const I18n = createI18nScope('planner')
 
 export default class CalendarEventModal extends React.Component {
   static propTypes = {
@@ -114,7 +114,7 @@ export default class CalendarEventModal extends React.Component {
         size="small"
         open={this.props.open}
         onDismiss={this.props.requestClose}
-        shouldCloseOnDocumentClick
+        shouldCloseOnDocumentClick={true}
       >
         <Modal.Header>
           <Heading>
@@ -129,7 +129,7 @@ export default class CalendarEventModal extends React.Component {
           />
         </Modal.Header>
         <Modal.Body padding="medium">
-          <List isUnstyled itemSpacing="small">
+          <List isUnstyled={true} itemSpacing="small">
             {this.renderCalendarRow()}
             {this.renderDateTimeRow()}
             {this.renderLocationRow()}

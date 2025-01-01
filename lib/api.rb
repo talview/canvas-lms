@@ -185,7 +185,7 @@ module Api
   MAX_ID_LENGTH = MAX_ID.to_s.length
   MAX_ID_RANGE = (-MAX_ID...MAX_ID)
   ID_REGEX = /\A\d{1,#{MAX_ID_LENGTH}}\z/
-  UUID_REGEX = /\Auuid:(\w{40,})\z/
+  UUID_REGEX = /\Auuid:([\w|-]{36,})\z/
 
   def self.not_scoped_to_account?(columns, sis_mapping)
     flattened_array_of_columns = [columns].flatten
@@ -623,6 +623,7 @@ module Api
       protocol = HostUrl.protocol
     end
 
+    no_verifiers = params[:no_verifiers] if defined?(params)
     html = context.shard.activate do
       rewriter = UserContent::HtmlRewriter.new(context, user)
       rewriter.set_handler("files") do |match|
@@ -632,7 +633,8 @@ module Api
           user:,
           preloaded_attachments:,
           is_public:,
-          in_app: respond_to?(:in_app?, true) && in_app?
+          in_app: respond_to?(:in_app?, true) && in_app?,
+          no_verifiers:
         ).processed_url
       end
       rewriter.translate_content(html)

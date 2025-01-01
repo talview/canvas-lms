@@ -17,17 +17,19 @@
  */
 
 import React, {useCallback, useMemo} from 'react'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import ClearableDateTimeInput from './ClearableDateTimeInput'
 import type {CustomDateTimeInputProps} from './types'
 import {generateMessages} from './utils'
 
-const I18n = useI18nScope('differentiated_modules')
+const I18n = createI18nScope('differentiated_modules')
 
 type AvailableToDateTimeInputProps = CustomDateTimeInputProps & {
   availableToDate: string | null
   setAvailableToDate: (availableToDate: string | null) => void
   handleAvailableToDateChange: (_event: React.SyntheticEvent, value: string | undefined) => void
+  disabledWithGradingPeriod?: boolean
+  clearButtonAltLabel: string
 }
 
 export function AvailableToDateTimeInput({
@@ -40,16 +42,20 @@ export function AvailableToDateTimeInput({
   dateInputRefs,
   timeInputRefs,
   handleBlur,
+  disabledWithGradingPeriod,
+  clearButtonAltLabel,
   ...otherProps
 }: AvailableToDateTimeInputProps) {
   const key = 'lock_at'
   const handleClear = useCallback(() => setAvailableToDate(null), [setAvailableToDate])
   const dateInputRef = useCallback(
+    // @ts-expect-error
     el => (dateInputRefs[key] = el),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   )
   const timeInputRef = useCallback(
+    // @ts-expect-error
     el => (timeInputRefs[key] = el),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
@@ -64,7 +70,8 @@ export function AvailableToDateTimeInput({
   const availableToDateProps = {
     key,
     id: key,
-    disabled: Boolean(blueprintDateLocks?.includes('availability_dates')),
+    disabled:
+      Boolean(blueprintDateLocks?.includes('availability_dates')) || disabledWithGradingPeriod,
     description: I18n.t('Choose an available to date and time'),
     dateRenderLabel: I18n.t('Until'),
     value: availableToDate,
@@ -74,6 +81,7 @@ export function AvailableToDateTimeInput({
     onBlur,
     dateInputRef,
     timeInputRef,
+    clearButtonAltLabel,
   }
 
   return <ClearableDateTimeInput {...availableToDateProps} {...otherProps} />

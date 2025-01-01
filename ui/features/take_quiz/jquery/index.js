@@ -1,4 +1,4 @@
-/* eslint-disable no-console, @typescript-eslint/no-shadow, eqeqeq, no-alert */
+ 
 /*
  * Copyright (C) 2011 - present Instructure, Inc.
  *
@@ -19,7 +19,7 @@
 
 import FileUploadQuestionView from '../backbone/views/FileUploadQuestionView'
 import File from '@canvas/files/backbone/models/File'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import numberHelper from '@canvas/i18n/numberHelper'
 import $ from 'jquery'
 import autoBlurActiveInput from './behaviors/autoBlurActiveInput'
@@ -31,14 +31,14 @@ import QuizLogAuditingEventDumper from '@canvas/quiz-log-auditing/jquery/dump_ev
 import RichContentEditor from '@canvas/rce/RichContentEditor'
 import '@canvas/jquery/jquery.ajaxJSON'
 import '@canvas/jquery/jquery.toJSON'
-import '@canvas/datetime/jquery' /* friendlyDatetime, friendlyDate */
+import {friendlyDatetime} from '@canvas/datetime/date-functions'
 import '@canvas/jquery/jquery.instructure_forms' /* getFormData, errorBox */
 import 'jqueryui/dialog'
 import '@canvas/rails-flash-notifications'
 import 'jquery-scroll-to-visible/jquery.scrollTo'
 import '@canvas/quizzes/jquery/behaviors/quiz_selectmenu'
 
-const I18n = useI18nScope('quizzes.take_quiz')
+const I18n = createI18nScope('quizzes.take_quiz')
 
 RichContentEditor.preloadRemoteModule()
 
@@ -143,7 +143,7 @@ const quizSubmission = (function () {
         ) {
           $lastSaved.text(
             I18n.t('saving_not_needed', 'No new data to save. Last checked at %{t}', {
-              t: $.friendlyDatetime(new Date()),
+              t: friendlyDatetime(new Date()),
             })
           )
 
@@ -162,7 +162,7 @@ const quizSubmission = (function () {
           data => {
             lastSuccessfulSubmissionData = thisSubmissionData
             $lastSaved.text(
-              I18n.t('saved_at', 'Quiz saved at %{t}', {t: $.friendlyDatetime(new Date())})
+              I18n.t('saved_at', 'Quiz saved at %{t}', {t: friendlyDatetime(new Date())})
             )
             quizSubmission.currentlyBackingUp = false
             quizSubmission.inBackground = false
@@ -429,8 +429,15 @@ const quizSubmission = (function () {
     getTimeElapsed() {
       $('.time_header').text(I18n.beforeLabel(I18n.t('labels.time_elapsed', 'Time Elapsed')))
       const now = new Date().getTime()
-      const startedAt = Date.parse(quizSubmission.startedAt.text()).getTime()
-      return now - startedAt
+      const startedAtText = quizSubmission.startedAt.text()
+      if (!startedAtText) {
+        return NaN
+      }
+      const startedAtTime = Date.parse(startedAtText)
+      if (isNaN(startedAtTime)) {
+        return NaN
+      }
+      return now - startedAtTime
     },
 
     updateTimeDisplay(currentTimeLeft) {

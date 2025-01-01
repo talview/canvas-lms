@@ -27,7 +27,7 @@ import {Discussion} from '../../../graphql/Discussion'
 import {DiscussionEntry} from '../../../graphql/DiscussionEntry'
 import {Flex} from '@instructure/ui-flex'
 import {Highlight} from '../../components/Highlight/Highlight'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {
   isTopicAuthor,
   updateDiscussionTopicEntryCounts,
@@ -48,11 +48,12 @@ import {
   UPDATE_DISCUSSION_ENTRY,
   UPDATE_DISCUSSION_ENTRY_PARTICIPANT,
 } from '../../../graphql/Mutations'
-import {useMutation} from 'react-apollo'
+import {useMutation} from '@apollo/client'
 import {View} from '@instructure/ui-view'
 import {ReportReply} from '../../components/ReportReply/ReportReply'
+import {useUpdateDiscussionThread} from '../../hooks/useUpdateDiscussionThread'
 
-const I18n = useI18nScope('discussion_topics_post')
+const I18n = createI18nScope('discussion_topics_post')
 
 export const SplitScreenThreadsContainer = props => {
   const {setOnFailure, setOnSuccess} = useContext(AlertManagerContext)
@@ -103,8 +104,12 @@ export const SplitScreenThreadsContainer = props => {
     if (discussionEntriesToUpdate.size > 0) {
       const interval = setInterval(() => {
         const entryIds = Array.from(discussionEntriesToUpdate)
-        const entries = extractedSubentryNodes.filter(
-          entry => entryIds.includes(entry._id) && entry.entryParticipant?.read === false
+        const entries = JSON.parse(
+          JSON.stringify(
+            extractedSubentryNodes.filter(
+              entry => entryIds.includes(entry._id) && entry.entryParticipant?.read === false
+            )
+          )
         )
 
         entries.forEach(entry => (entry.entryParticipant.read = true))
@@ -222,7 +227,10 @@ const SplitScreenThreadContainer = props => {
   const {setReplyFromId} = useContext(DiscussionManagerUtilityContext)
   const {filter} = useContext(SearchContext)
   const [threadRefCurrent, setThreadRefCurrent] = useState(null)
-
+  const {toggleUnread} = useUpdateDiscussionThread({
+    discussionEntry: props.discussionEntry,
+    discussionTopic: props.discussionTopic,
+  })
   const onThreadRefCurrentSet = useCallback(refCurrent => {
     setThreadRefCurrent(refCurrent)
   }, [])
@@ -231,6 +239,7 @@ const SplitScreenThreadContainer = props => {
   useEffect(() => {
     if (
       !ENV.manual_mark_as_read &&
+      !props.discussionEntry?.deleted &&
       !props.discussionEntry.entryParticipant?.read &&
       !props.discussionEntry?.entryParticipant?.forcedReadState
     ) {
@@ -283,13 +292,14 @@ const SplitScreenThreadContainer = props => {
     },
   })
 
-  const onUpdate = (message, _quotedEntryId, file) => {
+  const onUpdate = (message, quotedEntryId, file) => {
     updateDiscussionEntry({
       variables: {
         discussionEntryId: props.discussionEntry._id,
         message,
         fileId: file?._id,
         removeAttachment: !file?._id,
+        quotedEntryId,
       },
     })
   }
@@ -301,6 +311,7 @@ const SplitScreenThreadContainer = props => {
         authorName={getDisplayName(props.discussionEntry)}
         delimiterKey={`reply-delimiter-${props.discussionEntry.id}`}
         onClick={() => props.onOpenSplitScreenView(props.discussionEntry._id, true)}
+        isSplitScreenView={true}
       />
     )
   }
@@ -317,6 +328,20 @@ const SplitScreenThreadContainer = props => {
         isLiked={!!props.discussionEntry.entryParticipant?.rating}
         likeCount={props.discussionEntry.ratingSum || 0}
         interaction={props.discussionEntry.permissions.rate ? 'enabled' : 'disabled'}
+        isSplitScreenView={true}
+      />
+    )
+  }
+
+  if (!props.discussionEntry.deleted) {
+    threadActions.push(
+      <ThreadingToolbar.MarkAsRead
+        key={`mark-as-read-${props.discussionEntry.id}`}
+        delimiterKey={`mark-as-read-delimiter-${props.discussionEntry.id}`}
+        isRead={props.discussionEntry.entryParticipant?.read}
+        authorName={getDisplayName(props.discussionEntry)}
+        onClick={toggleUnread}
+        isSplitScreenView={true}
       />
     )
   }
@@ -356,6 +381,7 @@ const SplitScreenThreadContainer = props => {
                     discussionTopic={props.discussionTopic}
                     discussionEntry={props.discussionEntry}
                     isTopic={false}
+                    toggleUnread={toggleUnread}
                     postUtilities={
                       <ThreadActions
                         authorName={getDisplayName(props.discussionEntry)}
@@ -407,6 +433,7 @@ const SplitScreenThreadContainer = props => {
                             : null
                         }
                         onReport={
+                          ENV.discussions_reporting &&
                           props.discussionTopic.permissions?.studentReporting
                             ? () => {
                                 setShowReportModal(true)

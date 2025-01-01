@@ -16,7 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {sendMessageStudentsWho} from './shared/grading/messageStudentsWhoHelper'
+import MessageStudentsWhoHelper from './shared/grading/messageStudentsWhoHelper'
 import type {GlobalEnv} from '@canvas/global/env/GlobalEnv.d'
 import {GlobalInst} from '@canvas/global/inst/GlobalInst'
 import {GlobalRemotes} from '@canvas/global/remotes/GlobalRemotes'
@@ -57,7 +57,9 @@ declare global {
     INST: GlobalInst
 
     webkitSpeechRecognition: any
-    messageStudents: (options: ReturnType<typeof sendMessageStudentsWho>) => void
+    messageStudents: (
+      options: ReturnType<typeof MessageStudentsWhoHelper.sendMessageStudentsWho>
+    ) => void
     updateGrades: () => void
 
     bundles: string[]
@@ -91,9 +93,8 @@ declare global {
     (num?: number): JQuery<HTMLElement>
   }
 
-  declare interface JQuery {
+  interface JQuery {
     scrollTo: (y: number, x?: number) => void
-    change: any
     confirmDelete: any
     datetime_field: () => JQuery<HTMLInputElement>
     disableWhileLoading: any
@@ -130,7 +131,6 @@ declare global {
       required: string[]
       success: (data: any) => void
       beforeSubmit?: (data: any) => void
-      error: (response: JQuery.JQueryXHR) => void
     }) => void
     formErrors: (errors: Record<string, string>) => void
     getTemplateData: (options: {textValues: string[]}) => Record<string, unknown>
@@ -138,17 +138,9 @@ declare global {
     loadingImage: (str?: string) => void
   }
 
-  declare interface JQueryStatic {
+  interface JQueryStatic {
     subscribe: (topic: string, callback: (...args: any[]) => void) => void
-    ajaxJSON: (
-      url: string,
-      submit_type?: string,
-      data?: any,
-      success?: any,
-      error?: any,
-      options?: any
-    ) => JQuery.JQueryXHR
-    replaceTags: (string, string, string?) => string
+    replaceTags: (text: string, name: string, value?: string) => string
     raw: (str: string) => string
     getScrollbarWidth: any
     datetimeString: any
@@ -156,13 +148,41 @@ declare global {
     isPreviewable: any
   }
 
-  declare interface Array<T> {
-    flatMap: <Y>(callback: (value: T, index: number, array: T[]) => Y[]) => Y[]
-    flat: <Y>(depth?: number) => Y[]
-  }
-
-  declare interface Object {
-    fromEntries: any
+  // due to overrides in packages/date-js/core.js
+  interface Date {
+    add(config: {[key: string]: number}): Date
+    addDays(value: number): Date
+    addHours(value: number): Date
+    addMilliseconds(value: number): Date
+    addMinutes(value: number): Date
+    addMonths(value: number): Date
+    addSeconds(value: number): Date
+    addWeeks(value: number): Date
+    addYears(value: number): Date
+    between(start: Date, end: Date): boolean
+    clearTime(): Date
+    clone(): Date
+    compareTo(date: Date): number
+    equals(date: Date): boolean
+    getElapsed(date?: Date): number
+    getOrdinalNumber(): number
+    getTimezone(): string | null
+    getUTCOffset(): string
+    hasDaylightSavingTime(): boolean
+    isAfter(date?: Date): boolean
+    isBefore(date?: Date): boolean
+    isDaylightSavingTime(): boolean
+    isSameDay(date?: Date): boolean
+    isToday(date?: Date): boolean
+    moveToDayOfWeek(dayOfWeek: number, orient?: number): Date
+    moveToFirstDayOfMonth(): Date
+    moveToLastDayOfMonth(): Date
+    moveToMonth(month: number, orient?: number): Date
+    moveToNthOccurrence(dayOfWeek: number, occurrence: number): Date
+    setTimeToNow(): Date
+    setTimezone(offset: string): Date
+    setTimezoneOffset(offset: number): Date
+    toString(format?: string): string
   }
 }
 

@@ -16,13 +16,15 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import gql from 'graphql-tag'
+import {gql} from '@apollo/client'
 import {executeQuery} from '@canvas/query/graphql'
 import type {
   RubricQueryResponse,
   DeleteRubricQueryResponse,
   DuplicateRubricQueryResponse,
   archiveRubricResponse,
+  // @ts-expect-error
+  RubricImport,
 } from '../types/Rubric'
 import getCookie from '@instructure/get-cookie'
 import qs from 'qs'
@@ -44,13 +46,17 @@ const COURSE_RUBRICS_QUERY = gql`
               description
               longDescription
               points
+              id: _id
             }
             points
             longDescription
             description
+            ignoreForScoring
+            learningOutcomeId
           }
           hasRubricAssociations
           hidePoints
+          freeFormCriterionComments
           pointsPossible
           ratingOrder
           title
@@ -79,9 +85,12 @@ const ACCOUNT_RUBRICS_QUERY = gql`
             points
             longDescription
             description
+            ignoreForScoring
+            learningOutcomeId
           }
           hasRubricAssociations
           hidePoints
+          freeFormCriterionComments
           pointsPossible
           ratingOrder
           title
@@ -101,14 +110,23 @@ const RUBRIC_PREVIEW_QUERY = gql`
           description
           longDescription
           points
+          id: _id
         }
         points
         longDescription
         description
         criterionUseRange
+        learningOutcomeId
+        ignoreForScoring
+        masteryPoints
+        outcome {
+          displayName
+          title
+        }
       }
       title
       ratingOrder
+      freeFormCriterionComments
     }
   }
 `
@@ -143,7 +161,10 @@ type CourseRubricQueryResponse = {
 }
 
 type RubricPreviewQueryResponse = {
-  rubric: Pick<Rubric, 'criteria' | 'title' | 'ratingOrder'>
+  rubric: Pick<
+    Rubric,
+    'criteria' | 'title' | 'ratingOrder' | 'freeFormCriterionComments' | 'pointsPossible'
+  >
 }
 
 type AccountRubricQueryResponse = {
@@ -162,6 +183,7 @@ type DuplicateRubricProps = {
   courseId?: string
   title: string
   hidePoints?: boolean
+  freeFormCriterionComments?: boolean
   criteria?: RubricCriterion[]
   pointsPossible: number
   buttonDisplay?: string
@@ -285,6 +307,7 @@ export const deleteRubric = async ({
 export const duplicateRubric = async ({
   title,
   hidePoints,
+  freeFormCriterionComments,
   accountId,
   courseId,
   criteria,
@@ -322,9 +345,11 @@ export const duplicateRubric = async ({
       rubric: {
         title: title + ' Copy',
         hide_points: hidePoints,
+        free_form_criterion_comments: freeFormCriterionComments,
         criteria: duplicateCriteria,
         button_display: buttonDisplay,
         rating_order: ratingOrder,
+        is_duplicate: true,
       },
       rubric_association: {
         association_id: accountId ?? courseId,
@@ -362,4 +387,164 @@ export const unarchiveRubric = async (rubricId: string): Promise<archiveRubricRe
   })
 
   return rubric
+}
+
+export const importRubric = async (
+  file?: File,
+  accountId?: string,
+  courseId?: string
+): Promise<RubricImport> => {
+  if (!file) {
+    throw new Error('No file to import')
+  }
+
+  const urlPrefix = accountId ? `/accounts/${accountId}` : `/courses/${courseId}`
+  const url = `/api/v1/${urlPrefix}/rubrics/upload`
+
+  const formData = new FormData()
+  formData.append('attachment', file)
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'X-CSRF-Token': getCookie('_csrf_token'),
+    },
+    body: formData,
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to import rubric: ${response.statusText}`)
+  }
+
+  return mapImport(await response.json())
+}
+
+export const fetchRubricImport = async (
+  importId?: string,
+  accountId?: string,
+  courseId?: string
+): Promise<RubricImport> => {
+  const urlPrefix = accountId ? `/accounts/${accountId}` : `/courses/${courseId}`
+  const url = `/api/v1/${urlPrefix}/rubrics/upload/${importId ?? 'latest'}`
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'X-CSRF-Token': getCookie('_csrf_token'),
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to find the rubric import: ${response.statusText}`)
+  }
+
+  return mapImport(await response.json())
+}
+
+export const downloadRubrics = async (
+  courseId: string | undefined,
+  accountId: string | undefined,
+  selectedRubricIds: string[]
+) => {
+  let postUrl = ''
+
+  if (courseId) {
+    postUrl = `/api/v1/courses/${courseId}/rubrics/download_rubrics`
+  } else if (accountId) {
+    postUrl = `/api/v1/accounts/${accountId}/rubrics/download_rubrics`
+  } else {
+    return
+  }
+
+  const response = await fetch(postUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': getCookie('_csrf_token'),
+    },
+    body: JSON.stringify({
+      rubric_ids: selectedRubricIds,
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to download rubrics: ${response.statusText}`)
+  }
+
+  const blob = await response.blob()
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.setAttribute('download', 'rubrics_export.csv')
+  document.body.appendChild(link)
+  link.click()
+  link?.parentNode?.removeChild(link)
+  window.URL.revokeObjectURL(url)
+}
+
+export const getImportedRubrics = async (
+  importId: string,
+  accountId?: string,
+  courseId?: string
+): Promise<Rubric[]> => {
+  const urlPrefix = accountId ? `/accounts/${accountId}` : `/courses/${courseId}`
+  const url = `/api/v1/${urlPrefix}/rubrics/upload/${importId}/rubrics`
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'X-CSRF-Token': getCookie('_csrf_token'),
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to get rubrics for import: ${response.statusText}`)
+  }
+
+  const jsonResponse = await response.json()
+  const rubrics: Rubric[] = jsonResponse.map((rubric: any) => {
+    return {
+      id: rubric.id.toString(),
+      title: rubric.title,
+      workflowState: 'draft',
+      pointsPossible: rubric.points_possible,
+      hasRubricAssociations: false,
+      criteriaCount: rubric.data.length,
+      criteria: rubric.data.map((criterion: any) => {
+        return {
+          id: criterion.id,
+          description: criterion.description,
+          longDescription: criterion.long_description,
+          points: criterion.points,
+          criterionUseRange: criterion.criterion_use_range,
+          ratings: criterion.ratings.map((rating: any) => {
+            return {
+              description: rating.description,
+              longDescription: rating.long_description,
+              points: rating.points,
+            }
+          }),
+        }
+      }),
+    }
+  })
+  return rubrics
+}
+
+// private functions
+
+const mapImport = (importData: any): RubricImport => {
+  return {
+    attachment: {
+      id: importData.attachment.id,
+      filename: importData.attachment.filename,
+      size: importData.attachment.size,
+    },
+    id: importData.id,
+    createdAt: importData.created_at,
+    errorCount: importData.error_count,
+    errorData: importData.error_data,
+    progress: importData.progress,
+    workflowState: importData.workflow_state,
+  }
 }

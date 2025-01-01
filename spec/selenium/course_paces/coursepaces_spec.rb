@@ -166,7 +166,6 @@ describe "course pace page" do
     end
 
     it "opens the course pace menu and selects the student view when clicked" do
-      skip "FOO-3806 (10/6/2023)"
       visit_course_paces_page
       click_main_course_pace_menu
       click_students_menu_item
@@ -195,7 +194,6 @@ describe "course pace page" do
     end
 
     it "opens the course pace menu and selects the section view when clicked" do
-      skip "FOO-3806 (10/6/2023)"
       visit_course_paces_page
       click_main_course_pace_menu
       click_section_menu_item
@@ -207,22 +205,57 @@ describe "course pace page" do
   end
 
   context "settings button" do
-    it "opens the settings menu when button is clicked" do
-      visit_course_paces_page
-      click_settings_button
+    context "when add_selected_days_to_skip_param is enabled" do
+      before do
+        @course.root_account.enable_feature!(:course_paces_skip_selected_days)
+        @course.root_account.reload
+      end
 
-      expect(skip_weekends_exists?).to be_truthy
+      it "opens the settings menu when button is clicked" do
+        visit_course_paces_page
+        click_settings_button
+
+        click_show_skip_selected_days
+
+        expect(skip_weekends_exists?).to be_truthy
+      end
+
+      it "toggles skip weekends when clicked" do
+        visit_course_paces_page
+        click_settings_button
+        click_show_skip_selected_days
+
+        click_weekends_checkbox
+        expect(is_checked(skip_weekends_checkbox_selector)).to be_falsey
+
+        click_weekends_checkbox
+        expect(is_checked(skip_weekends_checkbox_selector)).to be_truthy
+      end
     end
 
-    it "toggles skip weekends when clicked" do
-      visit_course_paces_page
-      click_settings_button
+    context "when add_selected_days_to_skip_param is disabled" do
+      before do
+        @course.root_account.disable_feature!(:course_paces_skip_selected_days)
+        @course.root_account.reload
+      end
 
-      click_weekends_checkbox
-      expect(is_checked(skip_weekends_checkbox_selector)).to be_falsey
+      it "opens the settings menu when button is clicked" do
+        visit_course_paces_page
+        click_settings_button
 
-      click_weekends_checkbox
-      expect(is_checked(skip_weekends_checkbox_selector)).to be_truthy
+        expect(skip_weekends_exists?).to be_truthy
+      end
+
+      it "toggles skip weekends when clicked" do
+        visit_course_paces_page
+        click_settings_button
+
+        click_weekends_checkbox
+        expect(is_checked(skip_weekends_checkbox_selector)).to be_falsey
+
+        click_weekends_checkbox
+        expect(is_checked(skip_weekends_checkbox_selector)).to be_truthy
+      end
     end
   end
 

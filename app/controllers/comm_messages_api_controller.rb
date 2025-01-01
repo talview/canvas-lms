@@ -44,7 +44,7 @@
 #           "type": "datetime"
 #         },
 #         "workflow_state": {
-#           "description": "The workflow state of the message. One of 'created', 'staged', 'sending', 'sent', 'bounced', 'dashboard', 'cancelled', or 'closed'",
+#           "description": "The workflow state of the message. Possible values: 'created' : The message has been created, but not yet processed. 'staged' : The message is queued for sending. 'sending' : The message is being sent currently. 'sent' : The message has been successfully sent. 'bounced' : An error occurred during the sending of the message.'dashboard' : The message has been sent to the dashboard. 'closed' :  The message has been sent and closed, typically for dashboard messages or messages sent to deleted users. 'cancelled' : The message was cancelled before it could be sent.",
 #           "example": "sent",
 #           "type": "string",
 #           "allowableValues": {
@@ -138,8 +138,8 @@ class CommMessagesApiController < ApplicationController
       query = query.where(root_account_id: @domain_root_account)
     end
 
-    query = query.where("created_at >= ?", start_time) if start_time
-    query = query.where("created_at <= ?", end_time) if end_time
+    query = query.where(created_at: start_time..) if start_time
+    query = query.where(created_at: ..end_time) if end_time
     messages = Api.paginate(query, self, api_v1_comm_messages_url)
 
     messages_json = messages.map { |m| comm_message_json(m) }

@@ -17,20 +17,19 @@
  */
 
 import React from 'react'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
 import {View} from '@instructure/ui-view'
 import {RadioInput, RadioInputGroup} from '@instructure/ui-radio-input'
 
 import AnonymousResponseSelector from '@canvas/discussions/react/components/AnonymousResponseSelector/AnonymousResponseSelector'
 
-const I18n = useI18nScope('discussion_create')
+const I18n = createI18nScope('discussion_create')
 
 type Props = {
   discussionAnonymousState: string
   setDiscussionAnonymousState: (value: string) => void
-  isEditing: boolean
-  isGraded: boolean
+  isSelectDisabled: boolean
   setIsGraded: (value: boolean) => void
   setIsGroupDiscussion: (value: boolean) => void
   setGroupCategoryId: (value: string | null) => void
@@ -41,8 +40,7 @@ type Props = {
 export const AnonymousSelector = ({
   discussionAnonymousState,
   setDiscussionAnonymousState,
-  isEditing,
-  isGraded,
+  isSelectDisabled,
   setIsGraded,
   setIsGroupDiscussion,
   setGroupCategoryId,
@@ -63,7 +61,8 @@ export const AnonymousSelector = ({
           }
           setDiscussionAnonymousState(value)
         }}
-        disabled={isEditing || isGraded}
+        disabled={isSelectDisabled}
+        data-testid="anonymous-discussion-options"
       >
         <RadioInput
           key="off"

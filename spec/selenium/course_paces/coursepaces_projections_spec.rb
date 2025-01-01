@@ -41,8 +41,8 @@ describe "course pacing page" do
 
   context "course pacing dates visibility" do
     it "shows start and end dates" do
-      @course.start_at = Date.today
-      @course.conclude_at = Date.today + 1.month
+      @course.start_at = Time.zone.today
+      @course.conclude_at = Time.zone.today + 1.month
       @course.restrict_enrollments_to_course_dates = true
       @course.save!
       visit_course_paces_page
@@ -55,7 +55,7 @@ describe "course pacing page" do
       @course_module = create_course_module("New Module", "active")
       @assignment = create_assignment(@course, "Module Assignment", "Module Assignment Description", 10, "published")
       @module_item = @course_module.add_item(id: @assignment.id, type: "assignment")
-      today = Date.today
+      today = Time.zone.today
       @course.start_at = today
       @course.conclude_at = today + 10.days
       @course.restrict_enrollments_to_course_dates = true
@@ -111,13 +111,46 @@ describe "course pacing page" do
       @course.save!
     end
 
-    it "shows dates with weekends included in calculation" do
-      visit_course_paces_page
-      click_settings_button
-      click_weekends_checkbox
-      update_module_item_duration(0, 7)
+    context "when add_selected_days_to_skip_param is enabled" do
+      before do
+        @course.root_account.enable_feature!(:course_paces_skip_selected_days)
+        @course.root_account.reload
+      end
 
-      expect(assignment_due_date_text).to eq(format_date_for_view(today + 7.days, "%a, %b %-d, %Y"))
+      it "shows dates with weekends included in calculation" do
+        visit_course_paces_page
+        click_settings_button
+        click_show_skip_selected_days
+        update_module_item_duration(0, 7)
+
+        expect(assignment_due_date_text).to eq(format_date_for_view(today + 9.days, "%a, %b %-d, %Y"))
+      end
+
+      it "shows dates with weekends excluded in calculation" do
+        visit_course_paces_page
+        click_settings_button
+        click_show_skip_selected_days
+        click_weekends_checkbox
+        update_module_item_duration(0, 7)
+
+        expect(assignment_due_date_text).to eq(format_date_for_view(today + 7.days, "%a, %b %-d, %Y"))
+      end
+    end
+
+    context "when add_selected_days_to_skip_param is disabled" do
+      before do
+        @course.root_account.disable_feature!(:course_paces_skip_selected_days)
+        @course.root_account.reload
+      end
+
+      it "shows dates with weekends included in calculation" do
+        visit_course_paces_page
+        click_settings_button
+        click_weekends_checkbox
+        update_module_item_duration(0, 7)
+
+        expect(assignment_due_date_text).to eq(format_date_for_view(today + 7.days, "%a, %b %-d, %Y"))
+      end
     end
 
     it "shows dates with weekends not included in calculation" do

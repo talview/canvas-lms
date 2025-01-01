@@ -19,7 +19,7 @@
 import React, {useEffect, useState, useCallback} from 'react'
 import type {SetStateAction, Dispatch} from 'react'
 import doFetchApi from '@canvas/do-fetch-api-effect'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {showFlashError} from '@canvas/alerts/react/FlashAlert'
 import {SimpleSelect} from '@instructure/ui-simple-select'
 import {Text} from '@instructure/ui-text'
@@ -29,43 +29,30 @@ import {Alert} from '@instructure/ui-alerts'
 import {completeUpload} from '@canvas/upload-file'
 import CourseCopyImporter from './migrator_forms/course_copy'
 import CanvasCartridgeImporter from './migrator_forms/canvas_cartridge'
-import LegacyMigratorWrapper from './migrator_forms/legacy_migrator_wrapper'
 import ZipFileImporter from './migrator_forms/zip_file'
 import type {
   AttachmentProgressResponse,
   ContentMigrationItem,
   Migrator,
-  DateShifts,
   onSubmitMigrationFormCallback,
-  AdjustDates,
+  MigrationCreateRequestBody,
 } from './types'
 import CommonCartridgeImporter from './migrator_forms/common_cartridge'
 import MoodleZipImporter from './migrator_forms/moodle_zip'
 import QTIZipImporter from './migrator_forms/qti_zip'
+import {convertFormDataToMigrationCreateRequest} from '@canvas/content-migrations'
+import D2LImporter from './migrator_forms/d2l_importer'
+import AngelImporter from './migrator_forms/angel_importer'
+import BlackboardImporter from './migrator_forms/blackboard_importer'
 
-const I18n = useI18nScope('content_migrations_redesign')
-
-type RequestBody = {
-  course_id: string
-  migration_type: string
-  date_shift_options: DateShifts
-  adjust_dates: AdjustDates
-  selective_import: boolean
-  settings: {[key: string]: any}
-  daySubCollection?: object
-  errored?: boolean
-  pre_attachment?: {
-    name: string
-    no_redirect: boolean
-    size: number
-  }
-}
+const I18n = createI18nScope('content_migrations_redesign')
 
 type MigratorProps = {
   value: string
   onSubmit: onSubmitMigrationFormCallback
   onCancel: () => void
   fileUploadProgress: number | null
+  isSubmitting: boolean
 }
 
 const renderMigrator = (props: MigratorProps) => {
@@ -83,13 +70,30 @@ const renderMigrator = (props: MigratorProps) => {
       return <CommonCartridgeImporter {...props} />
     case 'qti_converter':
       return <QTIZipImporter {...props} />
-    case 'angel_exporter':
-    case 'blackboard_exporter':
     case 'd2l_exporter':
-      props.fileUploadProgress = null
-      return <LegacyMigratorWrapper {...props} />
+      return <D2LImporter {...props} />
+    case 'angel_exporter':
+      return <AngelImporter {...props} />
+    case 'blackboard_exporter':
+      return <BlackboardImporter {...props} />
     default:
       return null
+  }
+}
+
+/*
+  This override is needed to set the default workflow state to 'queued' for the migration,
+  because in the StatusPill we want to use the progress workflow state to determine
+  the status of the migration. For example course copy create ContentMigration with default
+  running state.
+
+  The only exception is when the migration is in the 'waiting_for_select' state, because it cannot
+  be represented by the Progress record.
+*/
+const overrideDefaultWorkflowState = (cm: ContentMigrationItem): ContentMigrationItem => {
+  return {
+    ...cm,
+    workflow_state: cm.workflow_state === 'waiting_for_select' ? cm.workflow_state : 'queued',
   }
 }
 
@@ -99,18 +103,22 @@ export const ContentMigrationsForm = ({
   setMigrations: Dispatch<SetStateAction<ContentMigrationItem[]>>
 }) => {
   const [migrators, setMigrators] = useState<any>([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [chosenMigrator, setChosenMigrator] = useState<string | null>(null)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const handleFileProgress = (json: any, {loaded, total}: AttachmentProgressResponse) => {
-    setFileUploadProgress(Math.trunc((loaded / total) * 100))
-    if (loaded === total) {
-      onResetForm()
-      setMigrations(prevMigrations => [json as ContentMigrationItem].concat(prevMigrations))
-    }
-  }
-  const [fileUploadProgress, setFileUploadProgress] = useState<number | null>(null)
 
-  const onResetForm = useCallback(() => setChosenMigrator(null), [])
+  const [fileUploadProgress, setFileUploadProgress] = useState<number | null>(null)
+  const onResetForm = useCallback(() => {
+    setChosenMigrator(null)
+    setIsSubmitting(false)
+    setFileUploadProgress(0)
+  }, [])
+
+  const handleFileProgress = useCallback(
+    ({loaded, total}: AttachmentProgressResponse) => {
+      setFileUploadProgress(Math.trunc((loaded / total) * 100))
+    },
+    [setFileUploadProgress]
+  )
 
   const onSubmitForm: onSubmitMigrationFormCallback = useCallback(
     async (formData, preAttachmentFile) => {
@@ -118,28 +126,39 @@ export const ContentMigrationsForm = ({
       if (!chosenMigrator || !courseId || formData.errored) {
         return
       }
-      delete formData.errored
-      const requestBody: RequestBody = {
-        course_id: courseId,
-        migration_type: chosenMigrator,
-        ...formData,
-      }
+      setIsSubmitting(true)
+      setFileUploadProgress(0)
+      const requestBody: MigrationCreateRequestBody = convertFormDataToMigrationCreateRequest(
+        formData,
+        courseId,
+        chosenMigrator
+      )
 
       const {json} = await doFetchApi({
         method: 'POST',
         path: `/api/v1/courses/${courseId}/content_migrations`,
         body: requestBody,
       })
+      // @ts-expect-error
       if (preAttachmentFile && json.pre_attachment) {
-        completeUpload(json.pre_attachment, preAttachmentFile, {
+        // @ts-expect-error
+        const attachment = await completeUpload(json.pre_attachment, preAttachmentFile, {
           ignoreResult: true,
           onProgress: (response: any) => {
-            handleFileProgress(json, response)
+            handleFileProgress(response)
           },
         })
+        const jsonWithAttachment: ContentMigrationItem = {
+          // @ts-expect-error
+          ...json,
+          attachment,
+        }
+        onResetForm()
+        setMigrations(prevMigrations => [jsonWithAttachment].concat(prevMigrations))
       } else {
         onResetForm()
-        setMigrations(prevMigrations => [json as ContentMigrationItem].concat(prevMigrations))
+        const overriddenJson = overrideDefaultWorkflowState(json as ContentMigrationItem)
+        setMigrations(prevMigrations => [overriddenJson].concat(prevMigrations))
       }
     },
     [chosenMigrator, handleFileProgress, onResetForm, setMigrations]
@@ -149,6 +168,7 @@ export const ContentMigrationsForm = ({
     doFetchApi({
       path: `/api/v1/courses/${window.ENV.COURSE_ID}/content_migrations/migrators`,
     })
+      // @ts-expect-error
       .then((response: {json: Migrator[]}) => {
         // TODO: webct_scraper is not supported anymore, this should be removed from backend too.
         const filteredMigrators = response.json.filter((m: Migrator) => m.type !== 'webct_scraper')
@@ -180,15 +200,19 @@ export const ContentMigrationsForm = ({
       <View as="div" margin="medium 0" maxWidth="22.5rem">
         {migrators.length > 0 ? (
           <SimpleSelect
+            disabled={isSubmitting}
             value={chosenMigrator || 'empty'}
             renderLabel={I18n.t('Select Content Type')}
             onChange={(_e: any, {value}: any) =>
               setChosenMigrator(value !== 'empty' ? value : null)
             }
+            data-testid="select-content-type-dropdown"
           >
-            <SimpleSelect.Option key="empty-option" id="empty" value="empty">
-              {I18n.t('Select one')}
-            </SimpleSelect.Option>
+            {!chosenMigrator && (
+              <SimpleSelect.Option key="empty-option" id="empty" value="empty">
+                {I18n.t('Select one')}
+              </SimpleSelect.Option>
+            )}
             {migrators.map((o: Migrator) => (
               <SimpleSelect.Option key={o.type} id={o.type} value={o.type}>
                 {o.name}
@@ -207,6 +231,7 @@ export const ContentMigrationsForm = ({
             onSubmit: onSubmitForm,
             onCancel: onResetForm,
             fileUploadProgress,
+            isSubmitting,
           })}
           <hr role="presentation" aria-hidden="true" />
         </>

@@ -35,7 +35,6 @@ class ContextModule < ActiveRecord::Base
   has_many :content_tags, -> { order("content_tags.position, content_tags.title") }, dependent: :destroy
   has_many :assignment_overrides, dependent: :destroy, inverse_of: :context_module
   has_many :assignment_override_students, dependent: :destroy
-  has_many :module_student_visibilities
   has_one :master_content_tag, class_name: "MasterCourses::MasterContentTag", inverse_of: :context_module
   acts_as_list scope: { context: self, workflow_state: ["active", "unpublished"] }
 
@@ -141,7 +140,7 @@ class ContextModule < ActiveRecord::Base
   end
 
   def check_for_stale_cache_after_unlocking!
-    GuardRail.activate(:primary) { touch } if unlock_at && unlock_at < Time.now && updated_at < unlock_at
+    GuardRail.activate(:primary) { touch } if unlock_at && unlock_at < Time.zone.now && updated_at < unlock_at
   end
 
   def is_prerequisite_for?(mod)
@@ -270,6 +269,10 @@ class ContextModule < ActiveRecord::Base
     assignment_overrides.active.exists?
   end
 
+  def visible_to_everyone
+    !only_visible_to_overrides
+  end
+
   def duplicate
     copy_title = get_copy_title(self, t("Copy"), name)
     new_module = duplicate_base_model(copy_title)
@@ -300,11 +303,11 @@ class ContextModule < ActiveRecord::Base
   def destroy
     self.workflow_state = "deleted"
     self.deleted_at = Time.now.utc
-    module_assignments_quizzes = current_assignments_and_quizzes
+    module_assignments = current_items_with_assignment
     ContentTag.where(context_module_id: self).where.not(workflow_state: "deleted").update(workflow_state: "deleted", updated_at: deleted_at)
     delay_if_production(n_strand: "context_module_update_downstreams", priority: Delayed::LOW_PRIORITY).update_downstreams
     save!
-    update_assignment_submissions(module_assignments_quizzes) if assignment_overrides.active.exists?
+    update_assignment_submissions(module_assignments)
     true
   end
 
@@ -359,9 +362,13 @@ class ContextModule < ActiveRecord::Base
   scope :starting_with_name, lambda { |name|
     where("name ILIKE ?", "#{name}%")
   }
-  scope :visible_to_students_in_course_with_da, lambda { |user_id, course_id|
-    joins(:module_student_visibilities)
-      .where(module_student_visibilities: { user_id:, course_id: })
+  scope :visible_to_students_in_course_with_da, lambda { |user_ids, course_ids|
+    visible_module_ids = ModuleVisibility::ModuleVisibilityService.modules_visible_to_students(course_ids:, user_ids:).map(&:context_module_id)
+    if visible_module_ids.any?
+      where(id: visible_module_ids)
+    else
+      none
+    end
   }
 
   alias_method :published?, :active?
@@ -417,6 +424,9 @@ class ContextModule < ActiveRecord::Base
 
     given { |user, session| context.grants_right?(user, session, :read) && active? }
     can :read
+
+    given { |user, session| user && context.grants_any_right?(user, session, :manage_content, :manage_course_content_edit) }
+    can :manage_assign_to
   end
 
   def low_level_locked_for?(user, opts = {})
@@ -488,7 +498,7 @@ class ContextModule < ActiveRecord::Base
   end
 
   def gather_prerequisites(module_names)
-    all_prereqs = read_attribute(:prerequisites)
+    all_prereqs = self["prerequisites"]
     return [] unless all_prereqs&.any?
 
     all_prereqs.select { |pre| module_names.key?(pre[:id]) }.map { |pre| pre.merge(name: module_names[pre[:id]]) }
@@ -521,7 +531,7 @@ class ContextModule < ActiveRecord::Base
     end
     @prerequisites = nil
     @active_prerequisites = nil
-    write_attribute(:prerequisites, prereqs)
+    super
   end
 
   def completion_requirements=(val)
@@ -543,7 +553,7 @@ class ContextModule < ActiveRecord::Base
     else
       val = nil
     end
-    write_attribute(:completion_requirements, val)
+    super
   end
 
   def validate_completion_requirements(requirements)
@@ -770,7 +780,7 @@ class ContextModule < ActiveRecord::Base
     else
       return nil unless item
 
-      title = params[:title] || (item.title rescue item.name)
+      title = params[:title] || item.try(:title) || item.name
       added_item ||= content_tags.build(context:)
       added_item.attributes = {
         content: item,
@@ -931,7 +941,7 @@ class ContextModule < ActiveRecord::Base
   end
 
   def to_be_unlocked
-    unlock_at && unlock_at > Time.now
+    unlock_at && unlock_at > Time.zone.now
   end
 
   def migration_position
@@ -943,16 +953,16 @@ class ContextModule < ActiveRecord::Base
   VALID_COMPLETION_EVENTS = [:publish_final_grade].freeze
 
   def completion_events
-    (read_attribute(:completion_events) || "").split(",").map(&:to_sym)
+    (super || "").split(",").map(&:to_sym)
   end
 
   def completion_events=(value)
-    unless value
-      write_attribute(:completion_events, nil)
+    unless value.present?
+      super(nil)
       return
     end
 
-    write_attribute(:completion_events, (value.map(&:to_sym) & VALID_COMPLETION_EVENTS).join(","))
+    super((value.map(&:to_sym) & VALID_COMPLETION_EVENTS).join(","))
   end
 
   VALID_COMPLETION_EVENTS.each do |event|
@@ -987,20 +997,30 @@ class ContextModule < ActiveRecord::Base
     assignment_overrides
   end
 
-  def update_assignment_submissions(module_assignments_quizzes = current_assignments_and_quizzes)
-    if Account.site_admin.feature_enabled?(:differentiated_modules)
-      module_assignments_quizzes.clear_cache_keys(:availability)
-      SubmissionLifecycleManager.recompute_course(context, assignments: module_assignments_quizzes, update_grades: true)
+  def update_assignment_submissions(module_assignments = current_items_with_assignment)
+    if Account.site_admin.feature_enabled?(:selective_release_backend)
+      create_sub_assignment_submissions = false
+      if context.root_account.feature_enabled?(:discussion_checkpoints) && module_assignments.has_sub_assignments.any?
+        create_sub_assignment_submissions = true
+      end
+
+      module_assignments.clear_cache_keys(:availability)
+      SubmissionLifecycleManager.recompute_course(context, assignments: module_assignments, update_grades: true, create_sub_assignment_submissions:)
     end
   end
 
-  def current_assignments_and_quizzes
-    return unless Account.site_admin.feature_enabled?(:differentiated_modules)
+  def current_items_with_assignment
+    return unless Account.site_admin.feature_enabled?(:selective_release_backend)
 
     module_assignments = Assignment.active.where(id: content_tags.not_deleted.where(content_type: "Assignment").select(:content_id)).pluck(:id)
+
+    module_discussions_assignment_ids = DiscussionTopic.active.where(id: content_tags.not_deleted.where(content_type: "DiscussionTopic").select(:content_id)).select(:assignment_id)
     module_quizzes_assignment_ids = Quizzes::Quiz.active.where(id: content_tags.not_deleted.where(content_type: "Quizzes::Quiz").select(:content_id)).select(:assignment_id)
-    module_quizzes = Assignment.active.where(id: module_quizzes_assignment_ids).pluck(:id)
-    assignments_quizzes = module_assignments + module_quizzes
+
+    module_quizzes_and_discussions = Assignment.active.where(id: module_discussions_assignment_ids).select(:id)
+    module_quizzes_and_discussions += Assignment.active.where(id: module_quizzes_assignment_ids).select(:id)
+
+    assignments_quizzes = module_assignments + module_quizzes_and_discussions
     Assignment.where(id: assignments_quizzes)
   end
 end

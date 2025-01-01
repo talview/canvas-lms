@@ -19,16 +19,16 @@
 import React from 'react'
 import {bool, string} from 'prop-types'
 import {Tooltip} from '@instructure/ui-tooltip'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
-const I18n = useI18nScope('assignment')
+const I18n = createI18nScope('assignment')
 
 function renderLink(anchorProps) {
   // This uses a plain <a /> rather than Instructure-UI's <Link /> because
   // <Tooltip /> and disabled <Link /> currently do not work together.
   return (
     <a rel="noopener noreferrer" target="_blank" {...anchorProps}>
-      {I18n.t('SpeedGrader™')}
+      {I18n.t('SpeedGrader')}
     </a>
   )
 }

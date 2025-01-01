@@ -20,16 +20,17 @@ import React from 'react'
 import ReactDOM from 'react-dom'
 import {Button, IconButton} from '@instructure/ui-buttons'
 import {SVGIcon} from '@instructure/ui-svg-images'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {TruncateText} from '@instructure/ui-truncate-text'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {showFlashError} from '@canvas/alerts/react/FlashAlert'
 import {defaultFetchOptions} from '@canvas/util/xhr'
 import {CookiePolicy} from '@microsoft/immersive-reader-sdk'
 import WithBreakpoints from '@canvas/with-breakpoints'
 import ContentChunker from './ContentChunker'
 import ContentUtils from './ContentUtils'
-import { captureException } from '@sentry/react'
+import {captureException} from '@sentry/react'
 
-const I18n = useI18nScope('ImmersiveReader')
+const I18n = createI18nScope('ImmersiveReader')
 
 /**
  * This comes from https://github.com/microsoft/immersive-reader-sdk/blob/master/assets/icon.svg
@@ -78,14 +79,14 @@ function handleClick({title, content}, readerSDK) {
           launchAsync(token, subdomain, requestContent, options)
         })
         .catch(e => {
-          // eslint-disable-next-line no-console
+           
           console.error('Getting authentication details failed', e)
           captureException(e)
           showFlashError(I18n.t('Immersive Reader Failed to Load'))()
         })
     })
     .catch(e => {
-      // eslint-disable-next-line no-console
+       
       console.error('Loading the Immersive Reader SDK failed', e)
       captureException(e)
       showFlashError(I18n.t('Immersive Reader Failed to Load'))()
@@ -102,7 +103,7 @@ export function ImmersiveReaderButton({content, readerSDK, breakpoints}) {
     </IconButton>
   ) : (
     <Button onClick={() => handleClick(content, readerSDK)} renderIcon={<SVGIcon src={LOGO} />}>
-      {I18n.t('Immersive Reader')}
+      <TruncateText>{I18n.t('Immersive Reader')}</TruncateText>
     </Button>
   )
 }
@@ -110,5 +111,6 @@ export function ImmersiveReaderButton({content, readerSDK, breakpoints}) {
 const ImmersiveReaderButtonWithBreakpoints = WithBreakpoints(ImmersiveReaderButton)
 
 export function initializeReaderButton(mountPoint, content) {
+   
   ReactDOM.render(<ImmersiveReaderButtonWithBreakpoints content={content} />, mountPoint)
 }

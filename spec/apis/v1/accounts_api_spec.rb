@@ -195,6 +195,29 @@ describe "Accounts API", type: :request do
                                         "Account 2"]
     end
 
+    it "includes course count if requested" do
+      2.times { course_factory(active_all: true, account: @a1.sub_accounts.find_by(name: "subby")) }
+      json = api_call(:get,
+                      "/api/v1/accounts/#{@a1.id}/sub_accounts?include[]=course_count",
+                      { controller: "accounts",
+                        action: "sub_accounts",
+                        account_id: @a1.id.to_s,
+                        format: "json",
+                        include: ["course_count"] })
+      expect(json.pluck("course_count")).to match_array([2, 0, 0, 0])
+    end
+
+    it "includes sub-account count if requested" do
+      json = api_call(:get,
+                      "/api/v1/accounts/#{@a1.id}/sub_accounts?include[]=sub_account_count",
+                      { controller: "accounts",
+                        action: "sub_accounts",
+                        account_id: @a1.id.to_s,
+                        format: "json",
+                        include: ["sub_account_count"] })
+      expect(json.pluck("sub_account_count")).to match_array([0, 0, 3, 3])
+    end
+
     it "adds sub account" do
       previous_sub_count = @a1.sub_accounts.size
       api_call(:post,
@@ -330,6 +353,23 @@ describe "Accounts API", type: :request do
                       { controller: "accounts", action: "index", format: "json", include: ["lti_guid"] },
                       {})
       expect(json[0]["lti_guid"]).to eq "hey"
+    end
+
+    it "includes course count if requested" do
+      2.times { course_factory(active_all: true, account: @a1) }
+      json = api_call(:get,
+                      "/api/v1/accounts?include[]=course_count",
+                      { controller: "accounts", action: "index", format: "json", include: ["course_count"] },
+                      {})
+      expect(json.pluck("course_count")).to match_array([2, 0])
+    end
+
+    it "includes sub-account count if requested" do
+      json = api_call(:get,
+                      "/api/v1/accounts?include[]=sub_account_count",
+                      { controller: "accounts", action: "index", format: "json", include: ["sub_account_count"] },
+                      {})
+      expect(json.pluck("sub_account_count")).to match_array([0, 2])
     end
 
     context "when the includes query param includes 'global_id'" do
@@ -588,6 +628,83 @@ describe "Accounts API", type: :request do
 
       @a1.reload
       expect(@a1.settings[:setting]).to be_nil
+    end
+
+    context "parent_account_id" do
+      before :once do
+        @subaccount = account_model(name: "subaccount", parent_account: @a1, root_account: @a1)
+      end
+
+      it "moves a subaccount to a new parent account" do
+        json = api_call(:put,
+                        "/api/v1/accounts/#{@subaccount.id}",
+                        { controller: "accounts", action: "update", id: @subaccount.to_param, format: "json" },
+                        { account: { parent_account_id: @a2.id } })
+        expect(response).to have_http_status(:ok)
+        expect(json["parent_account_id"]).to eq @a2.id
+        expect(@subaccount.reload.parent_account).to eq @a2
+      end
+
+      it "accepts a sis id as the parent_account_id" do
+        json = api_call(:put,
+                        "/api/v1/accounts/#{@subaccount.id}",
+                        { controller: "accounts", action: "update", id: @subaccount.to_param, format: "json" },
+                        { account: { parent_account_id: "sis_account_id:sis1" } })
+        expect(response).to have_http_status(:ok)
+        expect(json["parent_account_id"]).to eq @a2.id
+        expect(@subaccount.reload.parent_account).to eq @a2
+      end
+
+      it "does not allow moving to a soft-deleted account" do
+        @a2.destroy
+        api_call(:put,
+                 "/api/v1/accounts/#{@subaccount.id}",
+                 { controller: "accounts", action: "update", id: @subaccount.to_param, format: "json" },
+                 { account: { parent_account_id: @a2.id } })
+        expect(response).to have_http_status(:not_found)
+      end
+
+      it "does not allow moving a root account" do
+        json = api_call(:put,
+                        "/api/v1/accounts/#{@a1.id}",
+                        { controller: "accounts", action: "update", id: @a1.to_param, format: "json" },
+                        { account: { parent_account_id: @subaccount.id } })
+        expect(response).to have_http_status(:unauthorized)
+        expect(json["errors"]["unauthorized"][0]["message"]).to eq "You cannot move a root account."
+      end
+
+      it "requires admin rights in the source parent account" do
+        account_admin_user(account: @subaccount)
+        @a2.account_users.create!(user: @user)
+        json = api_call(:put,
+                        "/api/v1/accounts/#{@subaccount.id}",
+                        { controller: "accounts", action: "update", id: @subaccount.to_param, format: "json" },
+                        { account: { parent_account_id: @a2.id } })
+        expect(response).to have_http_status(:unauthorized)
+        expect(json["errors"]["unauthorized"][0]["message"]).to eq "You are not authorized to manage the source parent account."
+        expect(@subaccount.reload.parent_account).to eq @a1
+      end
+
+      it "requires admin rights in the destination parent account" do
+        account_admin_user(account: @subaccount)
+        subsub = @subaccount.sub_accounts.create!(name: "subaccount2")
+        json = api_call(:put,
+                        "/api/v1/accounts/#{subsub.id}",
+                        { controller: "accounts", action: "update", id: subsub.to_param, format: "json" },
+                        { account: { parent_account_id: @a2.id } })
+        expect(response).to have_http_status(:unauthorized)
+        expect(json["errors"]["unauthorized"][0]["message"]).to eq "You are not authorized to manage the destination parent account."
+        expect(subsub.reload.parent_account).to eq @subaccount
+      end
+
+      it "requires the new account to be in the same root account" do
+        @a3.account_users.create!(user: @user)
+        api_call(:put,
+                 "/api/v1/accounts/#{@subaccount.id}",
+                 { controller: "accounts", action: "update", id: @subaccount.to_param, format: "json" },
+                 { account: { parent_account_id: @a3.id } })
+        expect(response).to have_http_status(:not_found)
+      end
     end
 
     context "Microsoft Teams Sync" do
@@ -999,25 +1116,158 @@ describe "Accounts API", type: :request do
                  { account: { course_template_id: 0 } })
       end
     end
+
+    context "PUT update_api" do
+      let_once(:valid_attributes) { { minimum_character_length: 10, maximum_login_attempts: 5 } }
+      let_once(:invalid_attributes) { { minimum_character_length: 2, maximum_login_attempts: 30 } }
+      let_once(:non_integer_attributes) { { minimum_character_length: "ten", maximum_login_attempts: "five" } }
+      let_once(:password_policy_settings) do
+        {
+          allow_login_suspension: true,
+          require_number_characters: true,
+          require_symbol_characters: true,
+          minimum_character_length: 10,
+          maximum_login_attempts: 5,
+          common_passwords_attachment_id: "1",
+          common_passwords_folder_id: "2",
+          bogus_setting: "bogus"
+        }
+      end
+
+      context "when password complexity feature is enabled" do
+        before do
+          @a1.root_account.enable_feature!(:password_complexity)
+        end
+
+        it "accepts valid password policy settings" do
+          json = api_call(:put,
+                          "/api/v1/accounts/#{@a1.id}",
+                          { controller: "accounts", action: "update", id: @a1.to_param, format: "json" },
+                          { account: { settings: { password_policy: valid_attributes } } })
+
+          expect(response).to have_http_status(:ok)
+          expect(json).not_to have_key("errors")
+        end
+
+        it "guards from password_policy param not being present" do
+          api_call(:put,
+                   "/api/v1/accounts/#{@a1.id}",
+                   { controller: "accounts", action: "update", id: @a1.to_param, format: "json" },
+                   { account: { settings: { restrict_student_past_view: { value: true, locked: false } } } })
+
+          expect(response).to have_http_status(:ok)
+          @a1.reload
+          expect(@a1.settings).not_to have_key(:password_policy)
+        end
+
+        it "rejects password policy settings outside allowed range" do
+          json = api_call(:put,
+                          "/api/v1/accounts/#{@a1.id}",
+                          { controller: "accounts", action: "update", id: @a1.to_param, format: "json" },
+                          { account: { settings: { password_policy: invalid_attributes } } })
+
+          expect(response).to have_http_status(:bad_request)
+          expect(json).to have_key("errors")
+          expect(json["errors"]["minimum_character_length"].first["message"]).to match(/must be at least/i)
+          expect(json["errors"]["maximum_login_attempts"].first["message"]).to match(/must not exceed/i)
+        end
+
+        it "rejects non-integer password policy settings" do
+          json = api_call(:put,
+                          "/api/v1/accounts/#{@a1.id}",
+                          { controller: "accounts", action: "update", id: @a1.to_param, format: "json" },
+                          { account: { settings: { password_policy: non_integer_attributes } } })
+
+          expect(response).to have_http_status(:bad_request)
+          expect(json).to have_key("errors")
+          expect(json["errors"]["minimum_character_length"].first["message"]).to match(/an integer value is required/i)
+          expect(json["errors"]["maximum_login_attempts"].first["message"]).to match(/an integer value is required/i)
+        end
+
+        it "merges password policy settings into account settings upon successful validation" do
+          api_call(:put,
+                   "/api/v1/accounts/#{@a1.id}",
+                   { controller: "accounts", action: "update", id: @a1.to_param, format: "json" },
+                   { account: { settings: { password_policy: password_policy_settings } } })
+
+          @a1.reload
+          expect(@a1.settings).to have_key(:password_policy)
+          expect(@a1.settings[:password_policy]).not_to have_key(:bogus_setting)
+          expect(@a1.settings[:password_policy][:allow_login_suspension]).to be_truthy
+          expect(@a1.settings[:password_policy][:require_number_characters]).to be_truthy
+          expect(@a1.settings[:password_policy][:require_symbol_characters]).to be_truthy
+          expect(@a1.settings[:password_policy][:minimum_character_length]).to eq("10")
+          expect(@a1.settings[:password_policy][:maximum_login_attempts]).to eq("5")
+          expect(@a1.settings[:password_policy][:common_passwords_attachment_id]).to eq("1")
+          expect(@a1.settings[:password_policy][:common_passwords_folder_id]).to eq("2")
+        end
+      end
+
+      context "when password complexity feature is not enabled" do
+        before do
+          @a1.root_account.disable_feature!(:password_complexity)
+        end
+
+        it "only includes permitted API account settings" do
+          api_call(:put,
+                   "/api/v1/accounts/#{@a1.id}",
+                   { controller: "accounts", action: "update", id: @a1.to_param, format: "json" },
+                   { account: { settings: { restrict_student_past_view: { value: true, locked: false },
+                                            password_policy: password_policy_settings } } })
+
+          @a1.reload
+          expect(@a1.restrict_student_past_view).to eq({ value: true, locked: false })
+          expect(@a1.settings).not_to have_key(:password_policy)
+        end
+      end
+
+      context "Canvas for Elementary settings" do
+        it "enable_as_k5_account is enabled for the given account" do
+          expect(@a1.enable_as_k5_account?).to be false
+          json = api_call(:put,
+                          "/api/v1/accounts/#{@a1.id}",
+                          { controller: "accounts", action: "update", id: @a1.to_param, format: "json" },
+                          { account: { settings: { enable_as_k5_account: { value: true } } } })
+          expect(@a1.reload.enable_as_k5_account?).to be true
+          expect(response).to have_http_status(:ok)
+          expect(json).not_to have_key("errors")
+        end
+
+        it "sets use_classic_font_in_k5 for the given account" do
+          @a1.update settings: { enable_as_k5_account: { locked: true, value: true }, use_classic_font_in_k5: { locked: true, value: false } }
+          json = api_call(:put,
+                          "/api/v1/accounts/#{@a1.id}",
+                          { controller: "accounts", action: "update", id: @a1.to_param, format: "json" },
+                          { account: { settings: { use_classic_font_in_k5: { value: true } } } })
+          expect(@a1.reload.use_classic_font_in_k5?).to be true
+          expect(response).to have_http_status(:ok)
+          expect(json).not_to have_key("errors")
+        end
+      end
+    end
   end
 
   describe "environment" do
-    it "lists cached_js_env_account_settings" do
-      expect_any_instance_of(ApplicationController).to receive(:cached_js_env_account_settings)
-        .and_return({ calendar_contexts_limit: true })
+    before_once do
+      Account.default.settings[:calendar_contexts_limit] = 10
+      Account.default.save!
+    end
+
+    it "lists cached_js_env_root_account_settings" do
       json = api_call(:get,
                       "/api/v1/settings/environment",
                       { controller: "accounts", action: "environment", format: "json" },
                       {},
                       {},
                       { expected_status: 200 })
-      expect(json).to eq({ "calendar_contexts_limit" => true })
+      expect(json).to eq({ "calendar_contexts_limit" => 10 })
     end
 
     it "requires user session" do
-      request_path = "https://www.example.com/api/v1/settings/environment"
-      __send__(:get, request_path, params: { controller: "accounts", action: "environment", format: "json" })
-      expect(response).to have_http_status(:unauthorized)
+      __send__(:get,
+               "/api/v1/settings/environment",
+               params: { controller: "accounts", action: "environment", format: "json" })
+      assert_status(401)
     end
   end
 
@@ -2008,7 +2258,7 @@ describe "Accounts API", type: :request do
                  permissions: %w[become_user] },
                {},
                {},
-               { expected_status: 401 })
+               { expected_status: 403 })
     end
   end
 
@@ -2018,7 +2268,7 @@ describe "Accounts API", type: :request do
     let(:generic_user) { user_factory }
 
     it "does not allow regular users to see settings" do
-      api_call_as_user(generic_user, :get, show_settings_path, show_settings_header, {}, { expected_status: 401 })
+      api_call_as_user(generic_user, :get, show_settings_path, show_settings_header, {}, { expected_status: 403 })
     end
 
     it "allows account admins to see selected settings" do
@@ -2027,6 +2277,73 @@ describe "Accounts API", type: :request do
       json = api_call(:get, show_settings_path, show_settings_header, {}, { expected_status: 200 })
       expect(json["microsoft_sync_enabled"]).to be(true)
       expect(json["microsoft_sync_tenant"]).to eq("testtenant.com")
+    end
+
+    context "password complexity" do
+      let_once(:policy_settings) do
+        {
+          allow_login_suspension: "true",
+          require_number_characters: "true",
+          require_symbol_characters: "true",
+          common_passwords_attachment_id: "1",
+          common_passwords_folder_id: "2"
+        }
+      end
+
+      it "exposes password policy settings when feature is enabled" do
+        @a1.enable_feature!(:password_complexity)
+        json = api_call(:get, show_settings_path, show_settings_header, {}, { expected_status: 200 })
+        expect(json["password_policy"]).to be_present
+        expect(json["password_policy"]["minimum_character_length"]).to eq "8"
+        expect(json["password_policy"]["maximum_login_attempts"]).to eq "10"
+
+        @a1.settings = { password_policy: policy_settings }
+        @a1.save!
+        json = api_call(:get, show_settings_path, show_settings_header, {}, { expected_status: 200 })
+        expect(json["password_policy"]).to include policy_settings.stringify_keys
+      end
+
+      it "does not return password policy settings when feature is not enabled" do
+        @a1.disable_feature!(:password_complexity)
+        @a1.settings = { password_policy: policy_settings }
+        @a1.save!
+        json = api_call(:get, show_settings_path, show_settings_header, {}, { expected_status: 200 })
+        expect(json["password_policy"]).not_to be_present
+      end
+    end
+
+    describe "Canvas for Elementary" do
+      it "gets enable_as_k5_account setting" do
+        @a1.update settings: { enable_as_k5_account: { locked: true, value: true }, use_classic_font_in_k5: { locked: true, value: false } }
+        json = api_call(:get, show_settings_path, show_settings_header, {}, { expected_status: 200 })
+        expect(json["enable_as_k5_account"]["locked"]).to be true
+        expect(json["enable_as_k5_account"]["value"]).to be true
+        expect(json["use_classic_font_in_k5"]["locked"]).to be true
+        expect(json["use_classic_font_in_k5"]["value"]).to be false
+      end
+
+      it "does not return any settings if none are set" do
+        json = api_call(:get, show_settings_path, show_settings_header, {}, { expected_status: 200 })
+        expect(json["enable_as_k5_account"]).to be_nil
+        expect(json["use_classic_font_in_k5"]).to be_nil
+      end
+    end
+
+    describe "Assign To Differentiation Tags" do
+      it "gets allow_assign_to_differentiation_tags setting" do
+        @a1.settings = { allow_assign_to_differentiation_tags: true }
+        @a1.save
+
+        json = api_call(:get, show_settings_path, show_settings_header, {}, { expected_status: 200 })
+
+        expect(json["allow_assign_to_differentiation_tags"]).to be_present
+        expect(json["allow_assign_to_differentiation_tags"]).to be true
+      end
+
+      it "does not return allow_assign_to_differentiation_tags setting if it is not set" do
+        json = api_call(:get, show_settings_path, show_settings_header, {}, { expected_status: 200 })
+        expect(json["allow_assign_to_differentiation_tags"]).to be_nil
+      end
     end
   end
 

@@ -18,11 +18,37 @@ import React from 'react'
 import {render as testingLibraryRender, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MobileNavigation from '../MobileNavigation'
-import {QueryProvider, queryClient} from '@canvas/query'
+import {queryClient} from '@canvas/query'
+import {MockedQueryProvider} from '@canvas/test-utils/query'
+import axios from 'axios'
 
-const render = children => testingLibraryRender(<QueryProvider>{children}</QueryProvider>)
+const render = children =>
+  testingLibraryRender(<MockedQueryProvider>{children}</MockedQueryProvider>)
+
+jest.mock('axios')
 
 describe('MobileNavigation', () => {
+  beforeEach(() => {
+    // mocks for ui/features/navigation_header/react/utils.ts:37
+    window.ENV = {
+      ACCOUNT_ID: 'test-account-id',
+    }
+    axios.get.mockImplementation(url => {
+      if (
+        url ===
+        '/api/v1/accounts/test-account-id/lti_apps/launch_definitions?per_page=50&placements[]=global_navigation&only_visible=true'
+      ) {
+        return Promise.resolve({
+          data: [],
+        })
+      }
+    })
+  })
+
+  afterEach(() => {
+    jest.clearAllMocks()
+  })
+
   it('renders the inbox badge based on incoming state', async () => {
     queryClient.setQueryData(['unread_count', 'conversations'], 123)
     const hamburgerMenu = document.createElement('div')

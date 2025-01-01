@@ -18,8 +18,6 @@
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 
 class UserMerge
-  class UnsafeMergeError < StandardError; end
-
   def self.from(user)
     new(user)
   end
@@ -34,15 +32,16 @@ class UserMerge
     @data = []
   end
 
+  def pseudonyms_to_move_in_this_shard
+    Pseudonym.where(user_id: from_user)
+  end
+
+  def handle_instructure_identity(pseudonyms_to_move) end
+
   def into(target_user, merger: nil, source: nil)
     return unless target_user
     return if target_user == from_user
     raise "cannot merge a test student" if from_user.preferences[:fake_student] || target_user.preferences[:fake_student]
-
-    if UserMergeData.active.splitable.where(user_id: target_user, from_user_id: from_user).exists?
-      raise UnsafeMergeError,
-            "There is already an existing active user merge for target user, from user: (#{target_user.id}, #{from_user.id})}"
-    end
 
     @target_user = target_user
     target_user.associate_with_shard(from_user.shard, :shadow)
@@ -107,8 +106,12 @@ class UserMerge
 
     Shard.with_each_shard(from_user.associated_shards + from_user.associated_shards(:weak) + from_user.associated_shards(:shadow)) do
       max_position = Pseudonym.where(user_id: target_user).ordered.last.try(:position) || 0
-      pseudonyms_to_move = Pseudonym.where(user_id: from_user)
+
+      # Modify to not include inst pseudonym
+      pseudonyms_to_move = pseudonyms_to_move_in_this_shard
+
       merge_data.add_more_data(pseudonyms_to_move)
+      handle_instructure_identity(pseudonyms_to_move)
       pseudonyms_to_move.update_all(["updated_at=NOW(), user_id=?, position=position+?", target_user, max_position])
 
       target_user.communication_channels.email.unretired.each do |cc|
@@ -436,6 +439,8 @@ class UserMerge
     # the comments inline show all the different cases, with the source cc on the left,
     # target cc on the right.  The * indicates the CC that will be retired in order
     # to resolve the conflict
+    target_cc.reload
+
     if target_cc.active?
       # retired, active
       # unconfirmed*, active

@@ -206,6 +206,10 @@ module CoursePacesPageObject
     "//span[@data-testid = 'skip-weekends-toggle']"
   end
 
+  def skip_selected_days_xpath_selector
+    "[data-testid= 'skip-selected-days']"
+  end
+
   def skip_weekends_checkbox_selector
     "[data-testid='skip-weekends-toggle']"
   end
@@ -340,6 +344,18 @@ module CoursePacesPageObject
 
   def reset_all_x_button_selector
     "[data-testid='reset-changes-modal'] [data-testid='instui-modal-close'] button"
+  end
+
+  def save_draft_button_selector
+    "[data-testid='save-pace-draft-button']"
+  end
+
+  def draft_pace_status_pill_selector
+    "[data-testid='draft-pace-status-pill']"
+  end
+
+  def direct_publish_draft_button_selector
+    "[data-testid='direct-publish-draft-pace-button']"
   end
 
   #------------------------- Elements --------------------------------
@@ -538,6 +554,10 @@ module CoursePacesPageObject
 
   def skip_weekends_checkbox
     fxpath(skip_weekends_checkbox_xpath_selector)
+  end
+
+  def show_skip_selected_days
+    f(skip_selected_days_xpath_selector)
   end
 
   def student_course_pace(student_name)
@@ -744,6 +764,10 @@ module CoursePacesPageObject
     skip_weekends_checkbox.click
   end
 
+  def click_show_skip_selected_days
+    show_skip_selected_days.click
+  end
+
   #------------------------- Redesign Elements -----------------------
   def click_apply_or_create_pace_button
     apply_or_create_pace_button.click
@@ -818,7 +842,7 @@ module CoursePacesPageObject
   delegate :text, to: :assignment_due_date, prefix: true
 
   def calculate_saturday_date
-    current_date = Date.today
+    current_date = Time.zone.today
     current_date + ((6 - current_date.wday) % 7)
   end
 

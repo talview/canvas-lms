@@ -190,6 +190,15 @@ describe Lti::IMS::AuthenticationController do
       end
     end
 
+    context "when retried" do
+      it "increments the lti.oidc_missing_cookie_retry_worked" do
+        params["retried"] = "true"
+        allow(InstStatsd::Statsd).to receive(:increment)
+        expect(authorize).to render_template("lti/ims/authentication/authorize")
+        expect(InstStatsd::Statsd).to have_received(:increment).with("lti.oidc_missing_cookie_retry_worked", tags: { client_id: client_id.to_s })
+      end
+    end
+
     context "when there is a cached LTI 1.3 launch" do
       def authorize
         get :authorize, params:
@@ -209,15 +218,25 @@ describe Lti::IMS::AuthenticationController do
       let(:account) { context.root_account }
       let(:lti_launch) do
         {
-          "aud" => developer_key.global_id,
-          "https://purl.imsglobal.org/spec/lti/claim/deployment_id" => "265:37750cbd4487fb044c4faf195c195b5fb9ed9636",
-          "iss" => "https://canvas.instructure.com",
-          "nonce" => "a854dc79-be3b-476a-b0db-2963a7f4158c",
-          "sub" => "535fa085f22b4655f48cd5a36a9215f64c062838",
-          "picture" => "http://canvas.instructure.com/images/messages/avatar-50.png",
-          "email" => "wdransfield@instructure.com",
-          "name" => "wdransfield@instructure.com",
-          "given_name" => "wdransfield@instructure.com",
+          "post_payload" => {
+            "aud" => developer_key.global_id,
+            "https://purl.imsglobal.org/spec/lti/claim/deployment_id" => "265:37750cbd4487fb044c4faf195c195b5fb9ed9636",
+            "iss" => "https://canvas.instructure.com",
+            "nonce" => "a854dc79-be3b-476a-b0db-2963a7f4158c",
+            "sub" => "535fa085f22b4655f48cd5a36a9215f64c062838",
+            "picture" => "http://canvas.instructure.com/images/messages/avatar-50.png",
+            "email" => "wdransfield@instructure.com",
+            "name" => "wdransfield@instructure.com",
+            "given_name" => "wdransfield@instructure.com",
+            "https://purl.imsglobal.org/spec/lti/claim/lti1p1" => {
+              "oauth_consumer_key" => "fake_consumer_key",
+              "oauth_consumer_key_sign" => "fake_signature"
+            },
+          },
+          "assoc_tool_data" => {
+            "shared_secret" => "fake_shared_secret",
+            "consumer_key" => "fake_consumer_key"
+          }
         }
       end
       let(:verifier) { cache_launch(lti_launch, context) }
@@ -234,7 +253,7 @@ describe Lti::IMS::AuthenticationController do
 
       it "generates an id token" do
         authorize
-        expect(id_token.except("nonce")).to eq lti_launch.except("nonce")
+        expect(id_token.except("nonce").except("https://purl.imsglobal.org/spec/lti/claim/lti1p1")).to eq lti_launch["post_payload"].except("nonce").except("https://purl.imsglobal.org/spec/lti/claim/lti1p1")
       end
 
       it "sends the state" do
@@ -264,7 +283,7 @@ describe Lti::IMS::AuthenticationController do
           developer_key.update!(redirect_uris:)
         end
 
-        it "launches succesfully" do
+        it "launches successfully" do
           authorize
           expect(id_token["nonce"]).to eq nonce
         end
@@ -289,19 +308,44 @@ describe Lti::IMS::AuthenticationController do
             Account.site_admin.enable_feature!(:lti_login_required_error_page)
           end
 
-          it "renders a friendly error message" do
-            authorize
-            expect(response).to have_http_status :unauthorized
-            expect(response).to render_template("lti/ims/authentication/login_required_error_screen")
+          context "when already retried" do
+            before do
+              params.merge!("retried" => true)
+            end
+
+            it "renders a friendly error message" do
+              authorize
+              expect(response).to have_http_status :unauthorized
+              expect(response).to render_template("lti/ims/authentication/login_required_error_screen")
+            end
+
+            it "increments the lti.oidc_login_required_error metric" do
+              allow(InstStatsd::Statsd).to receive(:increment)
+              authorize
+              expect(InstStatsd::Statsd).to have_received(:increment).with("lti.oidc_login_required_error", tags: {
+                                                                             account: context.global_id,
+                                                                             client_id: client_id.to_s
+                                                                           })
+            end
           end
 
-          it "increments the lti.oidc_login_required_error metric" do
-            allow(InstStatsd::Statsd).to receive(:increment)
-            authorize
-            expect(InstStatsd::Statsd).to have_received(:increment).with("lti.oidc_login_required_error", tags: {
-                                                                           account: context.global_id,
-                                                                           client_id: client_id.to_s
-                                                                         })
+          context "when hasn't retried yet" do
+            before do
+              account.root_account.settings[:lti_oidc_missing_cookie_retry] = true
+              account.root_account.save!
+            end
+
+            it "renders a cookie fix page" do
+              authorize
+              expect(response).to have_http_status :ok
+              expect(response).to render_template("lti/ims/authentication/missing_cookie_fix")
+            end
+
+            it "increments the lti.oidc_missing_cookie_retry" do
+              allow(InstStatsd::Statsd).to receive(:increment)
+              authorize
+              expect(InstStatsd::Statsd).to have_received(:increment).with("lti.oidc_missing_cookie_retry", tags: { client_id: client_id.to_s })
+            end
           end
         end
 
@@ -336,7 +380,7 @@ describe Lti::IMS::AuthenticationController do
 
           it "generates an id token" do
             authorize
-            expect(id_token.except("nonce")).to eq lti_launch.except("nonce")
+            expect(id_token.except("nonce").except("https://purl.imsglobal.org/spec/lti/claim/lti1p1")).to eq lti_launch["post_payload"].except("nonce").except("https://purl.imsglobal.org/spec/lti/claim/lti1p1")
           end
         end
       end

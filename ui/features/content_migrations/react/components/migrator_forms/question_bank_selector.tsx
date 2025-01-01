@@ -16,52 +16,61 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {useCallback, useState} from 'react'
+import React, {useCallback, useEffect, useState} from 'react'
 import {SimpleSelect} from '@instructure/ui-simple-select'
 import {TextInput} from '@instructure/ui-text-input'
 import {View} from '@instructure/ui-view'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {Text} from '@instructure/ui-text'
+import type {QuestionBankSettings} from '../types'
 
-const I18n = useI18nScope('content_migrations_redesign')
+const I18n = createI18nScope('content_migrations_redesign')
 
 type QuestionBank = {
-  // eslint-disable-next-line react/no-unused-prop-types
+   
   assessment_question_bank: {
     id: number
     title: string
   }
 }
 
-export type QuestionBankSettings = {
-  question_bank_id?: string | number
-  question_bank_name?: string
-}
-
 type QuestionBankSelectorProps = {
   onChange: (settings: QuestionBankSettings | null) => void
   questionBankError: boolean
+  disable?: boolean
+  notCompatible?: boolean
+  questionBankSettings?: QuestionBankSettings | null
 }
 
-const QuestionBankSelector = ({onChange, questionBankError}: QuestionBankSelectorProps) => {
+const QuestionBankSelector = ({
+  onChange,
+  questionBankError,
+  disable = false,
+  notCompatible = false,
+  questionBankSettings,
+}: QuestionBankSelectorProps) => {
   const [showQuestionInput, setShowQuestionInput] = useState<boolean>(false)
   const questionBanks = ENV.QUESTION_BANKS || []
 
   const handleChange = useCallback(
+    // @ts-expect-error
     (_, {value}) => {
+      setShowQuestionInput(value === 'new_question_bank')
       if (!value) {
-        setShowQuestionInput(false)
         onChange(null)
-      } else if (value === 'new_question_bank') {
-        setShowQuestionInput(true)
-        onChange({question_bank_name: ''})
       } else {
-        setShowQuestionInput(false)
-        onChange({question_bank_id: value})
+        onChange({...questionBankSettings, question_bank_id: value})
       }
     },
-    [onChange]
+    [onChange, questionBankSettings]
   )
+
+  useEffect(() => {
+    if (notCompatible) {
+      setShowQuestionInput(false)
+      onChange(null)
+    }
+  }, [notCompatible, onChange])
 
   return (
     <>
@@ -70,7 +79,10 @@ const QuestionBankSelector = ({onChange, questionBankError}: QuestionBankSelecto
           data-testid="questionBankSelect"
           renderLabel={I18n.t('Default Question bank')}
           assistiveText={I18n.t('Select a question bank')}
+          // @ts-expect-error
           onChange={handleChange}
+          disabled={disable}
+          value={questionBankSettings?.question_bank_id || ''}
         >
           <SimpleSelect.Option id="selectQuestion" value="">
             {I18n.t('Select question bank')}
@@ -84,10 +96,16 @@ const QuestionBankSelector = ({onChange, questionBankError}: QuestionBankSelecto
             </SimpleSelect.Option>
           ))}
         </SimpleSelect>
+        {!!notCompatible && (
+          <Text lineHeight="double">
+            {I18n.t('This option is not compatible with New Quizzes')}
+          </Text>
+        )}
       </View>
       {showQuestionInput && (
         <View as="div" maxWidth="22.5rem">
           <TextInput
+            disabled={disable}
             messages={
               questionBankError
                 ? [
@@ -104,7 +122,7 @@ const QuestionBankSelector = ({onChange, questionBankError}: QuestionBankSelecto
             }
             renderLabel={<></>}
             placeholder={I18n.t('New question bank')}
-            onChange={(_, value) => onChange({question_bank_name: value})}
+            onChange={(_, value) => onChange({...questionBankSettings, question_bank_name: value})}
           />
         </View>
       )}

@@ -21,7 +21,7 @@ import uuid from 'uuid'
 import useStore from '../stores/index'
 import type {AssignmentGroup, Module, Section, StudentGroupCategoryMap} from '../../../../../api.d'
 import type {CamelizedGradingPeriod} from '@canvas/grading/grading.d'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import natcompare from '@canvas/util/natcompare'
 import {
   doFiltersMatch,
@@ -38,7 +38,7 @@ import type {
 } from '../gradebook.d'
 import type {GradeStatus} from '@canvas/grading/accountGradingStatus'
 
-const I18n = useI18nScope('gradebook')
+const I18n = createI18nScope('gradebook')
 
 function useFilterDropdownData({
   appliedFilters,
@@ -153,7 +153,7 @@ function useFilterDropdownData({
     if (gradingPeriods.length > 0) {
       const gradingPeriodItems: FilterDrilldownMenuItem[] = gradingPeriods.map(a => ({
         id: a.id,
-        name: formatGradingPeriodTitleForDisplay(a),
+        name: formatGradingPeriodTitleForDisplay(a) as string,
         isSelected: appliedFilters.some(c => c.type === 'grading-period' && c.value === a.id),
         onToggle: () => {
           const filter: Filter = {

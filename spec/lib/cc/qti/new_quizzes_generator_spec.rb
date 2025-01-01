@@ -112,14 +112,51 @@ describe CC::Qti::NewQuizzesGenerator do
           new_quizzes_generator = CC::Qti::NewQuizzesGenerator.new(@manifest, resource_node)
 
           expected_files = [
-            "Uploaded Media/someuuid1",
-            "Uploaded Media/someuuid2",
             "g7a6297c8c5fe5c3dabc42d0ee182dcb8/assessment_meta.xml",
             "g7a6297c8c5fe5c3dabc42d0ee182dcb8/assessment_qti.xml",
             "gdbb1b3860016ed4d2392d017a493f0ec/assessment_meta.xml",
             "gdbb1b3860016ed4d2392d017a493f0ec/assessment_qti.xml",
             "non_cc_assessments/g7a6297c8c5fe5c3dabc42d0ee182dcb8.xml.qti",
-            "non_cc_assessments/gdbb1b3860016ed4d2392d017a493f0ec.xml.qti"
+            "non_cc_assessments/gdbb1b3860016ed4d2392d017a493f0ec.xml.qti",
+            "web_resources/Uploaded Media",
+            "web_resources/Uploaded Media/someuuid1",
+            "web_resources/Uploaded Media/someuuid2"
+          ]
+
+          new_quizzes_generator.write_new_quizzes_content
+
+          extracted_files = Dir.glob(File.join(new_quizzes_generator.export_dir, "*", "**", "**/*")).map do |f|
+            f.sub("#{new_quizzes_generator.export_dir}/", "")
+          end.sort
+
+          expect(extracted_files).to eq(expected_files)
+        end
+      end
+    end
+
+    context "when the new quizzes export package contains a migration IDs map" do
+      before do
+        @content_export.settings[:new_quizzes_export_url] =
+          Rails.root.join("spec/lib/cc/qti/fixtures/nq_common_cartridge_with_mig_ids_map.zip").to_s
+        @content_export.save!
+        @new_quiz_1 = @copy_from.assignments.create!(title: "New Quiz 1", submission_types: "external_tool")
+        @new_quiz_2 = @copy_from.assignments.create!(title: "New Quiz 2", submission_types: "external_tool")
+        allow(Assignment).to receive(:find_by).and_call_original
+        allow(Assignment).to receive(:find_by).with(id: "44").and_return(@new_quiz_1)
+        allow(Assignment).to receive(:find_by).with(id: "45").and_return(@new_quiz_2)
+      end
+
+      it "loads new quizes qti files into the new quizzes content dir" do
+        @doc.resources do |resource_node|
+          new_quizzes_generator = CC::Qti::NewQuizzesGenerator.new(@manifest, resource_node)
+
+          expected_files = [
+            "#{CC::CCHelper.create_key(@new_quiz_1, global: true)}/assessment_meta.xml",
+            "#{CC::CCHelper.create_key(@new_quiz_1, global: true)}/assessment_qti.xml",
+            "#{CC::CCHelper.create_key(@new_quiz_2, global: true)}/assessment_meta.xml",
+            "#{CC::CCHelper.create_key(@new_quiz_2, global: true)}/assessment_qti.xml",
+            "non_cc_assessments/#{CC::CCHelper.create_key(@new_quiz_1, global: true)}.xml.qti",
+            "non_cc_assessments/#{CC::CCHelper.create_key(@new_quiz_2, global: true)}.xml.qti"
           ]
 
           new_quizzes_generator.write_new_quizzes_content
@@ -128,7 +165,7 @@ describe CC::Qti::NewQuizzesGenerator do
             f.sub("#{new_quizzes_generator.export_dir}/", "")
           end.sort
 
-          expect(extracted_files).to eq(expected_files)
+          expect(extracted_files.sort).to eq(expected_files.sort)
         end
       end
     end
@@ -173,6 +210,51 @@ describe CC::Qti::NewQuizzesGenerator do
       expect(@doc.target!).to eq(expected_manifest_resources)
     end
 
+    context "when the new quizzes export package contains a migration IDs map" do
+      before do
+        @content_export.settings[:new_quizzes_export_url] =
+          Rails.root.join("spec/lib/cc/qti/fixtures/nq_common_cartridge_with_mig_ids_map.zip").to_s
+        @content_export.save!
+        @new_quiz_1 = @copy_from.assignments.create!(title: "New Quiz 1", submission_types: "external_tool")
+        @new_quiz_2 = @copy_from.assignments.create!(title: "New Quiz 2", submission_types: "external_tool")
+        allow(Assignment).to receive(:find_by).and_call_original
+        allow(Assignment).to receive(:find_by).with(id: "44").and_return(@new_quiz_1)
+        allow(Assignment).to receive(:find_by).with(id: "45").and_return(@new_quiz_2)
+        @nq_1_mig_id = CC::CCHelper.create_key(@new_quiz_1, global: true)
+        @nq_2_mig_id = CC::CCHelper.create_key(@new_quiz_2, global: true)
+      end
+
+      it "includes quizzes in the manifest" do
+        @doc.resources do |resource_node|
+          new_quizzes_generator = CC::Qti::NewQuizzesGenerator.new(@manifest, resource_node)
+          new_quizzes_generator.generate_qti
+        end
+
+        expected_manifest_resources = <<~XML
+          <resources>
+            <resource identifier="#{@nq_1_mig_id}" type="imsqti_xmlv1p2/imscc_xmlv1p1/assessment">
+              <file href="#{@nq_1_mig_id}/assessment_qti.xml"/>
+              <dependency identifierref="#{CC::CCHelper.create_key(@nq_1_mig_id)}"/>
+            </resource>
+            <resource identifier="#{CC::CCHelper.create_key(@nq_1_mig_id)}" type="associatedcontent/imscc_xmlv1p1/learning-application-resource" href="#{@nq_1_mig_id}/assessment_meta.xml">
+              <file href="#{@nq_1_mig_id}/assessment_meta.xml"/>
+              <file href="non_cc_assessments/#{@nq_1_mig_id}.xml.qti"/>
+            </resource>
+            <resource identifier="#{@nq_2_mig_id}" type="imsqti_xmlv1p2/imscc_xmlv1p1/assessment">
+              <file href="#{@nq_2_mig_id}/assessment_qti.xml"/>
+              <dependency identifierref="#{CC::CCHelper.create_key(@nq_2_mig_id)}"/>
+            </resource>
+            <resource identifier="#{CC::CCHelper.create_key(@nq_2_mig_id)}" type="associatedcontent/imscc_xmlv1p1/learning-application-resource" href="#{@nq_2_mig_id}/assessment_meta.xml">
+              <file href="#{@nq_2_mig_id}/assessment_meta.xml"/>
+              <file href="non_cc_assessments/#{@nq_2_mig_id}.xml.qti"/>
+            </resource>
+          </resources>
+        XML
+
+        expect(@doc.target!).to eq(expected_manifest_resources)
+      end
+    end
+
     context "when the Common Cartridge export contains uploaded media" do
       before do
         @content_export.settings[:new_quizzes_export_url] =
@@ -204,11 +286,11 @@ describe CC::Qti::NewQuizzesGenerator do
               <file href="gdbb1b3860016ed4d2392d017a493f0ec/assessment_meta.xml"/>
               <file href="non_cc_assessments/gdbb1b3860016ed4d2392d017a493f0ec.xml.qti"/>
             </resource>
-            <resource identifier="i931e933d0a559fbb7319e5b3c5d3be8e" type="webcontent" href="Uploaded Media/someuuid1">
-              <file href="Uploaded Media/someuuid1"/>
+            <resource identifier="i931e933d0a559fbb7319e5b3c5d3be8e" type="webcontent" href="web_resources/Uploaded Media/someuuid1">
+              <file href="web_resources/Uploaded Media/someuuid1"/>
             </resource>
-            <resource identifier="ic1f6093310b4f2923606824ecd90811f" type="webcontent" href="Uploaded Media/someuuid2">
-              <file href="Uploaded Media/someuuid2"/>
+            <resource identifier="ic1f6093310b4f2923606824ecd90811f" type="webcontent" href="web_resources/Uploaded Media/someuuid2">
+              <file href="web_resources/Uploaded Media/someuuid2"/>
             </resource>
           </resources>
         XML

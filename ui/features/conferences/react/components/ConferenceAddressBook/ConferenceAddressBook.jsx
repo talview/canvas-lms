@@ -16,13 +16,13 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 import React, {useState, useMemo, useEffect} from 'react'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import PropTypes from 'prop-types'
 import {Alert} from '@instructure/ui-alerts'
 import {Select} from '@instructure/ui-select'
 import {Tag} from '@instructure/ui-tag'
 
-const I18n = useI18nScope('video_conference')
+const I18n = createI18nScope('video_conference')
 
 export const ConferenceAddressBook = ({menuItemList, onChange, selectedItems, isEditing}) => {
   const [isOpen, setIsOpen] = useState(false)
@@ -109,8 +109,9 @@ export const ConferenceAddressBook = ({menuItemList, onChange, selectedItems, is
   }
 
   const filteredMenuItems = useMemo(() => {
-    let newMenuItemList = menuItemList.filter(u => u.displayName.includes(inputValue))
-    newMenuItemList = newMenuItemList.filter(u => !selectedMenuItems.includes(u))
+    const filteredMenuItemList = menuItemList
+      .filter(u => u.displayName.toLowerCase().includes(inputValue.toLowerCase()))
+      .filter(u => !selectedMenuItems.includes(u))
 
     const getOptionsChangedMessage = newMenuItems => {
       let message =
@@ -128,11 +129,11 @@ export const ConferenceAddressBook = ({menuItemList, onChange, selectedItems, is
     }
 
     if (inputValue.length) {
-      const newAnnouncement = getOptionsChangedMessage(newMenuItemList)
+      const newAnnouncement = getOptionsChangedMessage(filteredMenuItemList)
       setAnnouncement(newAnnouncement)
     }
 
-    return newMenuItemList
+    return filteredMenuItemList
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputValue, menuItemList, selectedMenuItems.length])
 

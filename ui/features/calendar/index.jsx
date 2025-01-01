@@ -49,7 +49,7 @@ const start = () => {
   initializeDelayed(header)
 }
 
-const initializeDelayed = (header) => {
+const initializeDelayed = header => {
   const calendar = new Calendar(
     '#calendar-app',
     ENV.CALENDAR.CONTEXTS,
@@ -68,6 +68,7 @@ const initializeDelayed = (header) => {
             agMap.hasOwnProperty(context.asset_string)
           )
           if (courses.length > 0) {
+            // eslint-disable-next-line no-restricted-properties
             ReactDOM.render(
               <FindAppointment courses={courses} store={schedulerStore} />,
               $('#select-course-component')[0]

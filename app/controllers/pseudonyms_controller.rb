@@ -22,7 +22,7 @@
 # API for creating and viewing user logins under an account
 class PseudonymsController < ApplicationController
   before_action :get_context, only: [:index, :create]
-  before_action :require_user, only: %i[create show edit update]
+  before_action :require_user, only: %i[create show edit update migrate_login_attribute]
   before_action :reject_student_view_student, only: %i[create show edit update]
   protect_from_forgery except: %i[registration_confirmation change_password forgot_password], with: :exception
 
@@ -111,7 +111,7 @@ class PseudonymsController < ApplicationController
       if @domain_root_account
         @domain_root_account.pseudonyms.active_only.by_unique_id(email).each do |p|
           cc = p.communication_channel if p.communication_channel && p.user
-          cc ||= p.user.communication_channel rescue nil
+          cc ||= p.user.communication_channel
           @ccs << cc
         end
       end
@@ -119,7 +119,7 @@ class PseudonymsController < ApplicationController
 
     @ccs = @ccs.flatten.compact.uniq.select do |cc|
       if cc.user
-        cc.pseudonym ||= cc.user.pseudonym rescue nil
+        cc.pseudonym ||= cc.user.pseudonym
         cc.save if cc.changed?
         found = false
         Shard.partition_by_shard([@domain_root_account.id] + @domain_root_account.trusted_account_ids) do |account_ids|
@@ -151,9 +151,11 @@ class PseudonymsController < ApplicationController
       # Whether the email was actually found or not, we display the same
       # message. Otherwise this form could be used to fish for valid
       # email addresses.
-      flash[:notice] = t("notices.email_sent", "Confirmation email sent to %{email}, make sure to check your spam box", email:)
       @ccs.each(&:forgot_password!)
-      format.html { redirect_to(canvas_login_url) }
+      format.html do
+        flash[:notice] = t("notices.email_sent", "Confirmation email sent to %{email}, make sure to check your spam box", email:)
+        redirect_to(canvas_login_url)
+      end
       format.json { render json: { requested: true } }
       format.js { render json: { requested: true } }
     end
@@ -174,7 +176,7 @@ class PseudonymsController < ApplicationController
         flash[:error] = t 'The link you used has expired. Click "Forgot Password?" to get a new reset-password link.'
         redirect_to canvas_login_url
       end
-      @password_pseudonyms = @cc.user.pseudonyms.active_only.select { |p| p.account.canvas_authentication? }
+      @password_pseudonyms = @cc.user.pseudonyms_visible_to(@cc.user).select { |p| p.active? && p.account.canvas_authentication? }
       js_env PASSWORD_POLICY: @domain_root_account.password_policy,
              PASSWORD_POLICIES: @password_pseudonyms.to_h { |p| [p.id, p.account.password_policy] }
     end
@@ -187,15 +189,22 @@ class PseudonymsController < ApplicationController
       @pseudonym.require_password = true
       @pseudonym.password = params[:pseudonym][:password]
       @pseudonym.password_confirmation = params[:pseudonym][:password_confirmation]
-      if @pseudonym.save_without_session_maintenance
-        # If they changed the password (and we subsequently log them in) then
-        # we're pretty confident this is the right user, and the communication
-        # channel is valid, so register the user and approve the channel.
-        @cc.set_confirmation_code(true)
-        @cc.confirm
-        @cc.save
-        @pseudonym.user.register
 
+      pseudo_saved = User.transaction do
+        saved = @pseudonym.save_without_session_maintenance
+        if saved
+          # If they changed the password (and we subsequently log them in) then
+          # we're pretty confident this is the right user, and the communication
+          # channel is valid, so register the user and approve the channel.
+          @cc.set_confirmation_code(true)
+          @cc.confirm
+          @cc.save
+          @pseudonym.user.register
+        end
+        saved
+      end
+
+      if pseudo_saved
         # reset the session id cookie to prevent session fixation.
         reset_session
 
@@ -318,9 +327,9 @@ class PseudonymsController < ApplicationController
     end
 
     @pseudonym = @account.pseudonyms.build(user: @user)
-    return unless authorized_action(@pseudonym, @current_user, :create)
     return unless find_authentication_provider
     return unless update_pseudonym_from_params
+    return unless authorized_action(@pseudonym, @current_user, :create)
 
     @pseudonym.generate_temporary_password unless params[:pseudonym][:password]
     if Pseudonym.unique_constraint_retry { @pseudonym.save_without_session_maintenance }
@@ -432,9 +441,9 @@ class PseudonymsController < ApplicationController
       raise ActiveRecord::RecordNotFound unless @pseudonym.user_id == @user.id
     end
 
-    return unless authorized_action(@pseudonym, @current_user, [:update, :change_password])
     return unless find_authentication_provider
     return unless update_pseudonym_from_params
+    return unless authorized_action(@pseudonym, @current_user, [:update, :change_password])
 
     if @pseudonym.save_without_session_maintenance
       flash[:notice] = t "notices.account_updated", "Account updated!"
@@ -488,6 +497,15 @@ class PseudonymsController < ApplicationController
     end
   end
 
+  def migrate_login_attribute
+    return unless get_user
+
+    @pseudonym = @user.pseudonyms.find(params[:id])
+    return render_unauthorized_action unless @pseudonym.migrate_login_attribute(admin_user: @current_user)
+
+    render json: pseudonym_json(@pseudonym, @current_user, session)
+  end
+
   protected
 
   def context_is_root_account?
@@ -518,7 +536,7 @@ class PseudonymsController < ApplicationController
       :workflow_state,
       :declared_user_type
     ).blank?
-      render json: nil, status: :bad_request
+      render json: { message: "missing required parameter" }, status: :bad_request
       return false
     end
 

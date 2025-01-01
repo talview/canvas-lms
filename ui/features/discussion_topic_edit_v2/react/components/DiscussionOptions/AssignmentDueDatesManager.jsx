@@ -19,22 +19,23 @@
 import React, {useContext, useEffect, useState} from 'react'
 import {AssignmentDueDate} from './AssignmentDueDate'
 import {Text} from '@instructure/ui-text'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {Button, CloseButton} from '@instructure/ui-buttons'
+import {Checkbox} from '@instructure/ui-checkbox'
 import {nanoid} from 'nanoid'
 import {View} from '@instructure/ui-view'
 import {Flex} from '@instructure/ui-flex'
 import {IconAddLine} from '@instructure/ui-icons'
 import theme from '@instructure/canvas-theme'
 import {
-  GradedDiscussionDueDatesContext,
+  DiscussionDueDatesContext,
   defaultEveryoneOption,
   defaultEveryoneElseOption,
   masteryPathsOption,
 } from '../../util/constants'
 import CoursePacingNotice from '@canvas/due-dates/react/CoursePacingNotice'
 
-const I18n = useI18nScope('discussion_create')
+const I18n = createI18nScope('discussion_create')
 
 const getDefaultBaseOptions = (includeMasteryPath, everyoneOption) => {
   return includeMasteryPath ? [everyoneOption, masteryPathsOption] : [everyoneOption]
@@ -49,7 +50,9 @@ export const AssignmentDueDatesManager = () => {
     groups,
     gradedDiscussionRefMap,
     setGradedDiscussionRefMap,
-  } = useContext(GradedDiscussionDueDatesContext)
+    importantDates,
+    setImportantDates,
+  } = useContext(DiscussionDueDatesContext)
   const [listOptions, setListOptions] = useState({
     '': getDefaultBaseOptions(ENV.CONDITIONAL_RELEASE_SERVICE_ENABLED, defaultEveryoneOption),
     'Course Sections': sections.map(section => {
@@ -136,6 +139,8 @@ export const AssignmentDueDatesManager = () => {
 
   const isPacedDiscussion = ENV?.DISCUSSION_TOPIC?.ATTRIBUTES?.in_paced_course
 
+  const isImportantDatesDisabled = !assignedInfoList?.some(override => override.dueDate)
+
   return (
     <>
       <Text size="large">{I18n.t('Assignment Settings')}</Text>
@@ -147,9 +152,9 @@ export const AssignmentDueDatesManager = () => {
             <View key={info.dueDateId}>
               <div
                 style={{
-                  paddingTop: assignedInfoList.length === 1 ? theme.variables.spacing.medium : '0',
+                  paddingTop: assignedInfoList.length === 1 ? theme.spacing.medium : '0',
                   borderBottom: index < assignedInfoList.length - 1 ? '1px solid #C7CDD1' : 'none',
-                  paddingBottom: theme.variables.spacing.medium,
+                  paddingBottom: theme.spacing.medium,
                 }}
               >
                 {assignedInfoList.length > 1 && (
@@ -184,13 +189,24 @@ export const AssignmentDueDatesManager = () => {
               </div>
             </View>
           ))}
-          <Button
-            renderIcon={IconAddLine}
-            onClick={handleAddAssignment}
-            data-testid="add-assignment-override-seciont-btn"
-          >
-            {I18n.t('Add Assignment')}
-          </Button>
+          <View display="block" padding="0 0 medium 0">
+            <Button
+              renderIcon={IconAddLine}
+              onClick={handleAddAssignment}
+              data-testid="add-assignment-override-seciont-btn"
+            >
+              {I18n.t('Add Assignment')}
+            </Button>
+          </View>
+          {(ENV.K5_SUBJECT_COURSE || ENV.K5_HOMEROOM_COURSE) && (
+            <Checkbox
+              data-testid="important-dates-checkbox"
+              label={I18n.t('Mark as important date and show on homeroom sidebar')}
+              checked={importantDates && !isImportantDatesDisabled}
+              onChange={() => setImportantDates(!importantDates)}
+              disabled={isImportantDatesDisabled}
+            />
+          )}
         </>
       )}
     </>

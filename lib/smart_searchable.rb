@@ -41,6 +41,8 @@ module SmartSearchable
         include HtmlTextHelper
         has_many :embeddings, class_name: embedding_class_name, inverse_of: table_name.singularize.to_sym
         cattr_accessor :search_title_column, :search_body_column
+        attr_accessor :skip_embeddings
+
         after_save :generate_embeddings, if: :should_generate_embeddings?
         after_save :delete_embeddings, if: -> { deleted? && saved_change_to_workflow_state? }
       end
@@ -63,7 +65,8 @@ module SmartSearchable
   end
 
   def should_generate_embeddings?
-    return false if deleted?
+    return false if deleted? || skip_embeddings
+    return false unless context.is_a?(Course)
     return false unless SmartSearch.smart_search_available?(context)
 
     saved_changes.key?(self.class.search_title_column) || saved_changes.key?(self.class.search_body_column) ||
@@ -71,10 +74,10 @@ module SmartSearchable
   end
 
   def generate_embeddings
-    delete_embeddings
-    chunk_content do |chunk|
+    delete_embeddings(version: SmartSearch::EMBEDDING_VERSION)
+    chunk_content(SmartSearch::CHUNK_MAX_LENGTH) do |chunk|
       embedding = SmartSearch.generate_embedding(chunk)
-      embeddings.create!(embedding:)
+      embeddings.create!(embedding: embedding.to_json, version: SmartSearch::EMBEDDING_VERSION)
     end
   end
   handle_asynchronously :generate_embeddings, priority: Delayed::LOW_PRIORITY
@@ -107,14 +110,16 @@ module SmartSearchable
     html_to_text(attributes[self.class.search_body_column])
   end
 
-  def delete_embeddings
+  def delete_embeddings(version: nil)
     return unless ActiveRecord::Base.connection.table_exists?(self.class.embedding_class.table_name)
 
     # TODO: delete via the association once pgvector is available everywhere
     # (without :dependent, that would try to nullify the fk in violation of the constraint
     #  but with :dependent, instances without pgvector would try to access the nonexistent table when a page is deleted)
     shard.activate do
-      self.class.embedding_class.where(self.class.embedding_foreign_key => self).delete_all
+      scope = self.class.embedding_class.where(self.class.embedding_foreign_key => self)
+      scope = scope.where(version:) if version
+      scope.delete_all
     end
   end
 end

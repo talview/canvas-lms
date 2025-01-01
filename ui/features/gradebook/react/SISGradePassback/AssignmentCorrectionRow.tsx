@@ -1,4 +1,3 @@
-// @ts-nocheck
 /*
  * Copyright (C) 2014 - present Instructure, Inc.
  *
@@ -18,18 +17,19 @@
  */
 
 import $ from 'jquery'
+// @ts-expect-error
 import {where, isEmpty} from 'lodash'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import React from 'react'
+import {datetimeString} from '@canvas/datetime/date-functions'
 import assignmentUtils from './assignmentUtils'
 import classnames from 'classnames'
-import type PostGradesStore from './PostGradesStore'
+import {renderDatetimeField} from '@canvas/datetime/jquery/DatetimeField'
 import type {AssignmentWithOverride} from '../default_gradebook/gradebook.d'
 
-const I18n = useI18nScope('modules')
+const I18n = createI18nScope('modules')
 
 type Props = {
-  store: ReturnType<typeof PostGradesStore>
   onDateChanged: (date: string) => void
   assignmentList: any[]
   assignment: AssignmentWithOverride
@@ -41,6 +41,7 @@ class AssignmentCorrectionRow extends React.Component<Props> {
 
   dueAtRef: React.RefObject<HTMLInputElement>
 
+  // @ts-expect-error
   constructor(props) {
     super(props)
     this.nameRef = React.createRef<HTMLInputElement>()
@@ -51,6 +52,7 @@ class AssignmentCorrectionRow extends React.Component<Props> {
     this.initDueAtDateTimeField()
   }
 
+  // @ts-expect-error
   handleDateChanged = _e => {
     // send date chosen in jquery date-picker so that
     // the assignment or assignment override due_at is set
@@ -63,10 +65,11 @@ class AssignmentCorrectionRow extends React.Component<Props> {
   initDueAtDateTimeField = () => {
     if (this.dueAtRef.current) {
       const $picker = $(this.dueAtRef.current)
-      $picker.datetime_field().change(this.handleDateChanged)
+      renderDatetimeField($picker).change(this.handleDateChanged)
     }
   }
 
+  // @ts-expect-error
   ignoreAssignment = e => {
     e.preventDefault()
     this.props.updateAssignment({please_ignore: true})
@@ -75,6 +78,7 @@ class AssignmentCorrectionRow extends React.Component<Props> {
   // The real 'change' event for due_at happens in initDueAtDateTimeField,
   // but we need to check a couple of things during keypress events to
   // maintain assignment state consistency
+  // @ts-expect-error
   checkDueAtChange = e => {
     if (this.props.assignment.overrideForThisSection) {
       if (!e.target.value && this.dueAtRef.current) {
@@ -97,10 +101,12 @@ class AssignmentCorrectionRow extends React.Component<Props> {
     }
   }
 
+  // @ts-expect-error
   updateAssignmentName = e => {
     this.props.updateAssignment({name: e.target.value, please_ignore: false})
   }
 
+  // @ts-expect-error
   currentSectionforOverride = a => {
     if (
       isEmpty(where(a.overrides, {course_section_id: a.currentlySelected.id.toString()})) ||
@@ -112,6 +118,7 @@ class AssignmentCorrectionRow extends React.Component<Props> {
     }
   }
 
+  // @ts-expect-error
   validCheck = a => {
     if (a.overrideForThisSection && a.currentlySelected.type === 'course') {
       return a.due_at != null
@@ -151,10 +158,10 @@ class AssignmentCorrectionRow extends React.Component<Props> {
 
     // handles data being filled in the inputs if there are name issues on an assignment with an assignment override
     if (assignment.overrideForThisSection) {
-      default_value = $.datetimeString(assignment.overrideForThisSection.due_at, {format: 'medium'})
+      default_value = datetimeString(assignment.overrideForThisSection.due_at, {format: 'medium'})
       place_holder = assignment.overrideForThisSection.due_at ? null : I18n.t('No Due Date')
     } else {
-      default_value = $.datetimeString(assignment.due_at, {format: 'medium'})
+      default_value = datetimeString(assignment.due_at, {format: 'medium'})
       place_holder = assignment.due_at ? null : I18n.t('No Due Date')
     }
 
@@ -163,7 +170,7 @@ class AssignmentCorrectionRow extends React.Component<Props> {
       assignmentUtils.noDueDateForEveryoneElseOverride(assignment) &&
       this.currentSectionforOverride(assignment)
     ) {
-      default_value = $.datetimeString(assignment.due_at, {format: 'medium'})
+      default_value = datetimeString(assignment.due_at, {format: 'medium'})
       dueAtError = true
     }
 

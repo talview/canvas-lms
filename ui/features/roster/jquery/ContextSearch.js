@@ -16,20 +16,20 @@
 // with this program. If not, see <http://www.gnu.org/licenses/>.
 //
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import {keys} from 'lodash'
 import contextList from '../util/contextList'
 import _TokenInput from './TokenInput'
 import avatarTemplate from '@canvas/avatar/jst/_avatar.handlebars'
-import _inherits from '@babel/runtime/helpers/esm/inheritsLoose'
+import {extend} from '@canvas/backbone/utils'
 import newless from 'newless'
 
-const I18n = useI18nScope('recipient_input')
+const I18n = createI18nScope('recipient_input')
 
 const TokenInput = newless(_TokenInput)
 
-_inherits(ContextSearch, TokenInput)
+extend(ContextSearch, TokenInput)
 
 export default function ContextSearch($node, options) {
   this.populator = this.populator.bind(this)

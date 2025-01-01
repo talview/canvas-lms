@@ -449,7 +449,7 @@ describe ConversationsController, type: :request do
 
     context "sent scope" do
       it "sorts by last authored date" do
-        expected_times = 5.times.to_a.reverse.map { |h| Time.parse((Time.now.utc - h.hours).to_s) }
+        expected_times = 5.times.to_a.reverse.map { |h| Time.zone.parse((Time.now.utc - h.hours).to_s) }
         Timecop.travel(expected_times[0]) do
           @c1 = conversation(@bob)
         end
@@ -2538,7 +2538,7 @@ describe ConversationsController, type: :request do
                    "/api/v1/conversations/#{conv.id}/delete_for_all",
                    { controller: "conversations", action: "delete_for_all", format: "json", id: conv.id.to_s },
                    { domain_root_account: Account.site_admin })
-      assert_status(401)
+      assert_forbidden
 
       account_admin_user
       Account.default.pseudonyms.create!(unique_id: "admin", user: @user)
@@ -2546,14 +2546,14 @@ describe ConversationsController, type: :request do
                    "/api/v1/conversations/#{conv.id}/delete_for_all",
                    { controller: "conversations", action: "delete_for_all", format: "json", id: conv.id.to_s },
                    {})
-      assert_status(401)
+      assert_forbidden
 
       @user = @me
       raw_api_call(:delete,
                    "/api/v1/conversations/#{conv.id}/delete_for_all",
                    { controller: "conversations", action: "delete_for_all", format: "json", id: conv.id.to_s },
                    {})
-      assert_status(401)
+      assert_forbidden
 
       expect(@me.all_conversations.size).to be 1
       expect(@joe.conversations.size).to be 1

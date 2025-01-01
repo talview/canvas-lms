@@ -15,7 +15,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import {map, some, every, find, filter, reject, isEmpty} from 'lodash'
 import Backbone from '@canvas/backbone'
@@ -31,7 +31,7 @@ import {nanoid} from 'nanoid'
 import 'jquery-kyle-menu'
 import '@canvas/jquery/jquery.disableWhileLoading'
 
-const I18n = useI18nScope('RosterUserView')
+const I18n = createI18nScope('RosterUserView')
 
 let editSectionsDialog = null
 let editRolesDialog = null
@@ -84,7 +84,6 @@ export default class RosterUserView extends Backbone.View {
 
   permissionsJSON(json) {
     json.url = `${ENV.COURSE_ROOT_URL}/users/${this.model.get('id')}`
-    json.faculyJournalUrl = `/users/${this.model.get('id')}/user_notes`
     json.isObserver = this.model.hasEnrollmentType('ObserverEnrollment')
     json.isPending = this.model.pending(this.model.currentRole)
     json.isInactive = this.model.inactive()
@@ -93,11 +92,10 @@ export default class RosterUserView extends Backbone.View {
     }
     json.canRemoveUsers = every(this.model.get('enrollments'), e => e.can_be_removed)
     json.canResendInvitation =
-      !json.isInactive && (ENV.FEATURES.granular_permissions_manage_users
-        ? some(this.model.get('enrollments'), en =>
-            ENV.permissions.active_granular_enrollment_permissions.includes(en.type)
-          )
-        : true)
+      !json.isInactive &&
+      some(this.model.get('enrollments'), en =>
+        ENV.permissions.active_granular_enrollment_permissions.includes(en.type)
+      )
 
     if (json.canRemoveUsers && !ENV.course.concluded) {
       json.canEditRoles = !some(
@@ -110,10 +108,9 @@ export default class RosterUserView extends Backbone.View {
     json.canLinkStudents = json.isObserver && !ENV.course.concluded
     json.canViewLoginIdColumn = ENV.permissions.view_user_logins
     json.canViewSisIdColumn = ENV.permissions.read_sis
-    json.canManageUserNotes = ENV.permissions.manage_user_notes
 
-    const candoAdminActions =
-      ENV.permissions.can_allow_course_admin_actions || ENV.permissions.manage_admin_users
+    const candoAdminActions = ENV.permissions.can_allow_course_admin_actions
+
     json.canManage = some(['TeacherEnrollment', 'DesignerEnrollment', 'TaEnrollment'], et =>
       this.model.hasEnrollmentType(et)
     )
@@ -209,7 +206,7 @@ export default class RosterUserView extends Backbone.View {
 
   deactivateUser() {
     if (
-      // eslint-disable-next-line no-alert
+       
       !window.confirm(
         I18n.t(
           'Are you sure you want to deactivate this user? They will be unable to participate in the course while inactive.'
@@ -264,7 +261,7 @@ export default class RosterUserView extends Backbone.View {
   }
 
   removeFromCourse(_e) {
-    // eslint-disable-next-line no-alert
+     
     if (!window.confirm(I18n.t('Are you sure you want to remove this user?'))) {
       return
     }
@@ -312,6 +309,7 @@ export default class RosterUserView extends Backbone.View {
   }
 
   afterRender() {
+     
     ReactDOM.render(
       <a href={`users/${this.model.id}`}>
         <Avatar

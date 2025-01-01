@@ -34,6 +34,9 @@ function AssignmentOverrideCollection() {
   this.containsDefaultDueDate = this.containsDefaultDueDate.bind(this)
   this.getDefaultDueDate = this.getDefaultDueDate.bind(this)
   this.courseSectionIDs = this.courseSectionIDs.bind(this)
+  this.contextModuleIDs = this.contextModuleIDs.bind(this)
+  this.onlyContainsModuleOverrides = this.onlyContainsModuleOverrides.bind(this)
+  this.courseIDs = this.courseIDs.bind(this)
   return AssignmentOverrideCollection.__super__.constructor.apply(this, arguments)
 }
 
@@ -43,18 +46,32 @@ AssignmentOverrideCollection.prototype.courseSectionIDs = function () {
   return this.pluck('course_section_id')
 }
 
+AssignmentOverrideCollection.prototype.courseIDs = function () {
+  return this.pluck('course_id')
+}
+
+AssignmentOverrideCollection.prototype.contextModuleIDs = function () {
+  return this.pluck('context_module_id').filter(id => id !== undefined && id !== null && id !== '')
+}
+
 AssignmentOverrideCollection.prototype.comparator = function (override) {
   return override.id
 }
 
 AssignmentOverrideCollection.prototype.getDefaultDueDate = function () {
   return this.detect(function (override) {
-    return override.getCourseSectionID() === Section.defaultDueDateSectionID
+    return (
+      override.getCourseSectionID() === Section.defaultDueDateSectionID || override.getCourseID()
+    )
   })
 }
 
 AssignmentOverrideCollection.prototype.containsDefaultDueDate = function () {
   return !!this.getDefaultDueDate()
+}
+
+AssignmentOverrideCollection.prototype.onlyContainsModuleOverrides = function () {
+  return this.contextModuleIDs().length > 0 && this.contextModuleIDs().length === this.models.length
 }
 
 AssignmentOverrideCollection.prototype.blank = function () {

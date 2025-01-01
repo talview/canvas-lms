@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License along
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import React from 'react'
 import ReactDOM from 'react-dom'
@@ -32,7 +32,7 @@ import '@canvas/rails-flash-notifications'
 import Rubric from '../react/Rubric'
 import {fillAssessment, updateAssociationData} from '../react/helpers'
 
-const I18n = useI18nScope('rubric_assessment')
+const I18n = createI18nScope('rubric_assessment')
 
 // TODO: stop managing this in the view and get it out of the global scope submissions/show.html.erb
 /* global rubricAssessment */
@@ -358,6 +358,7 @@ window.rubricAssessment = {
       rubricAssessment.currentAssociation = association
 
       const render = currentAssessment => {
+         
         ReactDOM.render(
           <Rubric
             allowExtraCredit={ENV.outcome_extra_credit_enabled}
@@ -438,7 +439,7 @@ window.rubricAssessment = {
         if (!rating.id) {
           $criterion.find('.rating').each(function () {
             const rating_val = parseFloat($(this).find('.points').text(), 10)
-            if (rating_val == rating.points) {
+            if (rating_val === rating.points) {
               rating.id = $(this).find('.rating_id').text()
             }
           })
@@ -502,6 +503,7 @@ window.rubricAssessment = {
           assessment || {},
           ENV.RUBRIC_ASSESSMENT
         )
+         
         ReactDOM.render(
           <Rubric
             customRatings={ENV.outcome_proficiency ? ENV.outcome_proficiency.ratings : []}

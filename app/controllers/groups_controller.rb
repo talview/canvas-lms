@@ -88,6 +88,11 @@
 #           "example": "Course",
 #           "type": "string"
 #         },
+#         "context_name": {
+#           "description": "The course or account name that the group belongs to.",
+#           "example": "Course 101",
+#           "type": "string"
+#         },
 #         "course_id": {
 #           "example": 3,
 #           "type": "integer"
@@ -141,12 +146,14 @@
 class GroupsController < ApplicationController
   before_action :get_context
   before_action :require_user, only: %w[index accept_invitation activity_stream activity_stream_summary]
+  before_action :check_limited_access_for_students, only: %i[create_file]
 
   include Api::V1::Attachment
   include Api::V1::Group
   include Api::V1::GroupCategory
   include Context
   include K5Mode
+  include GroupPermissionHelper
 
   SETTABLE_GROUP_ATTRIBUTES = %w[
     name
@@ -173,7 +180,7 @@ class GroupsController < ApplicationController
     category = @context.group_categories.where(id: params[:category_id]).first
     return render json: {}, status: :not_found unless category
 
-    page = (params[:page] || 1).to_i rescue 1
+    page = (params[:page] || 1).to_i
     per_page = Api.per_page_for(self, default: 15, max: 100)
     groups = if category && !category.student_organized?
                category.groups.active
@@ -217,8 +224,11 @@ class GroupsController < ApplicationController
   def index
     return context_index if @context
 
+    page_has_instui_topnav
     includes = { include: params[:include] }
     groups_scope = @current_user.current_groups
+    page_has_instui_topnav
+
     respond_to do |format|
       format.html do
         groups_scope = groups_scope.where(context_type: params[:context_type]) if params[:context_type]
@@ -264,9 +274,10 @@ class GroupsController < ApplicationController
   def context_index
     return unless authorized_action(@context, @current_user, :read_roster)
 
-    @groups = all_groups = @context.groups.active
+    page_has_instui_topnav
+    @groups = @context.groups.active
     unless params[:filter].nil?
-      @groups = all_groups = @groups.left_outer_joins(:users).where("groups.name ILIKE :query OR users.name ILIKE :query", query: "%#{ActiveRecord::Base.sanitize_sql_like(params[:filter])}%")
+      @groups = @groups.left_outer_joins(:users).where("groups.name ILIKE :query OR users.name ILIKE :query", query: "%#{ActiveRecord::Base.sanitize_sql_like(params[:filter])}%")
     end
     @groups = all_groups = @groups.order(GroupCategory::Bookmarker.order_by, Group::Bookmarker.order_by)
                                   .eager_load(:group_category).preload(:root_account)
@@ -314,7 +325,7 @@ class GroupsController < ApplicationController
         @categories  = @context.group_categories.order(Arel.sql("role <> 'student_organized'"), GroupCategory.best_unicode_collation_key("name")).preload(:root_account)
         @user_groups = @current_user.group_memberships_for(@context) if @current_user
 
-        if @context.grants_any_right?(@current_user, session, :manage_groups, *RoleOverride::GRANULAR_MANAGE_GROUPS_PERMISSIONS)
+        if @context.grants_any_right?(@current_user, session, *RoleOverride::GRANULAR_MANAGE_GROUPS_PERMISSIONS)
           categories_json = @categories.map { |cat| group_category_json(cat, @current_user, session, include: %w[progress_url unassigned_users_count groups_count]) }
           uncategorized = @context.groups.active.uncategorized.to_a
           if uncategorized.present?
@@ -324,9 +335,9 @@ class GroupsController < ApplicationController
           end
 
           js_permissions = {
-            can_add_groups: @context.grants_any_right?(@current_user, session, :manage_groups, :manage_groups_add),
-            can_manage_groups: @context.grants_any_right?(@current_user, session, :manage_groups, :manage_groups_manage),
-            can_delete_groups: @context.grants_any_right?(@current_user, session, :manage_groups, :manage_groups_delete)
+            can_add_groups: @context.grants_right?(@current_user, session, :manage_groups_add),
+            can_manage_groups: @context.grants_right?(@current_user, session, :manage_groups_manage),
+            can_delete_groups: @context.grants_right?(@current_user, session, :manage_groups_delete)
           }
 
           js_env group_categories: categories_json,
@@ -338,6 +349,7 @@ class GroupsController < ApplicationController
           if @context.is_a?(Course)
             # get number of sections with students in them so we can enforce a min group size for random assignment on sections
             js_env(student_section_count: @context.enrollments.active_or_pending.where(type: "StudentEnrollment").distinct.count(:course_section_id))
+            js_env(self_signup_deadline_enabled: @context.account.feature_enabled?(:self_signup_deadline))
           end
           # since there are generally lots of users in an account, always do large roster view
           @js_env[:IS_LARGE_ROSTER] ||= @context.is_a?(Account)
@@ -400,6 +412,7 @@ class GroupsController < ApplicationController
           add_crumb @group.short_name, named_context_url(@group, :context_url)
         end
         @context = @group
+        page_has_instui_topnav
         assign_localizer
         if @group.deleted? && @group.context
           flash[:notice] = t("notices.already_deleted", "That group has been deleted")
@@ -410,8 +423,8 @@ class GroupsController < ApplicationController
           redirect_to dashboard_url
           return
         end
-        @current_conferences = @group.web_conferences.active.select { |c| c.active? && c.users.include?(@current_user) } rescue []
-        @scheduled_conferences = @context.web_conferences.active.select { |c| c.scheduled? && c.users.include?(@current_user) } rescue []
+        @current_conferences = @group.web_conferences.active.select { |c| c.active? && c.users.include?(@current_user) }
+        @scheduled_conferences = @context.web_conferences.active.select { |c| c.scheduled? && c.users.include?(@current_user) }
         @stream_items = @current_user.try(:cached_recent_stream_items, { contexts: @context }) || []
         if params[:join] && @group.grants_right?(@current_user, :join)
           if @group.full?
@@ -457,7 +470,7 @@ class GroupsController < ApplicationController
   end
 
   def new
-    if authorized_action(@context, @current_user, [:manage_groups, :manage_groups_add])
+    if authorized_action(@context, @current_user, :manage_groups_add)
       @group = @context.groups.build
     end
   end
@@ -501,28 +514,53 @@ class GroupsController < ApplicationController
     if api_request?
       if params[:group_category_id]
         group_category = api_find(GroupCategory.active, params[:group_category_id])
-        return render json: {}, status: bad_request unless group_category
+        return render json: {}, status: :bad_request unless group_category
 
         @context = group_category.context
         attrs[:group_category] = group_category
-        return unless authorized_action(group_category.context, @current_user, [:manage_groups, :manage_groups_add])
+
+        non_collaborative = group_category.non_collaborative?
+
+        unless check_group_authorization(
+          context: @context,
+          current_user: @current_user,
+          action_category: :add,
+          non_collaborative:
+        )
+          return render json: { message: "Not authorized to create groups in this category" }, status: :unauthorized
+        end
       else
         @context = @domain_root_account
         attrs[:group_category] = GroupCategory.communities_for(@context)
       end
     elsif params[:group]
-      group_category_id = params[:group].delete :group_category_id
-      if group_category_id && @context.grants_any_right?(@current_user, session, :manage_groups, :manage_groups_add)
-        group_category = @context.group_categories.where(id: group_category_id).first
+      group_category_id = params[:group].delete(:group_category_id)
+      if group_category_id
+        group_category = @context.active_combined_group_and_differentiation_tag_categories.where(id: group_category_id).first
         return render json: {}, status: :bad_request unless group_category
 
         attrs[:group_category] = group_category
+
+        non_collaborative = group_category.non_collaborative?
+        unless check_group_context_rights(
+          context: @context,
+          current_user: @current_user,
+          action_category: :add,
+          non_collaborative:
+        )
+          if non_collaborative
+            return render json: { message: "Not authorized to create groups in this category" }, status: :unauthorized
+          else
+            # If collaborative and not authorized, fall back to not setting the category
+            attrs[:group_category] = nil
+          end
+        end
       else
         attrs[:group_category] = nil
       end
     end
 
-    attrs.delete :storage_quota_mb unless @context.grants_right? @current_user, session, :manage_storage_quotas
+    attrs.delete :storage_quota_mb unless @context.grants_right?(@current_user, session, :manage_storage_quotas)
     @group = @context.groups.temp_record(attrs.slice(*SETTABLE_GROUP_ATTRIBUTES))
 
     if authorized_action(@group, @current_user, :create)
@@ -954,7 +992,7 @@ class GroupsController < ApplicationController
       @group = api_find(Group.active, params[:group_id])
     else
       @group = @context if @context.is_a?(Group)
-      @group ||= api_find(@context ? @context.groups : Group, params[:id])
+      @group ||= api_find(@context ? @context.combined_groups_and_differentiation_tags : Group, params[:id])
     end
   end
 end

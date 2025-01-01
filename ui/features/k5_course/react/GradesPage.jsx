@@ -17,7 +17,7 @@
  */
 
 import React, {useState, useCallback, useEffect, useRef} from 'react'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import PropTypes from 'prop-types'
 
 import {Tabs} from '@instructure/ui-tabs'
@@ -32,7 +32,7 @@ import GradeDetails from './GradeDetails'
 import IndividualStudentMastery from '@canvas/grade-summary'
 import {outcomeProficiencyShape} from '@canvas/grade-summary/react/IndividualStudentMastery/shapes'
 
-const I18n = useI18nScope('course_grades_page')
+const I18n = createI18nScope('course_grades_page')
 
 export const GradesPage = ({
   courseId,
@@ -47,6 +47,7 @@ export const GradesPage = ({
   gradingScheme,
   pointsBasedGradingScheme,
   restrictQuantitativeData,
+  scalingFactor,
 }) => {
   const [loadingGradingPeriods, setLoadingGradingPeriods] = useState(true)
   const [error, setError] = useState(null)
@@ -122,6 +123,7 @@ export const GradesPage = ({
         gradingScheme={gradingScheme}
         pointsBasedGradingScheme={pointsBasedGradingScheme}
         restrictQuantitativeData={restrictQuantitativeData}
+        scalingFactor={scalingFactor}
       />
     </>
   )
@@ -192,6 +194,7 @@ GradesPage.propTypes = {
   gradingScheme: PropTypes.array,
   pointsBasedGradingScheme: PropTypes.bool,
   restrictQuantitativeData: PropTypes.bool,
+  scalingFactor: PropTypes.number,
 }
 
 export default GradesPage

@@ -25,7 +25,7 @@ import type {
   FinalGradeOverrideMap,
   FinalGradeOverride,
 } from '@canvas/grading/grading.d'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {showFlashError} from '@canvas/alerts/react/FlashAlert'
 import {Text} from '@instructure/ui-text'
 import {IconWarningLine} from '@instructure/ui-icons'
@@ -48,7 +48,7 @@ import {GradingPeriodScores} from './GradingPeriodScores'
 import {AssignmentGroupScores} from './AssignmentGroupScores'
 import {Link} from '@instructure/ui-link'
 
-const I18n = useI18nScope('enhanced_individual_gradebook')
+const I18n = createI18nScope('enhanced_individual_gradebook')
 
 type Props = {
   student?: GradebookStudentDetails
@@ -185,10 +185,10 @@ export default function StudentInformation({
 
       if (displayAsScaledPoints && possible) {
         const scaledPossible = I18n.n(scalingFactor, {
-          precision: 1,
+          precision: 2,
         })
         const scaledScore = I18n.n(scoreToScaledPoints(score, possible, scalingFactor), {
-          precision: 1,
+          precision: 2,
         })
 
         finalGradeText = `${scaledScore} / ${scaledPossible}`
@@ -205,13 +205,26 @@ export default function StudentInformation({
       (!selectedGradingPeriodId && gradingPeriodSet?.weighted)
     )
     const showPointsText = !!(!hidePointsText && gradeToDisplay)
-    const pointsText = showPointsText
-      ? ` (${gradeToDisplay.score} / ${gradeToDisplay.possible} ${I18n.t('points')})`
-      : ''
+    let pointsText = ''
+    if (showPointsText) {
+      const scoreText = I18n.n(gradeToDisplay.score, {
+        precision: gradingStandardPointsBased ? 2 : undefined,
+      })
+      const possibleText = gradingStandardPointsBased
+        ? I18n.n(gradeToDisplay.possible, {precision: 2})
+        : I18n.n(gradeToDisplay.possible)
+      pointsText = ` (${scoreText} / ${possibleText} ${I18n.t('points')})`
+    }
 
     const letterGradeText = gradingStandard
       ? ` - ${GradeFormatHelper.replaceDashWithMinus(
-          getLetterGrade(possible, score, gradingStandard, gradingStandardPointsBased)
+          getLetterGrade(
+            possible,
+            score,
+            gradingStandard,
+            gradingStandardPointsBased,
+            gradingStandardScalingFactor
+          )
         )}`
       : ''
 

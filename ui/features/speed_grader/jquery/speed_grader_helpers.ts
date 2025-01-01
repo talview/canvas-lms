@@ -19,9 +19,9 @@
 import type JQuery from 'jquery'
 import $ from 'jquery'
 import {each} from 'lodash'
-import {useScope as useI18nScope} from '@canvas/i18n'
-import '@canvas/datetime/jquery'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import '@canvas/jquery/jquery.instructure_misc_helpers'
+import {datetimeString} from '@canvas/datetime/date-functions'
 import replaceTags from '@canvas/util/replaceTags'
 import type {
   HistoricalSubmission,
@@ -30,7 +30,7 @@ import type {
   SubmissionState,
 } from './speed_grader.d'
 
-const I18n = useI18nScope('speed_grader_helpers')
+const I18n = createI18nScope('speed_grader_helpers')
 
 const speedGraderHelpers = {
   getHistory() {
@@ -106,6 +106,7 @@ const speedGraderHelpers = {
     }
     const select = '&version='
     // check if the version is valid, or matches the index
+    // @ts-expect-error
     const version = submission.submission_history[currentSelectedIndex].submission.version
     if (version == null || Number.isNaN(Number(version))) {
       return select + currentSelectedIndex
@@ -170,7 +171,7 @@ const speedGraderHelpers = {
         break
       case 'resubmitted':
         formatted = I18n.t('graded_then_resubmitted', 'graded, then resubmitted (%{when})', {
-          when: $.datetimeString(submission.submitted_at),
+          when: datetimeString(submission.submitted_at),
         })
         break
     }
@@ -192,6 +193,16 @@ const speedGraderHelpers = {
         // if we are a provisional grader and it doesn't need a grade (and we haven't given one already) then we shouldn't be able to grade it
         return 'not_gradeable'
       } else if (
+        submission.submitted_at === null &&
+        submission.grade === null &&
+        submission.workflow_state === 'graded' &&
+        !submission.excused
+      ) {
+        // if a teacher entered a grade on accident and clears it out
+        // for a student that doesn't have a submission, ensure that it
+        // does not show as not_graded
+        return 'not_submitted'
+      } else if (
         !(submission.final_provisional_grade && submission.final_provisional_grade.grade) &&
         !submission.excused &&
         (typeof submission.grade === 'undefined' ||
@@ -208,10 +219,36 @@ const speedGraderHelpers = {
       return 'not_submitted'
     }
   },
+
+  submissionStateSortingValue(student: StudentWithSubmission, grading_role: string) {
+    const states = {
+      not_graded: 1,
+      resubmitted: 2,
+      not_submitted: 3,
+      graded: 4,
+      not_gradeable: 5,
+    }
+    return states[this.submissionState(student, grading_role)]
+  },
+
+  randomizedStudentSorter(
+    studentWithSubmission: StudentWithSubmission[],
+    sort_function: (student: StudentWithSubmission) => number = () => Math.random()
+  ) {
+    return studentWithSubmission
+      .map(student => ({
+        student,
+        sort: sort_function(student),
+      }))
+      .sort((a, b) => a.sort - b.sort)
+      .map(({student}) => student)
+  },
+
   plagiarismResubmitHandler: (event: any, resubmitUrl: string) => {
     event.preventDefault()
 
     $(event.target).prop('disabled', true).text(I18n.t('turnitin.resubmitting', 'Resubmitting...'))
+    // @ts-expect-error
     $.ajaxJSON(resubmitUrl, 'POST', {}, () => {
       speedGraderHelpers.reloadPage()
     })

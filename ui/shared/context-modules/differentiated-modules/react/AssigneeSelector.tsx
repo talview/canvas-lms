@@ -17,21 +17,25 @@
  */
 
 import CanvasMultiSelect, {type Size} from '@canvas/multi-select/react'
-import React, {type ReactElement, useEffect, useRef, useState} from 'react'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import React, {type ReactElement, useEffect, useRef, useState, useCallback, useMemo} from 'react'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {Link} from '@instructure/ui-link'
 import {View} from '@instructure/ui-view'
 import {Text} from '@instructure/ui-text'
+import doFetchApi from '@canvas/do-fetch-api-effect'
 import {debounce} from 'lodash'
 import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import {setContainScrollBehavior} from '../utils/assignToHelper'
 import useFetchAssignees from '../utils/hooks/useFetchAssignees'
 import type {FormMessage} from '@instructure/ui-form-field'
 import {showFlashAlert} from '@canvas/alerts/react/FlashAlert'
+import type {AssigneeOption} from './Item/types'
+import type {ItemType} from './types'
+import {Spinner} from '@instructure/ui-spinner'
 
 const {Option: CanvasMultiSelectOption} = CanvasMultiSelect as any
 
-const I18n = useI18nScope('differentiated_modules')
+const I18n = createI18nScope('differentiated_modules')
 
 interface Props {
   courseId: string
@@ -51,14 +55,9 @@ interface Props {
   showVisualLabel?: boolean
   inputRef?: (inputElement: HTMLInputElement | null) => void
   onBlur?: () => void
-}
-
-export interface AssigneeOption {
-  id: string
-  value: string
-  sisID?: string
-  overrideId?: string
-  group?: string
+  disabledWithGradingPeriod?: boolean
+  disabledOptionIdsRef?: React.MutableRefObject<string[]>
+  itemType?: ItemType
 }
 
 const AssigneeSelector = ({
@@ -79,10 +78,14 @@ const AssigneeSelector = ({
   showVisualLabel = true,
   inputRef,
   onBlur,
+  disabledWithGradingPeriod,
+  disabledOptionIdsRef,
+  itemType,
 }: Props) => {
   const listElementRef = useRef<HTMLElement | null>(null)
   const [options, setOptions] = useState<AssigneeOption[]>(defaultValues)
-  const [isShowingOptions, setIsShowingOptions] = useState(false)
+  const [loadedOptions, setloadedOptions] = useState<AssigneeOption[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
   const {allOptions, isLoading, setSearchTerm} = useFetchAssignees({
     courseId,
     everyoneOption,
@@ -94,24 +97,29 @@ const AssigneeSelector = ({
     onError,
   })
   const [highlightedOptionId, setHighlightedOptionId] = useState<string | null>(null)
+  const disabledOptions = disabledOptionIdsRef?.current ?? disabledOptionIds
 
   const shouldUpdateOptions = [
     JSON.stringify(allOptions),
-    JSON.stringify(disabledOptionIds),
+    JSON.stringify(loadedOptions),
+    JSON.stringify(disabledOptions),
     JSON.stringify(selectedOptionIds),
   ]
 
-  useEffect(() => {
-    const newOptions = allOptions.filter(
-      option => selectedOptionIds.includes(option.id) || !disabledOptionIds.includes(option.id)
+  const filteredOptions = useCallback(() => {
+    const unfilteredOptions =
+      isLoading && loadedOptions.length > 0
+        ? loadedOptions
+        : [...new Map([...allOptions, ...defaultValues].map(item => [item.id, item])).values()]
+    return unfilteredOptions.filter(
+      option => selectedOptionIds.includes(option.id) || !disabledOptions.includes(option.id)
     )
-    setOptions(newOptions)
+  }, [allOptions, defaultValues, disabledOptions, isLoading, loadedOptions, selectedOptionIds])
+
+  useEffect(() => {
+    setOptions(filteredOptions())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, shouldUpdateOptions)
-
-  const handleSelectOption = () => {
-    setIsShowingOptions(false)
-  }
 
   const handleChange = (newSelected: string[]) => {
     const newSelectedSet = new Set(newSelected)
@@ -119,10 +127,45 @@ const AssigneeSelector = ({
     onSelect(selected)
   }
 
-  const handleInputChange = debounce(value => setSearchTerm(value), 500)
+  const handleInputChange = debounce(value => {
+    setSearchTerm(value)
+
+    if (value.length >= 2 && isLoading && ENV.FEATURES?.assign_to_improved_search) {
+      setSearchLoading(true)
+      doFetchApi({
+        path: `/api/v1/courses/${courseId}/users?search_term=${value}&enrollment_type=student&per_page=100`,
+        method: 'GET',
+      })
+        .then(({json}) => {
+          if ((json as any[]).length === 0) {
+            setSearchLoading(false)
+            return
+          }
+          const combinedLoadedOptions = [
+            ...(loadedOptions.length === 0 ? allOptions : []),
+            ...loadedOptions,
+            ...defaultValues,
+            ...(json as any[]).map((user: any) => ({
+              id: `student-${user.id}`,
+              value: user.name,
+              sisID: user.sis_user_id,
+              group: 'Students',
+            })),
+          ]
+          setloadedOptions([
+            ...new Map([...combinedLoadedOptions].map(item => [item.id, item])).values(),
+          ])
+        })
+        .catch((err: Error) => {
+          showFlashAlert({
+            err,
+            message: I18n.t(`An error occurred while searching`),
+          })
+        })
+    }
+  }, 500)
 
   const handleShowOptions = () => {
-    setIsShowingOptions(true)
     setTimeout(() => {
       setContainScrollBehavior(listElementRef.current)
     }, 500)
@@ -141,7 +184,8 @@ const AssigneeSelector = ({
     },
     term: string
   ): boolean => {
-    const selectedOption = allOptions.find(o => o.id === option.id)
+    const unfilteredOptions = isLoading && loadedOptions.length > 0 ? loadedOptions : allOptions
+    const selectedOption = unfilteredOptions.find(o => o.id === option.id)
     return (
       selectedOption?.value.toLowerCase().includes(term.toLowerCase()) ||
       selectedOption?.sisID?.toLowerCase().includes(term.toLowerCase()) ||
@@ -149,25 +193,58 @@ const AssigneeSelector = ({
     )
   }
 
+  const handleFocus = useCallback(() => {
+    setOptions(filteredOptions())
+  }, [filteredOptions])
+
+  const handleClick = useCallback(() => {
+    setSearchLoading(false)
+  }, [])
+
+  const shouldDisableSelector = useMemo(() => {
+    if (!(itemType === 'discussion' || itemType === 'discussion_topic')) return false
+    return ENV?.current_user_is_student
+  }, [itemType])
+
   return (
     <>
       <CanvasMultiSelect
+        disabled={disabledWithGradingPeriod || shouldDisableSelector}
         data-testid="assignee_selector"
         messages={messages}
         label={showVisualLabel ? label : <ScreenReaderContent>{label}</ScreenReaderContent>}
         size={size}
         selectedOptionIds={selectedOptionIds}
         onChange={handleChange}
-        renderAfterInput={<></>}
+        renderAfterInput={
+          isLoading && !ENV.FEATURES?.assign_to_improved_search ? (
+            <Spinner
+              renderTitle={
+                <ScreenReaderContent>
+                  {I18n.t('Loading student, section, and group data')}
+                </ScreenReaderContent>
+              }
+              size="x-small"
+            />
+          ) : (
+            <></>
+          )
+        }
+        placeholder={
+          ENV.FEATURES?.assign_to_improved_search && selectedOptionIds.length <= 2
+            ? I18n.t('Start typing to search...')
+            : undefined
+        }
         customOnInputChange={handleInputChange}
         visibleOptionsCount={10}
-        isLoading={isLoading}
+        isLoading={isLoading && searchLoading}
+        isRequired={true}
         setInputRef={inputRef}
         listRef={e => (listElementRef.current = e)}
-        isShowingOptions={isShowingOptions}
         customOnRequestShowOptions={handleShowOptions}
-        customOnRequestHideOptions={() => setIsShowingOptions(false)}
-        customOnRequestSelectOption={handleSelectOption}
+        // @ts-expect-error
+        onFocus={handleFocus}
+        onClick={handleClick}
         customRenderBeforeInput={tags =>
           tags?.map((tag: ReactElement) => (
             <View
@@ -185,7 +262,12 @@ const AssigneeSelector = ({
         onUpdateHighlightedOption={setHighlightedOptionId}
         customOnBlur={onBlur}
       >
-        {options.map(option => {
+        {(!isLoading || searchLoading
+          ? options
+          : options.filter(
+              option => option.group !== 'Students' || selectedOptionIds.includes(option.id)
+            )
+        ).map(option => {
           return (
             <CanvasMultiSelectOption
               id={option.id}

@@ -15,12 +15,12 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import DialogBaseView from '@canvas/dialog-base-view'
 import template from './RelockModulesDialog.handlebars'
 
-const I18n = useI18nScope('modules')
+const I18n = createI18nScope('modules')
 
 export default class RelockModulesDialog extends DialogBaseView {
   renderIfNeeded(data) {
@@ -28,6 +28,14 @@ export default class RelockModulesDialog extends DialogBaseView {
       this.module_id = data.id
       return this.render().show()
     }
+  }
+
+  initDialog() {
+    super.initDialog()
+    this.dialog.on('dialogopen', function () {
+      setTimeout(() => $('.ui-dialog-titlebar-close').focus(), 60)
+    })
+    return this.dialog
   }
 
   dialogOptions() {

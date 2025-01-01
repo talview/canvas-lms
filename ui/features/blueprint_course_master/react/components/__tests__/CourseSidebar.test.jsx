@@ -18,7 +18,7 @@
 
 import React from 'react'
 import $ from 'jquery'
-import 'jquery-migrate'
+import 'jquery-migrate' // required
 import {Provider} from 'react-redux'
 import {render} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -51,7 +51,7 @@ const defaultProps = () => ({
   contentRef: cr => {
     sidebarContentRef = cr
   },
-  routeTo: () => {}
+  routeTo: () => {},
 })
 
 function mockStore(initialState) {
@@ -102,7 +102,9 @@ describe('Course Sidebar component', () => {
 
     // associations
     expect(rows.eq(0).find('button#mcSidebarAsscBtn').size()).toBeTruthy()
-    expect(rows.eq(0).text().trim()).toEqual(`Associations${initialState.existingAssociations.length}`)
+    expect(rows.eq(0).text().trim()).toEqual(
+      `Associations${initialState.existingAssociations.length}`
+    )
 
     // sync history
     expect(rows.eq(1).find('button#mcSyncHistoryBtn').size()).toBeTruthy()
@@ -202,7 +204,7 @@ describe('Course Sidebar component', () => {
     tree.unmount()
   })
 
-  test('renders Sync button if has associations and has unsynced changes', async() => {
+  test('renders Sync button if has associations and has unsynced changes', async () => {
     const props = defaultProps()
     const state = {...initialState}
     const tree = render(connect(props, state))

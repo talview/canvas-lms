@@ -51,8 +51,7 @@ describe "courses/_settings_sidebar" do
   end
 
   describe "Reset course content" do
-    it "does not display the dialog contents under the button (granular permissions)" do
-      @course.account.enable_feature!(:granular_permissions_manage_courses)
+    it "does not display the dialog contents under the button" do
       @course.root_account.role_overrides.create!(
         permission: "manage_courses_reset",
         role: teacher_role,
@@ -111,7 +110,7 @@ describe "courses/_settings_sidebar" do
         render
         doc = Nokogiri::HTML5(response.body)
         tool_link = doc.at_css(".course-settings-sub-navigation-lti")
-        expect(tool_link.to_html).to include("<img class=\"icon\" alt=\"\" src=\"/images/delete.png\">external tool")
+        expect(tool_link.to_html).to include("<img class=\"icon lti_tool_icon\" alt=\"\" src=\"/images/delete.png\">external tool")
       end
     end
   end

@@ -121,6 +121,8 @@ describe Api::V1::DiscussionTopics do
 
   it "includes the user's pronouns when enabled" do
     @me.update! pronouns: "she/her"
+    @me.account.settings[:can_add_pronouns] = true
+    @me.account.save!
 
     expect(
       @test_api.discussion_topic_api_json(@topic, @topic.context, @me, nil)
@@ -318,7 +320,7 @@ describe DiscussionTopicsController, type: :request do
                { controller: "discussion_topics", action: "create", format: "json", course_id: @course.to_param },
                { title: "hai", message: "test message" },
                {},
-               expected_status: 401)
+               expected_status: 403)
     end
 
     it "makes a basic topic" do
@@ -476,7 +478,7 @@ describe DiscussionTopicsController, type: :request do
                { controller: "discussion_topics", action: "create", format: "json", course_id: @course.to_param },
                { title: "pwn3d ur grade", message: "lol", assignment: { points_possible: 1000, due_at: 1.week.ago.as_json } },
                {},
-               { expected_status: 401 })
+               { expected_status: 403 })
     end
 
     it "does not create an assignment on a discussion topic when set_assignment is false" do
@@ -510,23 +512,24 @@ describe DiscussionTopicsController, type: :request do
       expect(@topic["anonymous_state"]).to eq "full_anonymity"
     end
 
-    it "update to anonymous_state returns 403" do
+    it "update to anonymous_state returns 200 if there is no reply" do
       api_call(:put,
                "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}",
                { controller: "discussion_topics", action: "update", format: "json", course_id: @course.to_param, topic_id: @topic.to_param },
                { anonymous_state: nil },
                {},
-               { expected_status: 400 })
+               { expected_status: 200 })
     end
 
-    it "not able to update the anonymous state of an existing topic" do
+    it "able to update the anonymous state of an existing topic if there is no reply" do
       api_call(:put,
                "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}",
                { controller: "discussion_topics", action: "update", format: "json", course_id: @course.to_param, topic_id: @topic.to_param },
-               { anonymous_state: nil },
+               { anonymous_state: "partial_anonymity" },
                {},
-               { expected_status: 400 })
-      expect(@topic["anonymous_state"]).to eq "full_anonymity"
+               { expected_status: 200 })
+      @topic.reload
+      expect(@topic["anonymous_state"]).to eq "partial_anonymity"
     end
 
     context "student permissions" do
@@ -629,6 +632,22 @@ describe DiscussionTopicsController, type: :request do
                {},
                { expected_status: 400 })
     end
+
+    it "not able to update the anonymous state if there is at least 1 reply" do
+      @entry = create_entry(@topic, message: "top-level entry")
+      @reply = create_reply(@entry, message: "test reply")
+      @topic.anonymous_state = "full_anonymity"
+      @topic.save!
+      api_call(:put,
+               "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}",
+               { controller: "discussion_topics", action: "update", format: "json", course_id: @course.to_param, topic_id: @topic.to_param },
+               { anonymous_state: nil },
+               {},
+               { expected_status: 400 })
+
+      @topic.reload
+      expect(@topic["anonymous_state"]).to eq "full_anonymity"
+    end
   end
 
   context "With item" do
@@ -648,6 +667,7 @@ describe DiscussionTopicsController, type: :request do
         "discussion_subentry_count" => 0,
         "assignment_id" => nil,
         "is_section_specific" => @topic.is_section_specific,
+        "summary_enabled" => @topic.summary_enabled,
         "published" => true,
         "can_unpublish" => true,
         "delayed_post_at" => nil,
@@ -687,13 +707,13 @@ describe DiscussionTopicsController, type: :request do
                             "media_entry_id" => @attachment.media_entry_id,
                             "category" => "uncategorized",
                             "visibility_level" => @attachment.visibility_level }],
-        "discussion_type" => "side_comment",
+        "discussion_type" => "not_threaded",
         "locked" => false,
         "can_lock" => true,
         "comments_disabled" => false,
         "locked_for_user" => false,
         "author" => user_display_json(@topic.user, @topic.context).stringify_keys!,
-        "permissions" => { "delete" => true, "attach" => true, "update" => true, "reply" => true },
+        "permissions" => { "delete" => true, "attach" => true, "update" => true, "reply" => true, "manage_assign_to" => true },
         "can_group" => true,
         "allow_rating" => false,
         "only_graders_can_rate" => false,
@@ -703,6 +723,7 @@ describe DiscussionTopicsController, type: :request do
         "topic_children" => [],
         "group_topic_children" => [],
         "is_announcement" => false,
+        "ungraded_discussion_overrides" => [],
         "anonymous_state" => nil }
     end
 
@@ -1097,6 +1118,37 @@ describe DiscussionTopicsController, type: :request do
           expect(json[0]["is_section_specific"]).to be(true)
         end
 
+        it "student in section should be able to get the announcement details" do
+          json = api_call_as_user(@student1,
+                                  :get,
+                                  "/api/v1/courses/#{@course.id}/discussion_topics/#{@announcement.id}",
+                                  {
+                                    controller: "discussion_topics_api",
+                                    action: "show",
+                                    format: "json",
+                                    course_id: @course.id,
+                                    topic_id: @announcement.id,
+                                  })
+
+          expect(json["id"]).to eq(@announcement.id)
+        end
+
+        it "student not in section should not be able to get the announcement details" do
+          api_call_as_user(@student2,
+                           :get,
+                           "/api/v1/courses/#{@course.id}/discussion_topics/#{@announcement.id}",
+                           {
+                             controller: "discussion_topics_api",
+                             action: "show",
+                             format: "json",
+                             course_id: @course.id,
+                             topic_id: @announcement.id,
+                           },
+                           {},
+                           {},
+                           { expected_status: 403 })
+        end
+
         it "student not in section should not be able to see section specific announcements" do
           json = api_call_as_user(@student2,
                                   :get,
@@ -1163,6 +1215,88 @@ describe DiscussionTopicsController, type: :request do
           end
         end
       end
+
+      describe "differentiated modules" do
+        before do
+          Account.site_admin.enable_feature! :selective_release_backend
+        end
+
+        context "ungraded discussions" do
+          before do
+            course_factory(active_all: true)
+            @course_section = @course.course_sections.create
+
+            @student1, @student2 = create_users(2, return_type: :record)
+            @course.enroll_student(@student1, enrollment_state: "active")
+            @course.enroll_student(@student2, enrollment_state: "active")
+            student_in_section(@course.course_sections.first, user: @student1)
+            student_in_section(@course.course_sections.second, user: @student2)
+
+            @teacher = teacher_in_course(course: @course, active_enrollment: true).user
+            @topic_visible_to_everyone = discussion_topic_model(user: @teacher, context: @course)
+            @topic = discussion_topic_model(user: @teacher, context: @course)
+            @topic.update!(only_visible_to_overrides: true)
+          end
+
+          it "shows only the visible topics" do
+            override = @topic.assignment_overrides.create!
+            override.assignment_override_students.create!(user: @student1)
+
+            @user = @student2
+
+            json = api_call(:get,
+                            "/api/v1/courses/#{@course.id}/discussion_topics.json",
+                            { controller: "discussion_topics", action: "index", format: "json", course_id: @course.id.to_s })
+            expect(json.size).to eq 1
+
+            @user = @student1
+
+            json = api_call(:get,
+                            "/api/v1/courses/#{@course.id}/discussion_topics.json",
+                            { controller: "discussion_topics", action: "index", format: "json", course_id: @course.id.to_s })
+            expect(json.size).to eq 2
+          end
+
+          it "is visible only to users who can access the assigned section" do
+            @topic.assignment_overrides.create!(set: @course_section)
+
+            @user = @student2
+            json = api_call(:get,
+                            "/api/v1/courses/#{@course.id}/discussion_topics.json",
+                            { controller: "discussion_topics", action: "index", format: "json", course_id: @course.id.to_s })
+            expect(json.size).to eq 2
+
+            @user = @student1
+            json = api_call(:get,
+                            "/api/v1/courses/#{@course.id}/discussion_topics.json",
+                            { controller: "discussion_topics", action: "index", format: "json", course_id: @course.id.to_s })
+            expect(json.size).to eq 1
+          end
+
+          it "is visible only to students in module override section" do
+            context_module = @course.context_modules.create!(name: "module")
+            context_module.content_tags.create!(content: @topic, context: @course)
+
+            override2 = @topic.assignment_overrides.create!(unlock_at: "2022-02-01T01:00:00Z",
+                                                            unlock_at_overridden: true,
+                                                            lock_at: "2022-02-02T01:00:00Z",
+                                                            lock_at_overridden: true)
+            override2.assignment_override_students.create!(user: @student2)
+
+            @user = @student2
+            json = api_call(:get,
+                            "/api/v1/courses/#{@course.id}/discussion_topics.json",
+                            { controller: "discussion_topics", action: "index", format: "json", course_id: @course.id.to_s })
+            expect(json.size).to eq 2
+
+            @user = @student1
+            json = api_call(:get,
+                            "/api/v1/courses/#{@course.id}/discussion_topics.json",
+                            { controller: "discussion_topics", action: "index", format: "json", course_id: @course.id.to_s })
+            expect(json.size).to eq 1
+          end
+        end
+      end
     end
 
     describe "GET 'show'" do
@@ -1217,7 +1351,7 @@ describe DiscussionTopicsController, type: :request do
                            topic_id: @topic.id.to_s },
                          {},
                          {},
-                         expected_status: 401)
+                         expected_status: 403)
       end
 
       it "returns group_topic_children for group discussions" do
@@ -1369,7 +1503,7 @@ describe DiscussionTopicsController, type: :request do
                  { controller: "discussion_topics", action: "update", format: "json", course_id: @course.to_param, topic_id: @topic.to_param },
                  { title: "hai", message: "test message" },
                  {},
-                 expected_status: 401)
+                 expected_status: 403)
       end
 
       it "updates the entry" do
@@ -1550,7 +1684,7 @@ describe DiscussionTopicsController, type: :request do
                  { controller: "discussion_topics", action: "update", format: "json", group_id: group.to_param, topic_id: gtopic.to_param },
                  { message: "new message" },
                  {},
-                 { expected_status: 401 })
+                 { expected_status: 403 })
 
         api_call(:put,
                  "/api/v1/groups/#{group.id}/discussion_topics/#{gtopic.id}",
@@ -1661,8 +1795,7 @@ describe DiscussionTopicsController, type: :request do
         @user.time_zone = "Alaska"
         @user.save
 
-        user_tz = Time.use_zone(@user.time_zone) { Time.zone }
-        expected_time = user_tz.parse("Fri Aug 26, 2031 8:39AM")
+        expected_time = @user.time_zone.parse("Fri Aug 26, 2031 8:39AM")
 
         api_call(:put,
                  "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}",
@@ -1731,7 +1864,7 @@ describe DiscussionTopicsController, type: :request do
                  { controller: "discussion_topics", action: "update", format: "json", course_id: @course.to_param, topic_id: @topic.to_param },
                  { assignment: { points_possible: 100 } },
                  {},
-                 { expected_status: 401 })
+                 { expected_status: 403 })
 
         expect(@assignment.reload.points_possible).to eq 50
       end
@@ -1744,8 +1877,8 @@ describe DiscussionTopicsController, type: :request do
                    lock_at: 1.week.ago.as_json,
                    assignment: { unlock_at: 1.week.from_now.as_json, lock_at: 2.weeks.from_now.as_json } })
 
-        expect(@topic.reload.assignment.reload.unlock_at).to be > Time.now
-        expect(@topic.assignment.lock_at).to be > Time.now
+        expect(@topic.reload.assignment.reload.unlock_at).to be > Time.zone.now
+        expect(@topic.assignment.lock_at).to be > Time.zone.now
         expect(@topic).not_to be_locked
         expect(@topic.delayed_post_at).to be_nil
         expect(@topic.lock_at).to be_nil
@@ -1910,7 +2043,7 @@ describe DiscussionTopicsController, type: :request do
                  { controller: "discussion_topics", action: "destroy", format: "json", course_id: @course.to_param, topic_id: @topic.to_param },
                  {},
                  {},
-                 expected_status: 401)
+                 expected_status: 403)
         expect(@topic.reload).not_to be_deleted
       end
 
@@ -1938,7 +2071,7 @@ describe DiscussionTopicsController, type: :request do
       expect(JSON.parse(response.body).to_s).not_to include(topic.assignment.title.to_s)
 
       calls = %i[get_show get_entries get_replies add_entry add_reply]
-      calls.each { |call| expect(send(call, topic).to_s).to eq "401" }
+      calls.each { |call| expect(send(call, topic).to_s).to eq "403" }
     end
 
     def get_index(course)
@@ -2073,6 +2206,19 @@ describe DiscussionTopicsController, type: :request do
     end
   end
 
+  it "translates user content in topics without verifiers" do
+    should_translate_user_content(@course, false) do |user_content|
+      @topic ||= create_topic(@course, title: "Topic 1", message: user_content)
+      json = api_call(
+        :get,
+        "/api/v1/courses/#{@course.id}/discussion_topics",
+        { controller: "discussion_topics", action: "index", format: "json", course_id: @course.id.to_s, no_verifiers: true }
+      )
+      expect(json.size).to eq 1
+      json.first["message"]
+    end
+  end
+
   it "paginates by the per_page" do
     100.times { |i| @course.discussion_topics.create!(title: i.to_s, message: i.to_s) }
     expect(@course.discussion_topics.count).to eq 100
@@ -2124,6 +2270,7 @@ describe DiscussionTopicsController, type: :request do
       "unread_count" => 0,
       "user_can_see_posts" => true,
       "is_section_specific" => gtopic.is_section_specific,
+      "summary_enabled" => gtopic.summary_enabled,
       "subscribed" => true,
       "podcast_url" => nil,
       "podcast_has_student_posts" => false,
@@ -2172,8 +2319,8 @@ describe DiscussionTopicsController, type: :request do
       "root_topic_id" => nil,
       "topic_children" => [],
       "group_topic_children" => [],
-      "discussion_type" => "side_comment",
-      "permissions" => { "delete" => true, "attach" => true, "update" => true, "reply" => true },
+      "discussion_type" => "not_threaded",
+      "permissions" => { "delete" => true, "attach" => true, "update" => true, "reply" => true, "manage_assign_to" => false },
       "locked" => false,
       "can_lock" => true,
       "comments_disabled" => false,
@@ -2185,7 +2332,8 @@ describe DiscussionTopicsController, type: :request do
       "only_graders_can_rate" => false,
       "sort_by_rating" => false,
       "todo_date" => nil,
-      "anonymous_state" => nil
+      "anonymous_state" => nil,
+      "ungraded_discussion_overrides" => nil,
     }
     expect(json.sort.to_h).to eq expected.sort.to_h
   end
@@ -2229,13 +2377,14 @@ describe DiscussionTopicsController, type: :request do
       "created_at" => announcement.created_at.iso8601,
       "delayed_post_at" => nil,
       "discussion_subentry_count" => 0,
-      "discussion_type" => "side_comment",
+      "discussion_type" => "not_threaded",
       "group_category_id" => nil,
       "group_topic_children" => [],
       "html_url" => "http://www.example.com/groups/#{@group.id}/discussion_topics/#{announcement.id}",
       "id" => announcement.id,
       "is_announcement" => true,
       "is_section_specific" => false,
+      "summary_enabled" => false,
       "last_reply_at" => announcement.last_reply_at.as_json,
       "lock_at" => nil,
       "locked" => false,
@@ -2246,7 +2395,8 @@ describe DiscussionTopicsController, type: :request do
         "attach" => false,
         "update" => true,
         "reply" => true,
-        "delete" => true
+        "delete" => true,
+        "manage_assign_to" => false
       },
       "pinned" => false,
       "podcast_has_student_posts" => false,
@@ -2266,7 +2416,8 @@ describe DiscussionTopicsController, type: :request do
       "unread_count" => 0,
       "url" => "http://www.example.com/groups/#{@group.id}/discussion_topics/#{announcement.id}",
       "user_can_see_posts" => true,
-      "user_name" => @user.name
+      "user_name" => @user.name,
+      "ungraded_discussion_overrides" => nil
     }
 
     expect(response).to have_http_status(:ok)
@@ -2406,7 +2557,7 @@ describe DiscussionTopicsController, type: :request do
           topic_id: @topic.id.to_s },
         { message: @message },
         {},
-        expected_status: 401
+        expected_status: 403
       )
     end
 
@@ -2423,7 +2574,7 @@ describe DiscussionTopicsController, type: :request do
           topic_id: @announcement.id.to_s },
         { message: @message },
         {},
-        expected_status: 401
+        expected_status: 403
       )
     end
 
@@ -2634,8 +2785,8 @@ describe DiscussionTopicsController, type: :request do
     end
 
     it "sorts top-level entries by descending created_at" do
-      @older_entry = create_entry(@topic, message: "older top-level entry", created_at: Time.now - 1.minute)
-      @newer_entry = create_entry(@topic, message: "newer top-level entry", created_at: Time.now + 1.minute)
+      @older_entry = create_entry(@topic, message: "older top-level entry", created_at: 1.minute.ago)
+      @newer_entry = create_entry(@topic, message: "newer top-level entry", created_at: 1.minute.from_now)
       json = api_call(
         :get,
         "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}/entries.json",
@@ -2651,8 +2802,8 @@ describe DiscussionTopicsController, type: :request do
     end
 
     it "sorts replies included on top-level entries by descending created_at" do
-      @older_reply = create_reply(@entry, message: "older reply", created_at: Time.now - 1.minute)
-      @newer_reply = create_reply(@entry, message: "newer reply", created_at: Time.now + 1.minute)
+      @older_reply = create_reply(@entry, message: "older reply", created_at: 1.minute.ago)
+      @newer_reply = create_reply(@entry, message: "newer reply", created_at: 1.minute.from_now)
       json = api_call(
         :get,
         "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}/entries.json",
@@ -2672,7 +2823,7 @@ describe DiscussionTopicsController, type: :request do
     it "paginates top-level entries" do
       # put in lots of entries
       entries = []
-      7.times { |i| entries << create_entry(@topic, message: i.to_s, created_at: Time.now + (i + 1).minutes) }
+      7.times { |i| entries << create_entry(@topic, message: i.to_s, created_at: Time.zone.now + (i + 1).minutes) }
 
       # first page
       json = api_call(
@@ -2717,7 +2868,7 @@ describe DiscussionTopicsController, type: :request do
     it "only includes the first 10 replies for each top-level entry" do
       # put in lots of replies
       replies = []
-      12.times { |i| replies << create_reply(@entry, message: i.to_s, created_at: Time.now + (i + 1).minutes) }
+      12.times { |i| replies << create_reply(@entry, message: i.to_s, created_at: Time.zone.now + (i + 1).minutes) }
 
       # get entry
       json = api_call(
@@ -2777,9 +2928,28 @@ describe DiscussionTopicsController, type: :request do
       end
     end
 
+    it "translates user content in replies without verifiers" do
+      should_translate_user_content(@course, false) do |user_content|
+        @reply.update_attribute("message", user_content)
+        json = api_call(
+          :get,
+          "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}/entries/#{@entry.id}/replies.json",
+          { controller: "discussion_topics_api",
+            action: "replies",
+            format: "json",
+            course_id: @course.id.to_s,
+            topic_id: @topic.id.to_s,
+            entry_id: @entry.id.to_s,
+            no_verifiers: true }
+        )
+        expect(json.size).to eq 1
+        json.first["message"]
+      end
+    end
+
     it "sorts replies by descending created_at" do
-      @older_reply = create_reply(@entry, message: "older reply", created_at: Time.now - 1.minute)
-      @newer_reply = create_reply(@entry, message: "newer reply", created_at: Time.now + 1.minute)
+      @older_reply = create_reply(@entry, message: "older reply", created_at: 1.minute.ago)
+      @newer_reply = create_reply(@entry, message: "newer reply", created_at: 1.minute.from_now)
       json = api_call(
         :get,
         "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}/entries/#{@entry.id}/replies.json",
@@ -2798,7 +2968,7 @@ describe DiscussionTopicsController, type: :request do
     it "paginates replies" do
       # put in lots of replies
       replies = []
-      7.times { |i| replies << create_reply(@entry, message: i.to_s, created_at: Time.now + (i + 1).minutes) }
+      7.times { |i| replies << create_reply(@entry, message: i.to_s, created_at: Time.zone.now + (i + 1).minutes) }
 
       # first page
       json = api_call(
@@ -2963,14 +3133,14 @@ describe DiscussionTopicsController, type: :request do
       @entry = create_entry(@topic, message: "<p>top-level entry</p>")
     end
 
-    it "401s if the user can't update" do
+    it "403s if the user can't update" do
       student_in_course(course: @course, user: user_with_pseudonym)
       api_call(:put,
                "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}/entries/#{@entry.id}",
                { controller: "discussion_entries", action: "update", format: "json", course_id: @course.id.to_s, topic_id: @topic.id.to_s, id: @entry.id.to_s },
                { message: "haxor" },
                {},
-               expected_status: 401)
+               expected_status: 403)
       expect(@entry.reload.message).to eq "<p>top-level entry</p>"
     end
 
@@ -3025,14 +3195,14 @@ describe DiscussionTopicsController, type: :request do
       @entry = create_entry(@topic, message: "top-level entry")
     end
 
-    it "401s if the user can't delete" do
+    it "403s if the user can't delete" do
       student_in_course(course: @course, user: user_with_pseudonym)
       api_call(:delete,
                "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}/entries/#{@entry.id}",
                { controller: "discussion_entries", action: "destroy", format: "json", course_id: @course.id.to_s, topic_id: @topic.id.to_s, id: @entry.id.to_s },
                {},
                {},
-               expected_status: 401)
+               expected_status: 403)
       expect(@entry.reload).not_to be_deleted
     end
 
@@ -3288,7 +3458,7 @@ describe DiscussionTopicsController, type: :request do
 
     def call_mark_all_as_read_state(new_state, opts = {})
       method = (new_state == "read") ? :put : :delete
-      url = +"/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}/read_all.json"
+      url = "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}/read_all.json"
       expected_params = { controller: "discussion_topics_api",
                           action: "mark_all_#{new_state}",
                           format: "json",
@@ -3730,7 +3900,7 @@ describe DiscussionTopicsController, type: :request do
         @reply1 = @root1.reply_from(user: @teacher, html: "reply1")
 
         # materialized view jobs are now delayed
-        Timecop.travel(Time.now + 20.seconds) do
+        Timecop.travel(20.seconds.from_now) do
           run_jobs
 
           # make everything slightly in the past to test updating
@@ -3779,7 +3949,7 @@ describe DiscussionTopicsController, type: :request do
       @root1 = @topic.reply_from(user: @student, html: "root1")
 
       # materialized view jobs are now delayed
-      Timecop.travel(Time.now + 20.seconds) do
+      Timecop.travel(20.seconds.from_now) do
         run_jobs
 
         # make everything slightly in the past to test updating
@@ -3841,7 +4011,7 @@ describe DiscussionTopicsController, type: :request do
 
       link = "/courses/#{@course.id}/discussion_topics"
       # materialized view jobs are now delayed
-      Timecop.travel(Time.now + 20.seconds) do
+      Timecop.travel(20.seconds.from_now) do
         run_jobs
 
         # make everything slightly in the past to test updating
@@ -3916,7 +4086,7 @@ describe DiscussionTopicsController, type: :request do
                  topic_id: @group_topic.to_param },
                {},
                {},
-               expected_status: 401)
+               expected_status: 403)
     end
 
     it "cannot duplicate announcements" do
@@ -4006,7 +4176,7 @@ describe DiscussionTopicsController, type: :request do
                  topic_id: @group_topic.to_param },
                {},
                {},
-               expected_status: 401)
+               expected_status: 403)
     end
 
     it "duplicate work if admin" do
@@ -4196,34 +4366,30 @@ describe DiscussionTopicsController, type: :request do
     end
 
     context "should be shown" do
-      let(:check_access) do
-        lambda do |json|
-          expect(json["new_entries"]).not_to be_nil
-          expect(json["new_entries"].count).to eq(2)
-          expect(json["new_entries"].first["user_id"]).to eq(@student1.id)
-          expect(json["new_entries"].second["user_id"]).to eq(@student2.id)
-        end
+      def check_access(json)
+        expect(json["new_entries"]).not_to be_nil
+        expect(json["new_entries"].count).to eq(2)
+        expect(json["new_entries"].first["user_id"]).to eq(@student1.id)
+        expect(json["new_entries"].second["user_id"]).to eq(@student2.id)
       end
 
       it "shows student comments to students" do
-        check_access.call(announcements_view_api.call(@student1, @course.id, @announcement.id))
+        check_access(announcements_view_api.call(@student1, @course.id, @announcement.id))
       end
 
       it "shows student comments to teachers" do
-        check_access.call(announcements_view_api.call(@teacher, @course.id, @announcement.id))
+        check_access(announcements_view_api.call(@teacher, @course.id, @announcement.id))
       end
 
       it "shows student comments to admins" do
-        check_access.call(announcements_view_api.call(@admin, @course.id, @announcement.id))
+        check_access(announcements_view_api.call(@admin, @course.id, @announcement.id))
       end
     end
 
     context "should not be shown" do
-      let(:check_access) do
-        lambda do |json|
-          expect(json["new_entries"]).to be_nil
-          expect(%w[unauthorized unauthenticated]).to include(json["status"])
-        end
+      def check_access(json)
+        expect(json["new_entries"]).to be_nil
+        expect(json["status"]).to be_in %w[unauthorized unauthenticated]
       end
 
       before do
@@ -4234,15 +4400,15 @@ describe DiscussionTopicsController, type: :request do
       end
 
       it "does not show student comments to unauthenticated users" do
-        check_access.call(announcements_view_api.call(nil, @course.id, @announcement.id, 401))
+        check_access(announcements_view_api.call(nil, @course.id, @announcement.id, 401))
       end
 
       it "does not show student comments to other students not in the course" do
-        check_access.call(announcements_view_api.call(@student, @course.id, @announcement.id, 401))
+        check_access(announcements_view_api.call(@student, @course.id, @announcement.id, 403))
       end
 
       it "does not show student comments to other teachers not in the course" do
-        check_access.call(announcements_view_api.call(@teacher, @course.id, @announcement.id, 401))
+        check_access(announcements_view_api.call(@teacher, @course.id, @announcement.id, 403))
       end
     end
   end

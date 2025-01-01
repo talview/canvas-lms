@@ -17,7 +17,7 @@
  */
 
 import React, {useState, useCallback, useEffect} from 'react'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {nanoid} from 'nanoid'
 import PropTypes from 'prop-types'
 
@@ -40,7 +40,7 @@ import {assignmentRow} from './AssignmentTableRows/AssignmentRow'
 import {scoreDistributionRow} from './AssignmentTableRows/ScoreDistributionRow'
 import {rubricRow} from './AssignmentTableRows/RubricRow'
 
-const I18n = useI18nScope('grade_summary')
+const I18n = createI18nScope('grade_summary')
 
 const headers = [
   {key: 'name', value: I18n.t('Name'), id: nanoid(), alignment: 'start', width: '30%'},
@@ -86,6 +86,8 @@ const AssignmentTable = ({
       activeWhatIfScores
     )
   )
+  const overrideGrade =
+    queryData?.usersConnection?.nodes[0]?.enrollments[0]?.grades?.overrideGrade || null
 
   useEffect(() => {
     const grades = calculateCourseGrade(
@@ -209,17 +211,19 @@ const AssignmentTable = ({
                   )
                 : null
             })}
-        {!hideTotalRow && totalRow(
-          queryData,
-          calculateOnlyGradedAssignments,
-          getCurrentOrFinalGrade(
-            getGradingPeriodID() === '0',
+        {!hideTotalRow &&
+          totalRow(
+            queryData,
             calculateOnlyGradedAssignments,
-            courseGrades?.current,
-            courseGrades?.final,
-            activeWhatIfScores
-          )
-        )}
+            getCurrentOrFinalGrade(
+              getGradingPeriodID() === '0',
+              calculateOnlyGradedAssignments,
+              courseGrades?.current,
+              courseGrades?.final,
+              activeWhatIfScores
+            ),
+            overrideGrade
+          )}
       </Table.Body>
     </Table>
   )
@@ -229,8 +233,10 @@ AssignmentTable.propTypes = {
   queryData: PropTypes.object,
   layout: PropTypes.string,
   handleReadStateChange: PropTypes.func,
+  handleRubricReadStateChange: PropTypes.func,
   setSubmissionAssignmentId: PropTypes.func,
   submissionAssignmentId: PropTypes.string,
+  hideTotalRow: PropTypes.bool,
 }
 
 export default AssignmentTable

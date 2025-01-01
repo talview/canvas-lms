@@ -29,7 +29,6 @@ import {isValidDeepLinkingEvent} from '@canvas/deep-linking/DeepLinking'
 import processSingleContentItem from '@canvas/deep-linking/processors/processSingleContentItem'
 import {handleExternalContentMessages} from '@canvas/external-tools/messages'
 
-
 const attachListeners = () => {
   // LTI 1.3 deep linking handler
   window.addEventListener('message', async event => {
@@ -40,6 +39,9 @@ const attachListeners = () => {
 
     try {
       const item = processSingleContentItem(event)
+      if (!item) {
+        return
+      }
       store.dispatch(
         actions.externalContentReady({
           service_id: event.data?.service_id,
@@ -54,9 +56,9 @@ const attachListeners = () => {
 
   // called by LTI 1.1 content item handler
   handleExternalContentMessages({
-    ready: (data) => {
+    ready: data => {
       store.dispatch(actions.externalContentReady(data))
-    }
+    },
   })
 }
 
@@ -75,6 +77,7 @@ function renderShowCollaborations(ctx) {
 
   const view = () => {
     const state = store.getState()
+    // eslint-disable-next-line no-restricted-properties
     ReactDOM.render(
       <CollaborationsApp applicationState={state} actions={actions} />,
       document.getElementById('content')
@@ -86,6 +89,7 @@ function renderShowCollaborations(ctx) {
 
 function renderLaunchTool(ctx) {
   const view = () => {
+    // eslint-disable-next-line no-restricted-properties
     ReactDOM.render(
       <CollaborationsToolLaunch launchUrl={ctx.path.replace('/lti_collaborations', '')} />,
       document.getElementById('content')

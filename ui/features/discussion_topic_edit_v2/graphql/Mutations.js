@@ -17,7 +17,7 @@
  */
 
 import {Error} from '../../../shared/graphql/Error'
-import gql from 'graphql-tag'
+import {gql} from '@apollo/client'
 import {Attachment} from './Attachment'
 
 export const CREATE_DISCUSSION_TOPIC = gql`
@@ -34,16 +34,19 @@ export const CREATE_DISCUSSION_TOPIC = gql`
     $isAnonymousAuthor: Boolean
     $allowRating: Boolean
     $onlyGradersCanRate: Boolean
+    $onlyVisibleToOverrides: Boolean
     $todoDate: DateTime
     $podcastEnabled: Boolean
     $podcastHasStudentPosts: Boolean
     $locked: Boolean
+    $discussionType: DiscussionTopicDiscussionType
     $isAnnouncement: Boolean
     $specificSections: String
     $groupCategoryId: ID
     $assignment: AssignmentCreate
     $checkpoints: [DiscussionCheckpoints!]
     $fileId: ID
+    $ungradedDiscussionOverrides: [AssignmentOverrideCreateOrUpdate!]
   ) {
     createDiscussionTopic(
       input: {
@@ -56,9 +59,11 @@ export const CREATE_DISCUSSION_TOPIC = gql`
         anonymousState: $anonymousState
         delayedPostAt: $delayedPostAt
         lockAt: $lockAt
+        discussionType: $discussionType
         isAnonymousAuthor: $isAnonymousAuthor
         allowRating: $allowRating
         onlyGradersCanRate: $onlyGradersCanRate
+        onlyVisibleToOverrides: $onlyVisibleToOverrides
         todoDate: $todoDate
         podcastEnabled: $podcastEnabled
         podcastHasStudentPosts: $podcastHasStudentPosts
@@ -69,6 +74,7 @@ export const CREATE_DISCUSSION_TOPIC = gql`
         assignment: $assignment
         checkpoints: $checkpoints
         fileId: $fileId
+        ungradedDiscussionOverrides: $ungradedDiscussionOverrides
       }
     ) {
       discussionTopic {
@@ -81,9 +87,11 @@ export const CREATE_DISCUSSION_TOPIC = gql`
         anonymousState
         delayedPostAt
         lockAt
+        discussionType
         isAnonymousAuthor
         allowRating
         onlyGradersCanRate
+        onlyVisibleToOverrides
         todoDate
         podcastEnabled
         podcastHasStudentPosts
@@ -94,6 +102,7 @@ export const CREATE_DISCUSSION_TOPIC = gql`
           name
           pointsPossible
           gradingType
+          importantDates
           assignmentGroupId
           canDuplicate
           canUnpublish
@@ -118,6 +127,9 @@ export const CREATE_DISCUSSION_TOPIC = gql`
             onlyVisibleToOverrides
             pointsPossible
             tag
+          }
+          gradingStandard {
+            _id
           }
         }
         attachment {
@@ -144,10 +156,12 @@ export const UPDATE_DISCUSSION_TOPIC = gql`
     $lockAt: DateTime
     $allowRating: Boolean
     $onlyGradersCanRate: Boolean
+    $onlyVisibleToOverrides: Boolean
     $todoDate: DateTime
     $podcastEnabled: Boolean
     $podcastHasStudentPosts: Boolean
     $locked: Boolean
+    $discussionType: DiscussionTopicDiscussionType
     $specificSections: String
     $fileId: ID
     $groupCategoryId: ID
@@ -155,6 +169,9 @@ export const UPDATE_DISCUSSION_TOPIC = gql`
     $assignment: AssignmentUpdate
     $checkpoints: [DiscussionCheckpoints!]
     $setCheckpoints: Boolean
+    $ungradedDiscussionOverrides: [AssignmentOverrideCreateOrUpdate!]
+    $anonymousState: DiscussionTopicAnonymousStateType
+    $notifyUsers: Boolean
   ) {
     updateDiscussionTopic(
       input: {
@@ -165,8 +182,10 @@ export const UPDATE_DISCUSSION_TOPIC = gql`
         requireInitialPost: $requireInitialPost
         delayedPostAt: $delayedPostAt
         lockAt: $lockAt
+        discussionType: $discussionType
         allowRating: $allowRating
         onlyGradersCanRate: $onlyGradersCanRate
+        onlyVisibleToOverrides: $onlyVisibleToOverrides
         todoDate: $todoDate
         podcastEnabled: $podcastEnabled
         podcastHasStudentPosts: $podcastHasStudentPosts
@@ -178,6 +197,9 @@ export const UPDATE_DISCUSSION_TOPIC = gql`
         assignment: $assignment
         checkpoints: $checkpoints
         setCheckpoints: $setCheckpoints
+        ungradedDiscussionOverrides: $ungradedDiscussionOverrides
+        anonymousState: $anonymousState
+        notifyUsers: $notifyUsers
       }
     ) {
       discussionTopic {
@@ -190,9 +212,11 @@ export const UPDATE_DISCUSSION_TOPIC = gql`
         anonymousState
         delayedPostAt
         lockAt
+        discussionType
         isAnonymousAuthor
         allowRating
         onlyGradersCanRate
+        onlyVisibleToOverrides
         todoDate
         podcastEnabled
         podcastHasStudentPosts
@@ -206,6 +230,7 @@ export const UPDATE_DISCUSSION_TOPIC = gql`
           name
           pointsPossible
           gradingType
+          importantDates
           assignmentGroupId
           canDuplicate
           canUnpublish

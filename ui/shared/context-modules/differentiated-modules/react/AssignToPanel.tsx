@@ -21,7 +21,7 @@ import {Flex} from '@instructure/ui-flex'
 import Footer from './Footer'
 import {RadioInputGroup, RadioInput} from '@instructure/ui-radio-input'
 import {Text} from '@instructure/ui-text'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {View} from '@instructure/ui-view'
 import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import ModuleAssignments, {type AssigneeOption} from './ModuleAssignments'
@@ -32,7 +32,7 @@ import type {AssignmentOverride} from './types'
 import LoadingOverlay from './LoadingOverlay'
 import type {FormMessage} from '@instructure/ui-form-field'
 
-const I18n = useI18nScope('differentiated_modules')
+const I18n = createI18nScope('differentiated_modules')
 
 export type AssignToPanelProps = {
   bodyHeight: string
@@ -94,9 +94,14 @@ export const updateModuleAssignees = ({
     body: payload,
   })
     .then(() => {
-      showFlashAlert({
-        type: 'success',
-        message: I18n.t('Module access updated successfully.'),
+      // add the alert in the next event cycle so that the alert is added to the DOM's aria-live
+      // region after focus changes, thus preventing the focus change from interrupting the alert
+      setTimeout(() => {
+        showFlashAlert({
+          type: 'success',
+          message: I18n.t('Module access updated successfully.'),
+          politeness: 'polite',
+        })
       })
       updateModuleUI(moduleElement, payload)
     })
@@ -140,13 +145,26 @@ export default function AssignToPanel({
       return
     }
 
-    setIsLoading(true)
-    doFetchApi({
-      path: `/api/v1/courses/${courseId}/modules/${moduleId}/assignment_overrides`,
-    })
-      .then((data: any) => {
-        if (data.json === undefined) return
-        const json = data.json as AssignmentOverride[]
+    const fetchAllOverrides = async () => {
+      setIsLoading(true)
+      const allResponses = []
+      let url:
+        | string
+        | null = `/api/v1/courses/${courseId}/modules/${moduleId}/assignment_overrides`
+
+      try {
+        while (url) {
+           
+          const response: any = await doFetchApi({
+            path: url,
+            params: {per_page: 100},
+          })
+          if (response.json.length === 0) return
+          allResponses.push(response.json)
+          url = response.link?.next?.url || null
+        }
+        if (allResponses.length === 0) return
+        const json = allResponses.flat() as AssignmentOverride[]
         const parsedOptions = json.reduce((acc: AssigneeOption[], override: AssignmentOverride) => {
           const overrideOptions =
             override.students?.map(({id, name}: {id: string; name: string}) => ({
@@ -172,11 +190,13 @@ export default function AssignToPanel({
         if (!defaultOption && parsedOptions.length > 0) {
           setSelectedOption(CUSTOM_OPTION.value)
         }
-      })
-      .catch(showFlashError())
-      .finally(() => {
+      } catch {
+        showFlashError()
+      } finally {
         setIsLoading(false)
-      })
+      }
+    }
+    !isLoading && fetchAllOverrides()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -197,7 +217,7 @@ export default function AssignToPanel({
       return
     }
     setIsLoading(true)
-    // eslint-disable-next-line promise/catch-or-return
+     
     updateModuleAssignees({courseId, moduleId, moduleElement, selectedAssignees})
       .finally(() => setIsLoading(false))
       .then(() => (onDidSubmit ? onDidSubmit() : onDismiss()))
@@ -240,7 +260,11 @@ export default function AssignToPanel({
             <Text>{I18n.t('By default, this module is visible to everyone.')}</Text>
           </Flex.Item>
           <Flex.Item overflowX="hidden" margin="small 0 0 0">
-            <RadioInputGroup description={I18n.t('Set Visibility')} name="access_type">
+            <RadioInputGroup
+              description={I18n.t('Set Visibility')}
+              name="access_type"
+              data-testid="assign-to-panel-radio-group"
+            >
               {[EVERYONE_OPTION, CUSTOM_OPTION].map(option => (
                 <Flex key={option.value} margin="0 xx-small 0 0">
                   <Flex.Item align="start">

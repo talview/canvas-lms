@@ -21,10 +21,11 @@ import './jquery/index'
 import '@canvas/user-sortable-name'
 import './jquery/communication_channels'
 import React from 'react'
-import ReactDOM from 'react-dom'
+import {createRoot} from 'react-dom/client'
 import GeneratePairingCode from '@canvas/generate-pairing-code'
 import ready from '@instructure/ready'
 import FeatureFlags from '@canvas/feature-flags'
+import {initializeTopNavPortal} from '@canvas/top-navigation/react/TopNavPortal'
 
 ready(() => {
   const hiddenFlags = []
@@ -32,14 +33,17 @@ ready(() => {
     hiddenFlags.push('new_user_tutorial_on_off')
   }
 
-  ReactDOM.render(
-    <FeatureFlags hiddenFlags={hiddenFlags} disableDefaults={true} />,
-    // There is only one of these
-    document.querySelector('.feature-flag-wrapper')
-  )
+  initializeTopNavPortal()
 
-  const container = document.querySelector('#pairing-code')
-  if (container) {
-    ReactDOM.render(<GeneratePairingCode userId={ENV.current_user.id} />, container)
+  const featureFlagContainer = document.querySelector('.feature-flag-wrapper') // there is only one of these
+  if (featureFlagContainer) {
+    const ffRoot = createRoot(featureFlagContainer)
+    ffRoot.render(<FeatureFlags hiddenFlags={hiddenFlags} disableDefaults={true} />)
+  }
+
+  const pairingCodeContainer = document.querySelector('#pairing-code')
+  if (pairingCodeContainer) {
+    const pcRoot = createRoot(pairingCodeContainer)
+    pcRoot.render(<GeneratePairingCode userId={ENV.current_user.id} />)
   }
 })

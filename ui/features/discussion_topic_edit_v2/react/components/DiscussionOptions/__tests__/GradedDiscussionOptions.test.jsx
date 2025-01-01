@@ -17,6 +17,7 @@
  */
 
 import {render} from '@testing-library/react'
+import fetchMock from 'fetch-mock'
 import React from 'react'
 
 import {GradedDiscussionOptions} from '../GradedDiscussionOptions'
@@ -38,27 +39,32 @@ const defaultProps = {
   assignedInfoList: [],
   setAssignedInfoList: () => {},
   isCheckpoints: false,
+  canManageAssignTo: true,
 }
+
+const SECTIONS_URL = `/api/v1/courses/1/sections?per_page=100`
+const STUDENTS_URL = `api/v1/courses/1/users?per_page=100&enrollment_type=student`
+const COURSE_SETTINGS_URL = `/api/v1/courses/1/settings`
 
 const renderGradedDiscussionOptions = (props = {}) => {
   return render(<GradedDiscussionOptions {...defaultProps} {...props} />)
 }
 describe('GradedDiscussionOptions', () => {
   it('renders', () => {
-    const {getByText} = renderGradedDiscussionOptions()
+    const {getAllByText, getByText} = renderGradedDiscussionOptions()
     expect(getByText('Points Possible')).toBeInTheDocument()
     expect(getByText('Display Grade As')).toBeInTheDocument()
     expect(getByText('Assignment Group')).toBeInTheDocument()
-    expect(getByText('Peer Reviews')).toBeInTheDocument()
+    expect(getAllByText('Peer Reviews')).toHaveLength(2)
     expect(getByText('Assignment Settings')).toBeInTheDocument()
   })
 
   it('renders with null points possible value', () => {
-    const {getByText} = renderGradedDiscussionOptions({pointsPossible: null})
+    const {getAllByText, getByText} = renderGradedDiscussionOptions({pointsPossible: null})
     expect(getByText('Points Possible')).toBeInTheDocument()
     expect(getByText('Display Grade As')).toBeInTheDocument()
     expect(getByText('Assignment Group')).toBeInTheDocument()
-    expect(getByText('Peer Reviews')).toBeInTheDocument()
+    expect(getAllByText('Peer Reviews')).toHaveLength(2)
     expect(getByText('Assignment Settings')).toBeInTheDocument()
   })
 
@@ -66,6 +72,25 @@ describe('GradedDiscussionOptions', () => {
     it('renders the section Checkpoint Settings when the checkpoints checkbox is selected', () => {
       const {getByText} = renderGradedDiscussionOptions({isCheckpoints: true})
       expect(getByText('Checkpoint Settings')).toBeInTheDocument()
+    })
+  })
+
+  describe('with selective_release_ui_api enabled', () => {
+    beforeEach(() => {
+      fetchMock.get(SECTIONS_URL, [])
+      fetchMock.get(STUDENTS_URL, [])
+      fetchMock.get(COURSE_SETTINGS_URL, {hide_final_grades: false})
+      ENV.FEATURES.selective_release_ui_api = true
+      ENV.COURSE_ID = '1'
+    })
+
+    it('does not render assignment settings if canManageAssignTo is false', () => {
+      const {getByText, queryByText, rerender} = renderGradedDiscussionOptions({
+        canManageAssignTo: true,
+      })
+      expect(getByText('Assignment Settings')).toBeInTheDocument()
+      rerender(<GradedDiscussionOptions {...defaultProps} canManageAssignTo={false} />)
+      expect(queryByText('Assignment Settings')).not.toBeInTheDocument()
     })
   })
 })

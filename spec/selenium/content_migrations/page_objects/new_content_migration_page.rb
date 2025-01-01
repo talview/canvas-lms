@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU Affero General Public License along
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 
-class ContentMigrationPage
+class NewContentMigrationPage
   class << self
     include SeleniumDependencies
 
@@ -41,6 +41,10 @@ class ContentMigrationPage
 
     def add_import_queue_button
       f('[data-testid="submitMigration"]')
+    end
+
+    def clear_button
+      f('[data-testid="clear-migration-button"]')
     end
 
     def selective_import_dropdown

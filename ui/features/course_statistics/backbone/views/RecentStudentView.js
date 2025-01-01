@@ -17,12 +17,12 @@
  */
 
 import {extend} from '@canvas/backbone/utils'
-import {useScope as useI18nScope} from '@canvas/i18n'
-import $ from 'jquery'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import Backbone from '@canvas/backbone'
 import RecentStudentTemplate from '../../jst/recentStudent.handlebars'
+import {fudgeDateForProfileTimezone} from '@instructure/moment-utils'
 
-const I18n = useI18nScope('course_statistics')
+const I18n = createI18nScope('course_statistics')
 
 extend(RecentStudentView, Backbone.View)
 
@@ -37,7 +37,7 @@ RecentStudentView.prototype.template = RecentStudentTemplate
 RecentStudentView.prototype.toJSON = function () {
   const data = this.model.toJSON()
   if (data.last_login != null) {
-    const date = $.fudgeDateForProfileTimezone(new Date(data.last_login))
+    const date = fudgeDateForProfileTimezone(new Date(data.last_login))
     data.last_login = I18n.t('#time.event', '%{date} at %{time}', {
       date: I18n.l('#date.formats.short', date),
       time: I18n.l('#time.formats.tiny', date),

@@ -1,3 +1,4 @@
+/* eslint-disable react/jsx-pascal-case */
 /*
  * Copyright (C) 2024 - present Instructure, Inc.
  *
@@ -22,7 +23,7 @@ import {render} from '@testing-library/react'
 import AssignmentConfigurationTools from '../AssignmentConfigurationTools'
 
 let secureParams = null
-var toolDefinitions = [
+const toolDefinitions = [
   {
     definition_type: 'ContextExternalTool',
     definition_id: 8,

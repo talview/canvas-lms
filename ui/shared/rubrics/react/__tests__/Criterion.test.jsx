@@ -30,7 +30,6 @@ const subComponents = ['Threshold', 'OutcomeIcon', 'LongDescription', 'LongDescr
 _.toPairs(rubrics).forEach(([key, rubric]) => {
   const assessment = assessments[key]
 
-  // eslint-disable-next-line jest/valid-describe
   describe(rubric.title, () => {
     criteriaTypes.forEach((criteriaType, ix) => {
       const basicProps = {
@@ -55,7 +54,6 @@ _.toPairs(rubrics).forEach(([key, rubric]) => {
         })
       }
 
-      // eslint-disable-next-line jest/valid-describe
       describe(`with a ${criteriaType} criterion`, () => {
         describe('by default', () => {
           testRenderedSnapshots(basicProps)
@@ -217,6 +215,60 @@ describe('Criterion', () => {
       it('are not shown when assessing', () => {
         expect(ignoredPoints({onAssessmentChange: () => {}})).toHaveLength(0)
       })
+    })
+  })
+
+  it('renders points and rating-points when restrictive quantitative data is false and hasPointsColumn is true', () => {
+    const component = shallow(
+      <Criterion
+        assessment={assessments.points.data[1]}
+        criterion={rubrics.points.criteria[1]}
+        hidePoints={false}
+        freeForm={false}
+        hasPointsColumn={true}
+      />
+    )
+
+    expect(component.find('[data-testid="criterion-points"]').exists()).toBe(true)
+    expect(component.find('[data-testid="points"]').exists()).toBe(true)
+  })
+
+  it('renders points and rating-points when restrictive quantitative data is false and hasPointsColumn if false', () => {
+    const component = shallow(
+      <Criterion
+        assessment={assessments.points.data[1]}
+        criterion={rubrics.points.criteria[1]}
+        freeForm={true}
+        hasPointsColumn={true}
+      />
+    )
+
+    expect(component.find('[data-testid="points"]').exists()).toBe(true)
+  })
+
+  describe('with restrict_quantitative_data', () => {
+    let originalENV
+
+    beforeEach(() => {
+      originalENV = {...window.ENV}
+      window.ENV.restrict_quantitative_data = true
+    })
+
+    afterEach(() => {
+      window.ENV = originalENV
+    })
+
+    it('does not renders points and rating-points when restrictive quantitative data is true and hasPointsColumn is false', () => {
+      const component = shallow(
+        <Criterion
+          assessment={assessments.points.data[1]}
+          criterion={rubrics.points.criteria[1]}
+          freeForm={false}
+          hasPointsColumn={false}
+        />
+      )
+
+      expect(component.find('[data-testid="points"]').exists()).toBe(false)
     })
   })
 })

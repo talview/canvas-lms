@@ -21,9 +21,9 @@ module StudentVisibilityCommon
   def ids_visible_to_user(user, learning_object_type)
     case learning_object_type
     when "discussion_topic"
-      UngradedDiscussionStudentVisibility.where(course_id: @course.id, user_id: user.id).pluck(:discussion_topic_id)
+      UngradedDiscussionVisibility::UngradedDiscussionVisibilityService.discussion_topics_visible(course_ids: @course.id, user_ids: user.id).map(&:discussion_topic_id)
     when "wiki_page"
-      WikiPageStudentVisibility.where(course_id: @course.id, user_id: user.id).pluck(:wiki_page_id)
+      WikiPageVisibility::WikiPageVisibilityService.wiki_pages_visible_to_students(course_ids: @course.id, user_ids: user.id).map(&:wiki_page_id)
     end
   end
 

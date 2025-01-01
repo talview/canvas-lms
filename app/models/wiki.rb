@@ -170,6 +170,9 @@ class Wiki < ActiveRecord::Base
       context.grants_right?(user, session, :manage_wiki_update) && !context.is_a?(Group)
     end
     can :publish_page
+
+    given { |user, session| user && context.is_a?(Course) && context.grants_right?(user, session, :manage_wiki_update) }
+    can :manage_assign_to
   end
 
   def self.wiki_for_context(context)
@@ -220,11 +223,13 @@ class Wiki < ActiveRecord::Base
             else
               wiki_pages.not_deleted
             end
-    lookup = if Account.site_admin.feature_enabled?(:permanent_page_links)
-               # Just want to look at the WikiPageLookups associated with the pages in this wiki
-               wiki_lookups = WikiPageLookup.by_wiki_id(id)
-               wiki_lookups.where(slug: [param.to_s, param.to_url]).first
-             end
+
+    if Account.site_admin.feature_enabled?(:permanent_page_links)
+      # prioritize precise matches
+      lookup = WikiPageLookup.by_wiki_id(id).find_by(slug: [param.to_s])
+      lookup ||= WikiPageLookup.by_wiki_id(id).find_by(slug: [param.to_url])
+    end
+
     if lookup
       scope.where(id: lookup.wiki_page_id).first
     else

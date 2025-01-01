@@ -15,22 +15,26 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
 import $ from 'jquery'
-import '@canvas/datetime/jquery'
 import '@canvas/jquery/jquery.instructure_forms'
 import '@canvas/jquery/jquery.instructure_misc_helpers'
 import '@canvas/jquery/jquery.instructure_misc_plugins'
 import '@canvas/util/templateData'
 import replaceTags from '@canvas/util/replaceTags'
 import {underscoreString} from '@canvas/convert-case'
+import {dateString} from '@instructure/moment-utils'
+import {renderDatetimeField} from '@canvas/datetime/jquery/DatetimeField'
+import {initializeTopNavPortal} from '@canvas/top-navigation/react/TopNavPortal'
 
-const I18n = useI18nScope('terms.index')
+const I18n = createI18nScope('terms.index')
 
 const dateOpts = {format: 'full'}
 
 $(document).ready(() => {
+  initializeTopNavPortal()
+
   $('.submit_button').click(function (_event) {
     const $term = $(this).closest('.term')
     return $term.find('.enrollment_term_form').submit()
@@ -40,12 +44,14 @@ $(document).ready(() => {
     event.preventDefault()
     $(this).parents('.term').addClass('editing_term')
     $(this).parents('.term').find(':text:visible:first').focus().select()
-    $(this)
+    const field = $(this)
       .parents('.term')
       .find('.date_field')
       .not('.already_has_date_field')
       .addClass('already_has_date_field')
-      .date_field()
+    renderDatetimeField(field, {
+      dateOnly: true,
+    })
   })
 
   $('.term .cancel_button').click(function () {
@@ -61,7 +67,7 @@ $(document).ready(() => {
 
   $('.cant_delete_term_link').click(event => {
     event.preventDefault()
-    // eslint-disable-next-line no-alert
+     
     window.alert(
       I18n.t('messages.classes_in_term', "You can't delete a term that still has classes in it.")
     )
@@ -121,7 +127,7 @@ $(document).ready(() => {
         // and designer roles without an overridden start date allow access from the dawn of time. The logic
         // implementing this is in EnrollmentTerm#enrollment_dates_for.
         if (override.start_at) {
-          start_string = $.dateString(override.start_at, dateOpts)
+          start_string = dateString(override.start_at, dateOpts)
         } else if (type_string === 'student_enrollment') {
           start_string = I18n.t('term start')
         } else {
@@ -130,25 +136,24 @@ $(document).ready(() => {
         term[`${type_string}_start_at`] = start_string
         // Non-overridden end dates always inherit the term end date, no matter the role.
         term[`${type_string}_end_at`] =
-          $.dateString(override.end_at, dateOpts) || I18n.t('date.term_end', 'term end')
-        term[`enrollment_term[overrides][${type_string}][start_at]`] = $.dateString(
+          dateString(override.end_at, dateOpts) || I18n.t('date.term_end', 'term end')
+        term[`enrollment_term[overrides][${type_string}][start_at]`] = dateString(
           override.start_at,
           dateOpts
         )
-        term[`enrollment_term[overrides][${type_string}][end_at]`] = $.dateString(
+        term[`enrollment_term[overrides][${type_string}][end_at]`] = dateString(
           override.end_at,
           dateOpts
         )
       }
-      term.start_at =
-        $.dateString(term.start_at, dateOpts) || I18n.t('date.unspecified', 'whenever')
-      term.end_at = $.dateString(term.end_at, dateOpts) || I18n.t('date.unspecified', 'whenever')
+      term.start_at = dateString(term.start_at, dateOpts) || I18n.t('date.unspecified', 'whenever')
+      term.end_at = dateString(term.end_at, dateOpts) || I18n.t('date.unspecified', 'whenever')
       $tr.fillTemplateData({data: term})
       $tr.attr('id', `term_${term.id}`)
       $tr.fillFormData(data, {object_name: 'enrollment_term'})
-
       $tr.removeClass('editing_term')
       $('.edit_term_link', $tr).focus()
+      $('#term_' + term.id + ' a.filter_link').prop('href', term.filter_courses_by_term)
     },
 
     error(data) {

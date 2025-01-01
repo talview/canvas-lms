@@ -19,7 +19,7 @@
 import React from 'react'
 import $ from 'jquery'
 import moment from 'moment-timezone'
-import {act, fireEvent, getByTestId, render, waitFor} from '@testing-library/react'
+import {act, fireEvent, render, waitFor} from '@testing-library/react'
 import {screen} from '@testing-library/dom'
 import userEvent from '@testing-library/user-event'
 import {eventFormProps, conference, userContext, courseContext, accountContext} from './mocks'
@@ -421,7 +421,7 @@ describe('CalendarEventDetailsForm', () => {
     await user.click(component.getByTestId('edit-calendar-event-form-date'))
     await user.click(component.getByTestId('edit-calendar-event-form-title'))
     expect(component.getByTestId('edit-calendar-event-form-date').value).toMatch(
-      /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat), \d{1,2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4}$/
+      /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat), \d{1,2} (Jan|Feb|Mar|Apr|May|June|July|Aug|Sept|Oct|Nov|Dec) \d{4}$/
     )
 
     const errMessage = component.queryByText('This date is invalid.')

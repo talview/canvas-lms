@@ -18,8 +18,6 @@
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
-require_relative "../cassandra_spec_helper"
-
 describe PageViewsController do
   # Factory-like thing for page views.
   def page_view(user, url, options = {})
@@ -81,22 +79,6 @@ describe PageViewsController do
     include_examples "GET 'index' as csv"
   end
 
-  context "with cassandra page views" do
-    include_examples "cassandra page views"
-    include_examples "GET 'index' as csv"
-
-    context "POST 'update'" do
-      it "catches a cassandra error" do
-        allow(PageView).to receive(:find_for_update).and_raise(CassandraCQL::Error::InvalidRequestException)
-        pv = page_view(@student, "/somewhere/in/app/1", created_at: 1.day.ago)
-
-        user_session(@student)
-        put "update", params: { id: pv.token, interaction_seconds: "5", page_view_token: pv.token }, xhr: true
-        expect(response).to have_http_status :ok
-      end
-    end
-  end
-
   context "pv4" do
     before do
       allow(PageView).to receive(:pv4?).and_return(true)
@@ -114,7 +96,7 @@ describe PageViewsController do
 
         expect_any_instance_of(PageView::Pv4Client).to receive(:fetch)
           .with(
-            @user.global_id,
+            @user,
             start_time: Time.zone.parse("2016-03-14T12:25:55Z"),
             end_time: Time.zone.parse("2016-03-15T00:00:00Z"),
             last_page_view_id: nil,
@@ -136,7 +118,7 @@ describe PageViewsController do
         Setting.set("page_views_csv_export_rows", "99")
         expect_any_instance_of(PageView::Pv4Client).to receive(:fetch)
           .with(
-            @user.global_id,
+            @user,
             start_time: Time.zone.parse("2016-03-14T12:25:55Z"),
             end_time: Time.zone.parse("2016-03-15T00:00:00Z"),
             last_page_view_id: nil,

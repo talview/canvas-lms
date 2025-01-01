@@ -1,4 +1,3 @@
-// @ts-nocheck
 /*
  * Copyright (C) 2021 - present Instructure, Inc.
  *
@@ -19,45 +18,52 @@
 
 import React, {useCallback, useEffect, useRef, useState} from 'react'
 import {connect} from 'react-redux'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
 import {Alert} from '@instructure/ui-alerts'
 import {Flex} from '@instructure/ui-flex'
 import {View} from '@instructure/ui-view'
 import {Text} from '@instructure/ui-text'
 import {Link} from '@instructure/ui-link'
+import {Pill} from '@instructure/ui-pill'
+import {Button} from '@instructure/ui-buttons'
 import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import {Heading} from '@instructure/ui-heading'
-import {IconCoursesLine, IconInfoLine} from '@instructure/ui-icons'
+import {IconCoursesLine, IconInfoLine, IconPublishSolid} from '@instructure/ui-icons'
 import PacePicker from './pace_picker'
 import ProjectedDates from './projected_dates/projected_dates'
 import Settings from './settings/settings'
 import BlueprintLock from './blueprint_lock'
 import UnpublishedChangesIndicator from '../unpublished_changes_indicator'
-import {getBlueprintLocked, getSelectedContextId, getSelectedContextType} from '../../reducers/ui'
-import {getCoursePace, isNewPace} from '../../reducers/course_paces'
-import {PaceContext, CoursePace, StoreState, ResponsiveSizes} from '../../types'
+import {getBlueprintLocked, getSelectedContextId, getSelectedContextType, getSyncing} from '../../reducers/ui'
+import {getCoursePace, isNewPace, getIsDraftPace} from '../../reducers/course_paces'
+import type {PaceContext, CoursePace, StoreState, ResponsiveSizes} from '../../types'
 import {actions} from '../../actions/ui'
 import {paceContextsActions} from '../../actions/pace_contexts'
+import {coursePaceActions} from '../../actions/course_paces'
 import {generateModalLauncherId} from '../../utils/utils'
 import {Tooltip} from '@instructure/ui-tooltip'
 import {Table} from '@instructure/ui-table'
+import {Spinner} from '@instructure/ui-spinner'
 
-const I18n = useI18nScope('course_paces_header')
+const I18n = createI18nScope('course_paces_header')
 
 interface DispatchProps {
   readonly fetchDefaultPaceContext: () => void
   readonly setDefaultPaceContextAsSelected: () => void
-  readonly setSelectedPaceContext: typeof actions.setSelectedPaceContext
+  readonly setSelectedPaceContext: any
+  syncUnpublishedChanges: typeof coursePaceActions.syncUnpublishedChanges
 }
 
 type StoreProps = {
   readonly coursePace: CoursePace
-  readonly defaultPaceContext: PaceContext
+  readonly defaultPaceContext: PaceContext | null
   readonly context_type: string
   readonly context_id: string
   readonly newPace: boolean
   readonly blueprintLocked: boolean | undefined
+  readonly isDraftPace: boolean
+  readonly isSyncing: boolean
 }
 
 type PassedProps = {
@@ -105,7 +111,24 @@ export const Header = (props: HeaderProps) => {
     })
   }, [])
 
+  const handlePublishClicked = () => {
+    props.syncUnpublishedChanges(false)
+  }
+
+  const getPublishLabel = () => {
+    let label = I18n.t('Publish Pace')
+    if (props.isSyncing) {
+      label = (
+        <div style={{display: 'inline-block', margin: '-0.5rem 0.9rem'}}>
+          <Spinner size="x-small" renderTitle={I18n.t('Publishing...')} />
+        </div>
+      )
+    }
+    return label
+  }
+
   if (window.ENV.FEATURES.course_paces_redesign) {
+    // @ts-expect-error
     const getDurationLabel = planDays => {
       if (!planDays) return false
       let weeks
@@ -122,20 +145,43 @@ export const Header = (props: HeaderProps) => {
 
     return (
       <View as="div" margin="0 0 small 0">
-        {props.defaultPaceContext?.name ? (
-          <Heading
-            level="h1"
-            themeOverride={{h1FontWeight: 700, h1FontSize: '1.75rem'}}
-            margin="0 0 small 0"
-          >
-            {props.defaultPaceContext?.name}
-          </Heading>
-        ) : null}
-        <Text>
-          {I18n.t(
-            "Course Pacing is an automated tool that sets differentiated due dates for assessments and learning activities based on each students' enrollment date, enabling structured, self-paced learning in rolling enrollment courses."
-          )}
-        </Text>
+        <Flex justifyItems="space-between">
+          <Flex.Item size="70%" shouldShrink={true}>
+            {props.defaultPaceContext?.name ? (
+              <Heading
+                level="h1"
+                themeOverride={{h1FontWeight: 700, h1FontSize: '1.75rem'}}
+                margin="0 0 small 0"
+              >
+                {props.defaultPaceContext?.name}
+              </Heading>
+            ) : null}
+            <Text wrap="break-word">
+              {I18n.t(
+                "Course Pacing is an automated tool that sets differentiated due dates for assessments and learning activities based on each students' enrollment date, enabling structured, self-paced learning in rolling enrollment courses."
+              )}
+            </Text>
+            {props.isDraftPace ? (
+              <>
+                <br/>
+                <Pill data-testid="draft-pace-status-pill" margin="small 0" statusLabel="Status">Draft</Pill>
+              </>
+            ) : null }
+          </Flex.Item>
+          <Flex.Item margin="none none auto none">
+            {props.isDraftPace ? (
+              <Button 
+                color="success"
+                data-testid="direct-publish-draft-pace-button"
+                renderIcon={!props.isSyncing ? <IconPublishSolid/> : null}
+                onClick={() => handlePublishClicked()}
+              >
+                {getPublishLabel()}
+              </Button>
+            ) : null }
+          </Flex.Item>
+        </Flex>
+
         <View as="div" margin="small 0" borderRadius="medium" borderWidth="small" padding="medium">
           <Flex
             justifyItems="space-between"
@@ -152,6 +198,7 @@ export const Header = (props: HeaderProps) => {
                   <span className="course-paces-metrics-heading">
                     <Table
                       elementRef={e => {
+                        // @ts-expect-error
                         metricsTableRef.current = e
                       }}
                       caption={I18n.t('Metrics')}
@@ -197,6 +244,7 @@ export const Header = (props: HeaderProps) => {
                                   aria-label={durationTooltipText}
                                   margin="none none none xx-small"
                                 >
+                                  {/* @ts-expect-error */}
                                   <IconInfoLine as="div" size="x-small" />
                                 </View>
                               </Tooltip>
@@ -251,6 +299,7 @@ export const Header = (props: HeaderProps) => {
               </Flex>
             </Flex.Item>
             <Flex.Item
+              // @ts-expect-error
               fontSize="0.875rem"
               textAlign="center"
               margin={props.responsiveSize !== 'small' ? '0' : 'small 0 0'}
@@ -291,6 +340,7 @@ export const Header = (props: HeaderProps) => {
             hasShadow={false}
             margin="0 0 medium"
           >
+            {/* @ts-expect-error */}
             {NEW_PACE_ALERT_MESSAGES[props.context_type]}
           </Alert>
         )}
@@ -300,6 +350,7 @@ export const Header = (props: HeaderProps) => {
           </Flex.Item>
           <Flex.Item margin="0 0 small" shouldGrow={true}>
             <Settings isBlueprintLocked={props.blueprintLocked} margin="0 0 0 small" />
+            {/* @ts-expect-error */}
             <BlueprintLock newPace={props.newPace} />
           </Flex.Item>
           <Flex.Item textAlign="end" margin="0 0 small small">
@@ -326,6 +377,8 @@ const mapStateToProps = (state: StoreState) => {
     context_id: getSelectedContextId(state),
     newPace: isNewPace(state),
     blueprintLocked: getBlueprintLocked(state),
+    isDraftPace: getIsDraftPace(state),
+    isSyncing: getSyncing(state),
   }
 }
 
@@ -333,4 +386,5 @@ export default connect(mapStateToProps, {
   setSelectedPaceContext: actions.setSelectedPaceContext,
   setDefaultPaceContextAsSelected: paceContextsActions.setDefaultPaceContextAsSelected,
   fetchDefaultPaceContext: paceContextsActions.fetchDefaultPaceContext,
+  syncUnpublishedChanges: coursePaceActions.syncUnpublishedChanges,
 })(Header)

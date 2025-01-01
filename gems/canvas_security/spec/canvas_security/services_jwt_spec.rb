@@ -142,6 +142,12 @@ module CanvasSecurity
             expect { ServicesJwt.generate(foo: "bar", bang: "baz") }
               .to raise_error(ArgumentError)
           end
+
+          it "can generate a non-encrypted JWT" do
+            jwt = ServicesJwt.generate({ sub: 1, foo: "bar" }, false, encrypt: false)
+            body = JSON::JWT.decode(jwt, ServicesJwt::KeyStorage.public_keyset)
+            expect(body[:foo]).to eq "bar"
+          end
         end
 
         describe "via .for_user" do
@@ -213,6 +219,19 @@ module CanvasSecurity
             decrypted_token_body = translate_token.call(jwt)
             expect(decrypted_token_body[:context_type]).to eq "CanvasSecurity::ServicesJwtContext"
             expect(decrypted_token_body[:context_id]).to eq "47"
+          end
+
+          it "includes only requested audience if given" do
+            audience = ["foo", "bar"]
+            jwt = ServicesJwt.for_user(host, user, audience:)
+            decrypted_token_body = translate_token.call(jwt)
+            expect(decrypted_token_body[:aud]).to match_array audience
+          end
+
+          it "includes default audience if not given" do
+            jwt = ServicesJwt.for_user(host, user)
+            decrypted_token_body = translate_token.call(jwt)
+            expect(decrypted_token_body[:aud]).to match_array [ServicesJwt::DEFAULT_AUDIENCE]
           end
 
           it "errors without a host" do

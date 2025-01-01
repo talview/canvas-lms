@@ -93,6 +93,7 @@ describe ContentMigration do
       quiz.save!
       quiz2.title = "edited unpublished quiz"
       quiz2.save!
+      @copy_from.reload
 
       # run again
       @cm = ContentMigration.new(
@@ -164,7 +165,7 @@ describe ContentMigration do
       }.with_indifferent_access
       sp.quiz_questions.create!(question_data: data)
       sp.generate_quiz_data
-      sp.published_at = Time.now
+      sp.published_at = Time.zone.now
       sp.workflow_state = "available"
       sp.save!
 
@@ -703,7 +704,7 @@ describe ContentMigration do
 
       quiz = @copy_from.quizzes.create!(title: "survey pub", quiz_type: "survey")
       qq_from = quiz.quiz_questions.new(assessment_question: aq_from)
-      qq_from.write_attribute(:question_data, data)
+      qq_from["question_data"] = data
       qq_from.save!
       quiz.generate_quiz_data
       quiz.save!
@@ -732,7 +733,7 @@ describe ContentMigration do
       q = @copy_from.quizzes.create!(title: "survey pub", quiz_type: "survey")
       q.quiz_questions.create!(question_data: data)
       q.generate_quiz_data
-      q.published_at = Time.now
+      q.published_at = Time.zone.now
       q.workflow_state = "available"
       q.save!
 
@@ -1101,7 +1102,7 @@ describe ContentMigration do
       other_quiz = @copy_from.quizzes.create!(title: "other quiz")
       other_quiz.quiz_questions.create!(question_data: data)
       other_quiz.generate_quiz_data
-      other_quiz.published_at = Time.now
+      other_quiz.published_at = Time.zone.now
       other_quiz.workflow_state = "available"
       other_quiz.save!
 
@@ -1134,7 +1135,7 @@ describe ContentMigration do
       other_quiz = @copy_from.quizzes.create!(title: "other quiz")
       other_quiz.quiz_questions.create!(question_data: data)
       other_quiz.generate_quiz_data
-      other_quiz.published_at = Time.now
+      other_quiz.published_at = Time.zone.now
       other_quiz.workflow_state = "available"
       other_quiz.save!
 

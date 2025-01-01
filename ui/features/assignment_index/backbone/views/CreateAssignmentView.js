@@ -27,16 +27,23 @@ import DateValidator from '@canvas/grading/DateValidator'
 import template from '../../jst/CreateAssignment.handlebars'
 import wrapper from '@canvas/forms/jst/EmptyDialogFormWrapper.handlebars'
 import numberHelper from '@canvas/i18n/numberHelper'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import round from '@canvas/round'
 import $ from 'jquery'
 import GradingPeriodsAPI from '@canvas/grading/jquery/gradingPeriodsApi'
 import SisValidationHelper from '@canvas/sis/SisValidationHelper'
-import '@canvas/datetime/jquery'
-import * as tz from '@canvas/datetime'
-import {encodeQueryString} from '@canvas/query-string-encoding'
+import {
+  dateString,
+  timeString,
+  unfudgeDateForProfileTimezone,
+  isMidnight,
+} from '@instructure/moment-utils'
+import * as tz from '@instructure/moment-utils'
+import {encodeQueryString} from '@instructure/query-string-encoding'
+import {renderDatetimeField} from '@canvas/datetime/jquery/DatetimeField'
+import CreateEditAssignmentModal from '@canvas/assignments/react/CreateEditAssignmentModal'
 
-const I18n = useI18nScope('CreateAssignmentView')
+const I18n = createI18nScope('CreateAssignmentView')
 
 extend(CreateAssignmentView, DialogFormView)
 
@@ -95,7 +102,7 @@ CreateAssignmentView.prototype.onSaveSuccess = function () {
 
 CreateAssignmentView.prototype.getFormData = function () {
   const data = CreateAssignmentView.__super__.getFormData.apply(this, arguments)
-  const unfudged = $.unfudgeDateForProfileTimezone(data.due_at)
+  const unfudged = unfudgeDateForProfileTimezone(data.due_at)
   if (unfudged != null) {
     data.due_at = this._getDueAt(unfudged)
   }
@@ -122,9 +129,8 @@ CreateAssignmentView.prototype.onSaveFail = function (xhr) {
   return CreateAssignmentView.__super__.onSaveFail.call(this, xhr)
 }
 
-CreateAssignmentView.prototype.moreOptions = function () {
+CreateAssignmentView.prototype.moreOptions = function (data) {
   const valid = ['submission_types', 'name', 'due_at', 'points_possible', 'assignment_group_id']
-  const data = this.getFormData()
   if (this.assignmentGroup) {
     data.assignment_group_id = this.assignmentGroup.get('id')
   }
@@ -134,6 +140,7 @@ CreateAssignmentView.prototype.moreOptions = function () {
       return (dataParams[key] = value)
     }
   })
+
   if (dataParams.submission_types === 'online_quiz') {
     const button = this.$('.more_options')
     button.prop('disabled', true)
@@ -224,23 +231,23 @@ CreateAssignmentView.prototype.openAgain = function () {
       },
     })
   } else if (!timeField.hasClass('hasDatepicker')) {
-    timeField.datetime_field()
+    renderDatetimeField(timeField)
     return timeField.change(function (e) {
       let newDate
       const trimmedInput = $.trim(e.target.value)
       newDate = timeField.data('unfudged-date')
       newDate = trimmedInput === '' ? null : newDate
-      if (tz.isMidnight(newDate)) {
+      if (isMidnight(newDate)) {
         if (ENV.DEFAULT_DUE_TIME) {
           newDate = tz.parse(tz.format(newDate, '%F ' + ENV.DEFAULT_DUE_TIME))
         } else {
           newDate = tz.changeToTheSecondBeforeMidnight(newDate)
         }
       }
-      const dateStr = $.dateString(newDate, {
+      const dateStr = dateString(newDate, {
         format: 'medium',
       })
-      const timeStr = $.timeString(newDate)
+      const timeStr = timeString(newDate)
       return timeField.data('inputdate', newDate).val(dateStr + ' ' + timeStr)
     })
   }
@@ -303,7 +310,7 @@ CreateAssignmentView.prototype._validatePointsPossible = function (data, errors)
   if (includes(this.model.frozenAttributes(), 'points_possible')) {
     return errors
   }
-  // eslint-disable-next-line no-restricted-globals
+   
   if (data.points_possible && isNaN(data.points_possible)) {
     errors.points_possible = [
       {
@@ -376,7 +383,7 @@ CreateAssignmentView.prototype._validateDueDate = function (data, errors) {
 CreateAssignmentView.prototype.roundPointsPossible = function (e) {
   const value = $(e.target).val()
   const rounded_value = round(numberHelper.parse(value), 2)
-  // eslint-disable-next-line no-restricted-globals
+   
   if (isNaN(rounded_value)) {
     // do nothing
   } else {

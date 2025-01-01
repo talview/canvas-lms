@@ -16,11 +16,8 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import $ from 'jquery'
-import 'jquery-migrate'
 import React from 'react'
 import {render} from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import CollaborationsToolLaunch from '../CollaborationsToolLaunch'
 
 let fixtures
@@ -36,7 +33,6 @@ describe('CollaborationsToolLaunch screenreader functionality', () => {
     fixtures.innerHTML = ''
     ENV.LTI_LAUNCH_FRAME_ALLOWANCES = undefined
   })
-
 
   test('shows beginning info alert and adds styles to iframe', () => {
     const ref = React.createRef()
@@ -95,11 +91,15 @@ describe('CollaborationsToolLaunch screenreader functionality', () => {
     ref.current.setState({toolLaunchUrl: 'http://localhost:3000/messages/blti'})
     expect(ref.current.state.beforeExternalContentAlertClass).toEqual('screenreader-only')
     expect(ref.current.state.afterExternalContentAlertClass).toEqual('screenreader-only')
-    expect(wrapper.container.querySelector('.tool_launch').getAttribute('allow')).toEqual(ENV.LTI_LAUNCH_FRAME_ALLOWANCES.join('; '))
+    expect(wrapper.container.querySelector('.tool_launch').getAttribute('allow')).toEqual(
+      ENV.LTI_LAUNCH_FRAME_ALLOWANCES.join('; ')
+    )
   })
 
   test("sets the 'data-lti-launch' attribute on the iframe", () => {
     const wrapper = render(<CollaborationsToolLaunch />)
-    expect(wrapper.container.querySelector('.tool_launch').getAttribute('data-lti-launch')).toEqual('true')
+    expect(wrapper.container.querySelector('.tool_launch').getAttribute('data-lti-launch')).toEqual(
+      'true'
+    )
   })
 })

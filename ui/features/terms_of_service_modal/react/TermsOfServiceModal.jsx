@@ -17,14 +17,14 @@
  */
 
 import React from 'react'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import Modal from '@canvas/instui-bindings/react/InstuiModal'
 import RichContentEditor from '@canvas/rce/RichContentEditor'
 import {Link} from '@instructure/ui-link'
 import {bool} from 'prop-types'
-import {defaultFetchOptions} from '@canvas/util/xhr'
+import doFetchApi from '@canvas/do-fetch-api-effect'
 
-const I18n = useI18nScope('terms_of_service_modal')
+const I18n = createI18nScope('terms_of_service_modal')
 
 const termsOfServiceText = I18n.t('Acceptable Use Policy')
 
@@ -34,10 +34,24 @@ class TermsOfServiceCustomContents extends React.Component {
   }
 
   async componentDidMount() {
-    const url = '/api/v1/terms_of_service_custom_content'
-    const TERMS_OF_SERVICE_CUSTOM_CONTENT = await (await fetch(url, defaultFetchOptions())).text()
+    try {
+      const {json, response} = await doFetchApi({
+        path: '/api/v1/acceptable_use_policy',
+        method: 'GET',
+      })
 
-    this.setState({TERMS_OF_SERVICE_CUSTOM_CONTENT})
+      if (response.ok) {
+        this.setState({TERMS_OF_SERVICE_CUSTOM_CONTENT: json?.content || ''})
+      } else {
+         
+        console.error(
+          `Failed to load Terms of Service content: ${response.status} ${response.statusText}`
+        )
+      }
+    } catch (error) {
+       
+      console.error('An error occurred while fetching the Terms of Service content:', error)
+    }
   }
 
   render() {

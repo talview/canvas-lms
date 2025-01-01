@@ -1,4 +1,3 @@
-// @ts-nocheck
 /*
  * Copyright (C) 2011 - present Instructure, Inc.
  *
@@ -18,13 +17,13 @@
  */
 
 import axios from '@canvas/axios'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {underscoreProperties} from '@canvas/convert-case'
 import doFetchApi from '@canvas/do-fetch-api-effect'
 import {serializeFilter} from '../Gradebook.utils'
 import type {CustomColumn, FilterPreset, GradebookSettings} from '../gradebook.d'
 
-const I18n = useI18nScope('gradebookGradebookApi')
+const I18n = createI18nScope('gradebookGradebookApi')
 
 function applyScoreToUngradedSubmissions(courseId?: string, params: any = {}) {
   const url = `/api/v1/courses/${courseId}/apply_score_to_ungraded_submissions`
@@ -43,6 +42,7 @@ function createTeacherNotesColumn(courseId: string) {
   return axios.post<CustomColumn>(url, data)
 }
 
+// @ts-expect-error
 function updateTeacherNotesColumn(courseId: string, columnId: string, attr) {
   const url = `/api/v1/courses/${courseId}/custom_gradebook_columns/${columnId}`
   return axios.put(url, {column: attr})
@@ -52,15 +52,18 @@ function updateSubmission(
   courseId: string,
   assignmentId: string,
   userId: string,
+  // @ts-expect-error
   submission,
-  enterGradesAs?: string
+  enterGradesAs?: string,
+  subAssignmentTag?: string
 ) {
   const url = `/api/v1/courses/${courseId}/assignments/${assignmentId}/submissions/${userId}`
   return axios.put(url, {
     submission: underscoreProperties(submission),
-    include: ['visibility'],
+    include: ['visibility', 'sub_assignment_submissions'],
     prefer_points_over_scheme: enterGradesAs === 'points',
     originator: 'gradebook',
+    ...(subAssignmentTag ? {sub_assignment_tag: subAssignmentTag} : {}),
   })
 }
 

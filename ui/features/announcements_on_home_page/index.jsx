@@ -16,7 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import React from 'react'
 import ReactDOM from 'react-dom'
 import axios from '@canvas/axios'
@@ -25,15 +25,16 @@ import {Spinner} from '@instructure/ui-spinner'
 import {View} from '@instructure/ui-view'
 import AnnouncementRow from '@canvas/announcements/react/components/AnnouncementRow'
 import ready from '@instructure/ready'
-import { captureException } from '@sentry/react'
+import {captureException} from '@sentry/react'
 
-const I18n = useI18nScope('announcements_on_home_page')
+const I18n = createI18nScope('announcements_on_home_page')
 
 if (ENV.SHOW_ANNOUNCEMENTS) {
   ready(() => {
     const container = document.querySelector('#announcements_on_home_page')
+     
     ReactDOM.render(
-      <Spinner renderTitle={I18n.t('Loading Announcements')} size="small" />,
+      <Spinner delay={500} renderTitle={I18n.t('Loading Announcements')} size="small" />,
       container
     )
 
@@ -45,6 +46,7 @@ if (ENV.SHOW_ANNOUNCEMENTS) {
       page: '1',
       start_date: '1900-01-01',
       end_date: new Date().toISOString(),
+      available_after: new Date().toISOString(),
       active_only: true,
       include: ['sections', 'sections_user_count'],
     }
@@ -52,6 +54,7 @@ if (ENV.SHOW_ANNOUNCEMENTS) {
     axios
       .get(url, {params})
       .then(response => {
+         
         ReactDOM.render(
           <View display="block" margin="0 0 medium">
             <Heading
@@ -68,11 +71,11 @@ if (ENV.SHOW_ANNOUNCEMENTS) {
         )
       })
       .catch(error => {
-        /* eslint-disable no-console */
+         
         console.error('Error retrieving home page announcements')
         console.error(error)
         captureException(error)
-        /* eslint-enable no-console */
+         
       })
   })
 }

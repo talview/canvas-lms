@@ -167,7 +167,7 @@ module Lti::IMS
               expect(rslt.submission).to be_nil
             end
 
-            context do
+            context "with PendingManual" do
               let(:params_overrides) { super().merge(gradingProgress: "PendingManual") }
 
               it "does not create submission with PendingManual" do
@@ -413,7 +413,7 @@ module Lti::IMS
 
             before do
               result.grading_progress = "PendingManual"
-              result.submission.workflow_state = Submission.workflow_states.pending_review
+              result.submission.workflow_state = "pending_review"
               result.save!
             end
 
@@ -1219,6 +1219,28 @@ module Lti::IMS
         it_behaves_like "a successful scores request"
       end
 
+      context "when activityProdress is set to Initialized" do
+        let(:params_overrides) { super().merge(activityProgress: "Initialized") }
+
+        shared_examples_for "an unsubmitted submission" do
+          it "does not update the submission" do
+            send_request
+            rslt = Lti::Result.find(json["resultUrl"].split("/").last)
+            expect(rslt.submission.workflow_state).to eq("unsubmitted")
+          end
+        end
+
+        it_behaves_like "an unsubmitted submission"
+
+        context "ags_scores_multiple_files FF is on" do
+          before do
+            Account.root_accounts.first.enable_feature! :ags_scores_multiple_files
+          end
+
+          it_behaves_like "an unsubmitted submission"
+        end
+      end
+
       context "when user_id is a fake student in course" do
         let(:user) do
           course_with_user("StudentViewEnrollment", course:, active_all: true).user
@@ -1387,6 +1409,28 @@ module Lti::IMS
           end
 
           it_behaves_like "an unprocessable entity"
+        end
+
+        context "when assignment is unpublished" do
+          before { assignment.update!(workflow_state: "unpublished") }
+
+          let(:params_overrides) do
+            super().merge(Lti::Result::AGS_EXT_SUBMISSION => { content_items: [
+                            {
+                              type: "file",
+                              url: "https://getsamplefiles.com/download/txt/sample-1.txt",
+                              title: "sample1.txt"
+                            }
+                          ] })
+          end
+
+          it "does not modify the submission" do
+            result
+            send_request
+            expect(assignment.find_or_create_submission(user).workflow_state).to eq "unsubmitted"
+            expect(response).to have_http_status :unprocessable_entity
+            expect(response.body).to include "This assignment is still unpublished"
+          end
         end
       end
     end

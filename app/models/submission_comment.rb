@@ -69,6 +69,7 @@ class SubmissionComment < ActiveRecord::Base
   before_save :set_edited_at
   after_save :update_participation
   after_save :check_for_media_object
+  after_save :request_captions
   after_update :publish_other_comments_in_this_group
   after_update :post_submission_for_finalized_draft, if: -> { saved_change_to_draft?(from: true, to: false) }
   after_destroy :delete_other_comments_in_this_group
@@ -91,6 +92,7 @@ class SubmissionComment < ActiveRecord::Base
   scope :for_assignment_id, ->(assignment_id) { where(submissions: { assignment_id: }).joins(:submission) }
   scope :for_groups, -> { where.not(group_comment_id: nil) }
   scope :not_for_groups, -> { where(group_comment_id: nil) }
+  scope :authored_by, ->(user_id) { where(draft: false).or(where(author_id: user_id)) }
 
   workflow do
     state :active
@@ -159,6 +161,12 @@ class SubmissionComment < ActiveRecord::Base
     media_comment_id && media_comment_type
   end
 
+  def media_object
+    return nil unless media_comment?
+
+    MediaObject.by_media_id(media_comment_id).first
+  end
+
   def self.serialize_media_comment(media_comment_id)
     media_object = MediaObject.by_media_id(media_comment_id).first
     return nil unless media_object.present?
@@ -179,6 +187,13 @@ class SubmissionComment < ActiveRecord::Base
                                       user: author,
                                       context: author)
     end
+  end
+
+  def request_captions
+    obj = media_object
+    return unless obj.present? && obj.auto_caption_status.nil? && obj.media_id.present? && obj.media_type.include?("video") && obj.media_tracks.where(kind: "subtitles").none?
+
+    obj&.generate_captions
   end
 
   on_create_send_to_streams do
@@ -338,7 +353,7 @@ class SubmissionComment < ActiveRecord::Base
   end
 
   def context
-    read_attribute(:context) || submission.assignment.context rescue nil
+    super || submission&.assignment&.context
   end
 
   def parse_attachment_ids
@@ -356,18 +371,18 @@ class SubmissionComment < ActiveRecord::Base
     # on the assignment for now.
     attachments ||= []
     old_ids = parse_attachment_ids
-    write_attribute(:attachment_ids, attachments.select do |a|
+    self["attachment_ids"] = attachments.select do |a|
       old_ids.include?(a.id) ||
-      a.recently_created ||
-      a.ok_for_submission_comment
-    end.map(&:id).join(","))
+        a.recently_created ||
+        a.ok_for_submission_comment
+    end.map(&:id).join(",")
   end
 
   def infer_details
     self.anonymous = submission.assignment.anonymous_peer_reviews
-    self.author_name ||= author.short_name rescue t(:unknown_author, "Someone")
+    self.author_name ||= author&.short_name || t(:unknown_author, "Someone")
     self.cached_attachments = attachments.map(&:attributes)
-    self.context = read_attribute(:context) || submission.assignment.context rescue nil
+    self.context = context unless context_id
 
     self.workflow_state ||= "active"
   end
@@ -381,10 +396,17 @@ class SubmissionComment < ActiveRecord::Base
     return result if result.blank?
 
     result.map do |attachment|
-      # back-compat for when this was OpenObject. can be removed when we datafix all existing data
-      # to just be a hash, not an OpenObject
-      attributes = attachment.is_a?(Hash) ? attachment : attachment.instance_variable_get(:@table)
-      Attachment.new(attributes)
+      if attachment.is_a?(Hash)
+        attributes = attachment
+      else
+        # back-compat for when this was OpenObject. can be removed when we datafix all existing data
+        # to just be a hash, not an OpenObject
+        attributes = attachment.table
+        attributes = attributes[:table] if attributes.keys == [:table, :object_type]
+        attributes = attributes.stringify_keys
+      end
+
+      Attachment.new(attributes.slice(*Attachment.columns.map(&:name)))
     end
   end
 
@@ -428,9 +450,7 @@ class SubmissionComment < ActiveRecord::Base
 
   def formatted_body(truncate = nil)
     # stream items pre-serialize the return value of this method
-    if (formatted_body = read_attribute(:formatted_body))
-      return formatted_body
-    end
+    return self["formatted_body"] if has_attribute?("formatted_body")
 
     res = format_message(comment).first
     res = truncate_html(res, max_length: truncate, words: true) if truncate
@@ -447,8 +467,12 @@ class SubmissionComment < ActiveRecord::Base
 
   def serialization_methods
     methods = []
-    methods << :avatar_path if context.root_account.service_enabled?(:avatars)
+    methods << :avatar_path if root_account&.service_enabled?(:avatars)
     methods
+  end
+
+  def non_draft_or_authored_by(user)
+    !draft? || user.id == author_id
   end
 
   def publishable_for?(user)

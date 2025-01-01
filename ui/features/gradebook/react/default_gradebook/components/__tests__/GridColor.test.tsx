@@ -16,10 +16,17 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react'
-import {darken} from '../../constants/colors'
 import {render} from '@testing-library/react'
+import React from 'react'
+import {darken, defaultColors, statusColors} from '../../constants/colors'
 import GridColor from '../GridColor'
+
+function defaultProps(props = {}) {
+  return {
+    colors: statusColors(),
+    ...props,
+  }
+}
 
 const colors = {
   dropped: '#FEF0E5',
@@ -69,15 +76,15 @@ describe('GridColor', () => {
             data-testid="grid-color-editable-2"
           />
         </div>
-      </>
+      </>,
     )
 
     expect(getByTestId('grid-color-even')).toHaveStyle('background-color: #00ffff')
     expect(getByTestId('grid-color-odd')).toHaveStyle(`background-color: ${darken('#00ffff', 5)}`)
-    expect(getByTestId('grid-color-editable')).toHaveStyle('background-color: white')
+    expect(getByTestId('grid-color-editable')).toHaveStyle('background-color: rgb(255, 255, 255)')
     expect(getByTestId('grid-color-even-2')).toHaveStyle('background-color: #ff00ff')
     expect(getByTestId('grid-color-odd-2')).toHaveStyle(`background-color: ${darken('#ff00ff', 5)}`)
-    expect(getByTestId('grid-color-editable-2')).toHaveStyle('background-color: white')
+    expect(getByTestId('grid-color-editable-2')).toHaveStyle('background-color: rgb(255, 255, 255)')
   })
 
   it('renders with blank custom status and standard status colors', () => {
@@ -90,5 +97,53 @@ describe('GridColor', () => {
     const {getByTestId} = render(<GridColor statuses={[]} colors={colors} />)
     const styleTag = getByTestId('grid-color')
     expect(styleTag).toHaveTextContent('')
+  })
+
+  it('it renders style', function () {
+    render(<GridColor {...defaultProps()} />)
+    expect(document.querySelector('style[type="text/css"]')).toBeInTheDocument()
+  })
+
+  it('it has proper default colors', function () {
+    render(<GridColor {...defaultProps()} />)
+    const rules = document.querySelector('style[type="text/css"]')!.innerHTML
+    expect(rules.includes(defaultColors.blue)).toBe(true)
+    expect(rules.includes(defaultColors.salmon)).toBe(true)
+    expect(rules.includes(defaultColors.green)).toBe(true)
+    expect(rules.includes(defaultColors.orange)).toBe(true)
+    expect(rules.includes(defaultColors.yellow)).toBe(true)
+    // @ts-expect-error
+    expect(rules.includes(darken(defaultColors.blue, 5))).toBe(true)
+    // @ts-expect-error
+    expect(rules.includes(darken(defaultColors.salmon, 5))).toBe(true)
+    // @ts-expect-error
+    expect(rules.includes(darken(defaultColors.green, 5))).toBe(true)
+    // @ts-expect-error
+    expect(rules.includes(darken(defaultColors.orange, 5))).toBe(true)
+    // @ts-expect-error
+    expect(rules.includes(darken(defaultColors.yellow, 5))).toBe(true)
+  })
+
+  test('rules are for .gradebook-cell and .`statuses`', () => {
+    render(<GridColor {...defaultProps()} {...{statuses: ['late']}} />)
+    const rules = document.querySelector('style[type="text/css"]')!.innerHTML
+    expect(rules).toEqual(
+      `.even .gradebook-cell.late { background-color: ${defaultColors.blue}; }` +
+        `.odd .gradebook-cell.late { background-color: ${darken(defaultColors.blue, 5)}; }` +
+        `.slick-cell.editable .gradebook-cell.late { background-color: white; }`,
+    )
+  })
+
+  test('multiple state rules are concatenated', () => {
+    render(<GridColor {...defaultProps()} {...{statuses: ['late', 'missing']}} />)
+    const rules = document.querySelector('style[type="text/css"]')!.innerHTML
+    expect(rules).toEqual(
+      `.even .gradebook-cell.late { background-color: ${defaultColors.blue}; }` +
+        `.odd .gradebook-cell.late { background-color: ${darken(defaultColors.blue, 5)}; }` +
+        '.slick-cell.editable .gradebook-cell.late { background-color: white; }' +
+        `.even .gradebook-cell.missing { background-color: ${defaultColors.salmon}; }` +
+        `.odd .gradebook-cell.missing { background-color: ${darken(defaultColors.salmon, 5)}; }` +
+        '.slick-cell.editable .gradebook-cell.missing { background-color: white; }',
+    )
   })
 })

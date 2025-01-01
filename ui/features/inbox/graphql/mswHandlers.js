@@ -254,6 +254,12 @@ export const handlers = [
     })
   }),
 
+  graphql.query('GetUserInboxLabels', ({variables}) => {
+    return HttpResponse.json({
+      data: {legacyNode: {id: 'VXNlci0x', inboxLabels: ['LabelA', 'LabelB'], __typename: 'User'}},
+    })
+  }),
+
   graphql.query('GetConversationMessagesQuery', ({variables}) => {
     if (variables.conversationID === CONVERSATION_ID_WHERE_CAN_REPLY_IS_FALSE) {
       return HttpResponse.json({
@@ -278,6 +284,7 @@ export const handlers = [
               submissionId: '3',
               createdAt: '2022-04-04T12:19:38-06:00',
               attempt: 0,
+              canReply: false,
               author: User.mock(),
               assignment: {
                 id: 'QXNzaWdubWVudC0x',
@@ -286,6 +293,7 @@ export const handlers = [
                 __typename: 'Assignment',
               },
               comment: 'my student comment',
+              htmlComment: '<p>my student comment</p>',
               course: Course.mock(),
               read: true,
               __typename: 'SubmissionComment',
@@ -314,6 +322,7 @@ export const handlers = [
           nodes: [
             {
               _id: '9',
+              readState: null,
               commentsConnection: {
                 nodes: [
                   {
@@ -322,6 +331,7 @@ export const handlers = [
                     submissionId: '3',
                     createdAt: '2022-04-04T12:19:38-06:00',
                     attempt: 0,
+                    canReply: false,
                     author: User.mock(),
                     assignment: {
                       id: 'QXNzaWdubWVudC0x',
@@ -330,6 +340,7 @@ export const handlers = [
                       __typename: 'Assignment',
                     },
                     comment: 'my student comment',
+                    htmlComment: '<p>my student comment</p>',
                     course: Course.mock(),
                     read: true,
                     __typename: 'SubmissionComment',
@@ -341,6 +352,7 @@ export const handlers = [
             },
             {
               _id: '10',
+              readState: null,
               commentsConnection: {
                 nodes: [
                   {
@@ -349,6 +361,7 @@ export const handlers = [
                     submissionId: '3',
                     createdAt: '2022-04-04T12:19:38-06:00',
                     attempt: 0,
+                    canReply: false,
                     author: User.mock(),
                     assignment: {
                       id: 'QXNzaWdubWVudC0x',
@@ -357,6 +370,7 @@ export const handlers = [
                       __typename: 'Assignment',
                     },
                     comment: 'my student comment',
+                    htmlComment: '<p>my student comment</p>',
                     course: Course.mock(),
                     read: true,
                     __typename: 'SubmissionComment',
@@ -466,6 +480,7 @@ export const handlers = [
               id: 'TWVzc2FnZWFibGVVc2VyLTQx',
               name: 'Frederick Dukes',
               shortName: 'Frederick Dukes',
+              pronouns: 'he/him',
               __typename: 'MessageableUser',
               commonCoursesConnection: {
                 nodes: [
@@ -509,6 +524,7 @@ export const handlers = [
               id: 'TWVzc2FnZWFibGVVc2VyLTQx',
               name: 'Frederick Dukes',
               shortName: 'Frederick Dukes',
+              pronouns: 'he/him',
               __typename: 'MessageableUser',
               commonCoursesConnection: {
                 nodes: [
@@ -559,6 +575,7 @@ export const handlers = [
               id: 'TWVzc2FnZWFibGVVc2VyLTQx',
               name: 'Frederick Dukes',
               shortName: 'Frederick Dukes',
+              pronouns: 'he/him',
               __typename: 'MessageableUser',
               commonCoursesConnection: {
                 nodes: [
@@ -585,6 +602,7 @@ export const handlers = [
               id: 'TWVzc2FnZWFibGVVc2VyLTY1',
               name: 'Trevor Fitzroy',
               shortName: 'Trevor Fitzroy',
+              pronouns: 'he/him',
               __typename: 'MessageableUser',
               commonCoursesConnection: {
                 nodes: [
@@ -611,6 +629,7 @@ export const handlers = [
               id: 'TWVzc2FnZWFibGVVc2VyLTMy',
               name: 'Null Forge',
               shortName: 'Null Forge',
+              pronouns: 'he/him',
               __typename: 'MessageableUser',
               commonCoursesConnection: {
                 nodes: [
@@ -745,7 +764,10 @@ export const handlers = [
     const SUBMISSION_ID_THAT_RETURNS_ERROR = '440'
     const data = {
       createSubmissionComment: {
-        submissionComment: SubmissionComment.mock({comment: variables.body}),
+        submissionComment: SubmissionComment.mock({
+          comment: variables.body,
+          htmlComment: variables.body,
+        }),
         errors: null,
         __typename: 'CreateSubmissionCommentPayload',
       },
@@ -782,5 +804,63 @@ export const handlers = [
         },
       },
     })
+  }),
+]
+
+export const inboxSettingsHandlers = version => [
+  graphql.query('GetMyInboxSettings', () => {
+    const VERSION_THAT_RETURNS_INBOX_SETTINGS_WITH_OOO_ENABLED = 2
+    const data = {
+      myInboxSettings: {
+        _id: '1',
+        useSignature: false,
+        signature: 'My signature',
+        useOutOfOffice: false,
+        outOfOfficeFirstDate: null,
+        outOfOfficeLastDate: null,
+        outOfOfficeSubject: 'OOO Subject',
+        outOfOfficeMessage: 'OOO Message',
+        __typename: 'InboxSettings',
+      },
+    }
+
+    if (version === VERSION_THAT_RETURNS_INBOX_SETTINGS_WITH_OOO_ENABLED) {
+      data.myInboxSettings.useOutOfOffice = true
+    }
+
+    return HttpResponse.json({data})
+  }),
+
+  graphql.mutation('UpdateMyInboxSettings', () => {
+    const VERSION_THAT_RETURNS_INBOX_SETTINGS_MUTATION_ERROR = 1
+    const data = {
+      updateMyInboxSettings: {
+        myInboxSettings: {
+          _id: '1',
+          useSignature: true,
+          signature: 'My signature updated',
+          useOutOfOffice: true,
+          outOfOfficeFirstDate: null,
+          outOfOfficeLastDate: null,
+          outOfOfficeSubject: 'OOO Subject',
+          outOfOfficeMessage: 'OOO Message',
+          __typename: 'InboxSettings',
+        },
+        errors: null,
+        __typename: 'UpdateMyInboxSettingsPayload',
+      },
+    }
+
+    if (version === VERSION_THAT_RETURNS_INBOX_SETTINGS_MUTATION_ERROR) {
+      data.updateMyInboxSettings.errors = [
+        {
+          attribute: 'message',
+          message: 'GraphQL Error',
+          __typename: 'NetworkError',
+        },
+      ]
+    }
+
+    return HttpResponse.json({data})
   }),
 ]

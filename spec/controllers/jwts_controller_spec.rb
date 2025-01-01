@@ -31,6 +31,13 @@ describe JwtsController do
       CanvasSecurity::ServicesJwt.decrypt(decoded_crypted_token)
     end
   end
+  let(:translate_unencrypted_token) do
+    lambda do |resp|
+      utf8_token_string = json_parse(resp.body)["token"]
+      decoded_token = Canvas::Security.base64_decode(utf8_token_string)
+      CanvasSecurity.decode_jwt(decoded_token, [CanvasSecurity::ServicesJwt::KeyStorage.present_key])
+    end
+  end
 
   describe "#generate" do
     it "requires being logged in" do
@@ -52,6 +59,76 @@ describe JwtsController do
         post "create", format: "json"
         decrypted_token_body = translate_token.call(response)
         expect(decrypted_token_body[:domain]).to eq("test.host")
+      end
+    end
+
+    context "asymmetric tokens" do
+      before { user_session(token_user) }
+
+      it "generates an unencrypted token for non-canvas audiences" do
+        post "create", params: { canvas_audience: false }, format: "json"
+
+        jwt = translate_unencrypted_token.call(response)
+        expect(jwt[:sub]).to eq(token_user.global_id)
+      end
+
+      it "generates an encrypted token by default" do
+        post "create", format: "json"
+
+        jwt = translate_token.call(response)
+        expect(jwt[:sub]).to eq(token_user.global_id)
+      end
+
+      it "generates an encrypted token for the canvas audience" do
+        post "create", params: { canvas_audience: true }, format: "json"
+
+        jwt = translate_token.call(response)
+        expect(jwt[:sub]).to eq(token_user.global_id)
+      end
+
+      describe "with custom audiences requested" do
+        let(:allowed_audience) { "custom_audience" }
+
+        before do
+          pseudonym(admin_user)
+          access_token = admin_user.access_tokens.create!.full_token
+          admin_user.access_tokens.first.developer_key.update!(allowed_audiences: [allowed_audience])
+          request.headers["Authorization"] = "Bearer #{access_token}"
+        end
+
+        context "when audience is allowed through the developer key" do
+          it "returns unencrypted token" do
+            post "create", params: { audience: allowed_audience }, format: "json"
+
+            jwt = translate_unencrypted_token.call(response)
+            expect(jwt[:sub]).to eq(admin_user.global_id)
+          end
+
+          it "generates a token that includes the requested audience" do
+            post "create", params: { audience: allowed_audience }, format: "json"
+
+            jwt = translate_unencrypted_token.call(response)
+            expect(jwt[:aud]).to eq(["custom_audience"])
+          end
+        end
+
+        context "when at least one audience is not allowed through the developer key" do
+          it "throws an error with status code bad request" do
+            post "create", params: { audience: "#{allowed_audience} not_allowed_audience" }, format: "json"
+
+            expect(response).to have_http_status(:bad_request)
+            expect(response.body).to include(/invalid_target/)
+          end
+        end
+
+        context "when no audience is allowed through the developer key" do
+          it "returns an error with bad request status code" do
+            post "create", params: { audience: "not_allowed_audience" }, format: "json"
+
+            expect(response).to have_http_status(:bad_request)
+            expect(response.body).to include(/invalid_target/)
+          end
+        end
       end
     end
 
@@ -168,14 +245,14 @@ describe JwtsController do
           generic_user = user_factory
           user_session(generic_user)
           post "create", params:, format: "json"
-          assert_unauthorized
+          assert_forbidden
         end
 
         it "generic user is unauthorized for Account context type" do
           generic_user = user_factory
           user_session(generic_user)
           post "create", params: params.merge(context_type: "Account", context_id: Account.last.id), format: "json"
-          assert_unauthorized
+          assert_forbidden
         end
       end
     end

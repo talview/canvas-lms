@@ -18,7 +18,8 @@
 
 import {z} from 'zod'
 import {executeQuery} from '@canvas/query/graphql'
-import gql from 'graphql-tag'
+import resolveProgress from '@canvas/progress/resolve_progress'
+import {gql} from '@apollo/client'
 
 const POST_ASSIGNMENT_GRADES = gql`
   mutation ($assignmentId: ID!, $gradedOnly: Boolean) {
@@ -30,6 +31,19 @@ const POST_ASSIGNMENT_GRADES = gql`
     }
   }
 `
+
+export async function resolvePostAssignmentGradesStatus(payload: {
+  queryKey: [string, {_id: string; workflowState: string}]
+}) {
+  const result = await resolveProgress({
+    url: `/api/v1/progress/${payload.queryKey[1]._id}`,
+    workflow_state: payload.queryKey[1].workflowState,
+  }).then((data: any) => {
+    return data
+  })
+
+  return result
+}
 
 const ZPostAssignmentGradesForSectionsParams = z.object({
   assignmentId: z.string(),

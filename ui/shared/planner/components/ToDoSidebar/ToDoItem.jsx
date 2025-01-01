@@ -35,28 +35,30 @@ import {
 
 import {func, shape, object, arrayOf, number, string, bool} from 'prop-types'
 import {dateTimeString} from '../../utilities/dateUtils'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
-const I18n = useI18nScope('planner')
+const I18n = createI18nScope('planner')
 
 const getAriaLabel = (itemType, itemTitle) => {
   switch (itemType) {
     case 'Assignment':
-      return I18n.t('Assignment, %{itemTitle}', {itemTitle: itemTitle})
+      return I18n.t('Assignment, %{itemTitle}', {itemTitle})
     case 'Quiz':
-      return I18n.t('Quiz, %{itemTitle}', {itemTitle: itemTitle})
+      return I18n.t('Quiz, %{itemTitle}', {itemTitle})
     case 'Discussion':
-      return I18n.t('Discussion, %{itemTitle}', {itemTitle: itemTitle})
+      return I18n.t('Discussion, %{itemTitle}', {itemTitle})
     case 'Announcement':
-      return I18n.t('Announcment, %{itemTitle}', {itemTitle: itemTitle})
+      return I18n.t('Announcment, %{itemTitle}', {itemTitle})
     case 'Calendar Event':
-      return I18n.t('Calendar Event, %{itemTitle}', {itemTitle: itemTitle})
+      return I18n.t('Calendar Event, %{itemTitle}', {itemTitle})
     case 'Page':
-      return I18n.t('Page, %{itemTitle}', {itemTitle: itemTitle})
+      return I18n.t('Page, %{itemTitle}', {itemTitle})
     case 'Peer Review':
-      return I18n.t('Peer Review, %{itemTitle}', {itemTitle: itemTitle})
+      return I18n.t('Peer Review, %{itemTitle}', {itemTitle})
+    case 'Discussion Checkpoint':
+      return I18n.t('Discussion Checkpoint, %{itemTitle}', {itemTitle})
     default:
-      return I18n.t('To Do, %{itemTitle}', {itemTitle: itemTitle})
+      return I18n.t('To Do, %{itemTitle}', {itemTitle})
   }
 }
 
@@ -68,6 +70,13 @@ const getIconComponent = itemType => {
       return <IconQuizLine label={I18n.t('Quiz')} className="ToDoSidebarItem__Icon" />
     case 'Discussion':
       return <IconDiscussionLine label={I18n.t('Discussion')} className="ToDoSidebarItem__Icon" />
+    case 'Discussion Checkpoint':
+      return (
+        <IconDiscussionLine
+          label={I18n.t('Discussion Checkpoint')}
+          className="ToDoSidebarItem__Icon"
+        />
+      )
     case 'Announcement':
       return (
         <IconAnnouncementLine label={I18n.t('Announcement')} className="ToDoSidebarItem__Icon" />
@@ -91,12 +100,19 @@ const getContextShortName = (courses, courseId) => {
 }
 
 export default class ToDoItem extends React.Component {
+  constructor(props) {
+    super(props)
+    this.dismissed = false
+  }
+
   focus() {
     const focusable = this.linkRef || this.buttonRef
     if (focusable) focusable.focus()
   }
 
   handleClick = () => {
+    if (this.dismissed) return
+    this.dismissed = true
     this.props.handleDismissClick(this.props.item)
   }
 
@@ -146,8 +162,10 @@ export default class ToDoItem extends React.Component {
     return (
       <div className="ToDoSidebarItem">
         {getIconComponent(this.props.item.type)}
-        <div className="ToDoSidebarItem__Info">
-          <div className="ToDoSidebarItem__Title">{titleComponent}</div>
+        <div className="ToDoSidebarItem__Info" data-testid="todo-sidebar-item-info">
+          <div className="ToDoSidebarItem__Title" data-testid="todo-sidebar-item-title">
+            {titleComponent}
+          </div>
           <Text color="secondary" size="small" weight="bold" lineHeight="fit">
             {getContextShortName(this.props.courses, this.props.item.course_id)}
           </Text>
@@ -160,8 +178,9 @@ export default class ToDoItem extends React.Component {
           </InlineList>
         </div>
         {!this.props.isObserving && (
-          <div className="ToDoSidebarItem__Close">
+          <div className="ToDoSidebarItem__Close" data-testid="todo-sidebar-item-close">
             <CloseButton
+              data-testid="todo-sidebar-item-close-button"
               size="small"
               onClick={this.handleClick}
               screenReaderLabel={I18n.t('Dismiss %{itemTitle}', {

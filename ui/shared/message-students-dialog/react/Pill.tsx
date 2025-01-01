@@ -1,4 +1,3 @@
-// @ts-nocheck
 /*
  * Copyright (C) 2022 - present Instructure, Inc.
  *
@@ -24,7 +23,7 @@ import {Tooltip} from '@instructure/ui-tooltip'
 import {Flex} from '@instructure/ui-flex'
 import {IconAddSolid, IconXSolid} from '@instructure/ui-icons'
 import {InstUISettingsProvider} from '@instructure/emotion'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {TruncateText} from '@instructure/ui-truncate-text'
 
 const componentOverrides = {
@@ -33,10 +32,12 @@ const componentOverrides = {
   },
 }
 
-const I18n = useI18nScope('pill')
+const I18n = createI18nScope('pill')
 const ellipsis = () => I18n.t('…')
+// @ts-expect-error
 const truncate = text => (text.length > 14 ? text.slice(0, 13) + ellipsis() : text)
 
+// @ts-expect-error
 function renderText(text, truncatedText, textColor) {
   const isTruncated = text.length > truncatedText.length
   if (isTruncated) {
@@ -64,14 +65,16 @@ function renderIcon(selected: boolean) {
   }
 }
 
+// @ts-expect-error
 const Pill = ({studentId, observerId = null, text, onClick, selected = false}) => {
   const textColor = selected ? 'primary' : 'secondary'
   const truncatedText = truncate(text)
+  const testId = observerId ? 'observer-pill' : 'student-pill'
 
   const ariaLabel = selected ? I18n.t('Remove %{text}', {text}) : I18n.t('Add %{text}', {text})
 
   const contents = (
-    <Flex as="div" margin="0 xx-small 0 0" justifyItems="space-between">
+    <Flex as="div" margin="0 xxx-small 0 0" justifyItems="space-between">
       <Flex.Item
         size="0.75rem"
         shouldGrow={true}
@@ -81,13 +84,13 @@ const Pill = ({studentId, observerId = null, text, onClick, selected = false}) =
       >
         {renderText(text, truncatedText, textColor)}
       </Flex.Item>
-      <Flex.Item>{renderIcon(selected)}</Flex.Item>
+      <Flex.Item padding="0 0 xxx-small 0">{renderIcon(selected)}</Flex.Item>
     </Flex>
   )
 
   return (
     <InstUISettingsProvider theme={{componentOverrides}}>
-      <Tag text={contents} onClick={() => onClick(studentId, observerId)} />
+      <Tag text={contents} data-testid={testId} onClick={() => onClick(studentId, observerId)} />
     </InstUISettingsProvider>
   )
 }

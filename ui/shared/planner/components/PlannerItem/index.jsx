@@ -46,7 +46,7 @@ import {
 } from '@instructure/ui-icons'
 import {arrayOf, bool, number, string, func, shape, object} from 'prop-types'
 import {momentObj} from 'react-moment-proptypes'
-// eslint-disable-next-line import/no-named-as-default
+ 
 import NotificationBadge, {MissingIndicator, NewActivityIndicator} from '../NotificationBadge'
 import BadgeList from '../BadgeList'
 import CalendarEventModal from '../CalendarEventModal'
@@ -54,13 +54,16 @@ import {badgeShape, userShape, statusShape, sizeShape, feedbackShape} from '../p
 import {getDynamicFullDateAndTime} from '../../utilities/dateUtils'
 import {showPillForOverdueStatus} from '../../utilities/statusUtils'
 import {assignmentType as getAssignmentType} from '../../utilities/contentUtils'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {animatable} from '../../dynamic-ui'
 import buildStyle from './style'
+import {stripHtmlTags} from '@canvas/util/TextHelper'
 
-const I18n = useI18nScope('planner')
+const I18n = createI18nScope('planner')
 
 export class PlannerItem_raw extends Component {
+  static componentId = 'PlannerItem'
+
   static propTypes = {
     color: string,
     uniqueId: string.isRequired,
@@ -317,6 +320,8 @@ export class PlannerItem_raw extends Component {
         return <IconDocumentLine />
       case 'Peer Review':
         return <IconPeerReviewLine />
+      case 'Discussion Checkpoint':
+        return <IconDiscussionLine />
       default:
         return (
           <Avatar
@@ -589,7 +594,9 @@ export class PlannerItem_raw extends Component {
   renderExtraInfo() {
     const feedback = this.props.feedback
     if (feedback) {
-      const comment = feedback.is_media ? I18n.t('You have media feedback.') : feedback.comment
+      const comment = feedback.is_media
+        ? I18n.t('You have media feedback.')
+        : stripHtmlTags(feedback.comment)
       return (
         <div className={this.style.classNames.feedback}>
           <span className={this.style.classNames.feedbackAvatar}>
@@ -600,7 +607,7 @@ export class PlannerItem_raw extends Component {
               data-fs-exclude={true}
             />
           </span>
-          <span className={this.style.classNames.feedbackComment}>
+          <span className={this.style.classNames.feedbackComment} data-testid="feedback-comment">
             <Text fontStyle="italic">{comment}</Text>
           </span>
         </div>

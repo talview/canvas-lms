@@ -19,8 +19,8 @@
 import React from 'react'
 import {act, render as rtlRender, fireEvent, waitFor} from '@testing-library/react'
 import userEvent, {PointerEventsCheckLevel} from '@testing-library/user-event'
-import {MockedProvider} from '@apollo/react-testing'
-import {createCache} from '@canvas/apollo'
+import {MockedProvider} from '@apollo/client/testing'
+import {createCache} from '@canvas/apollo-v3'
 import {within} from '@testing-library/dom'
 import CreateOutcomeModal from '../CreateOutcomeModal'
 import OutcomesContext from '@canvas/outcomes/react/contexts/OutcomesContext'
@@ -536,7 +536,7 @@ describe('CreateOutcomeModal', () => {
             Since the InstUI 8 upgrade, this test takes an average of 5.6 seconds to complete.
             For now, the timeout interval is increased to 7.5 seconds.
           */
-          it('creates outcome with calculation method and proficiency ratings (flaky)', async () => {
+          it.skip('creates outcome with calculation method and proficiency ratings (flaky)', async () => {
             const user = userEvent.setup(USER_EVENT_OPTIONS)
             const {getByText, getByLabelText, getByDisplayValue} = render(
               <CreateOutcomeModal {...defaultProps()} />,

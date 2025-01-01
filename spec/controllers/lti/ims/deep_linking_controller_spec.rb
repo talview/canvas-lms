@@ -25,6 +25,41 @@ module Lti
     RSpec.describe DeepLinkingController do
       include_context "deep_linking_spec_helper"
 
+      describe "#deep_linking_cancel" do
+        subject do
+          params = {
+            placement: "editor_button",
+            lti_msg: "hello",
+            lti_log: "log",
+            lti_errormsg: "error",
+            lti_errorlog: "error log"
+          }
+          get :deep_linking_cancel, params:
+        end
+
+        it "renders the same page as the deep linking response URL" do
+          expect(subject).to render_template("lti/ims/deep_linking/deep_linking_response")
+        end
+
+        it "sets the JS ENV with no content_items" do
+          expected_dl_resp = {
+            placement: "editor_button",
+            content_items: [],
+            msg: "Message from external tool: hello",
+            log: "log",
+            errormsg: "Error message from external tool: error",
+            errorlog: "error log",
+            reloadpage: false,
+            moduleCreated: false,
+            replaceEditorContents: false
+          }
+
+          expect(controller).to receive(:js_env).with({ deep_link_response: expected_dl_resp })
+
+          subject
+        end
+      end
+
       describe "#deep_linking_response" do
         subject { post :deep_linking_response, params: }
 
@@ -53,7 +88,6 @@ module Lti
         end
 
         it "sets the JS ENV" do
-          expect(controller).to receive(:js_env).with({ deep_linking_use_window_parent: true })
           expect(controller).to receive(:js_env).with({
                                                         deep_link_response: {
                                                           placement:,
@@ -68,7 +102,8 @@ module Lti
                                                             host: "test.host"
                                                           ),
                                                           reloadpage: false,
-                                                          moduleCreated: false
+                                                          moduleCreated: false,
+                                                          replaceEditorContents: false
                                                         }
                                                       })
 
@@ -117,7 +152,6 @@ module Lti
           let(:errorlog) { { html: "some error log" } }
 
           it "turns them into strings before calling js_env to prevent HTML injection" do
-            expect(controller).to receive(:js_env).with({ deep_linking_use_window_parent: true })
             expect(controller).to receive(:js_env).with({
                                                           deep_link_response: hash_including(
                                                             msg: '{"html"=>"some message"}',
@@ -553,6 +587,26 @@ module Lti
                       subject
                       expect(assigns.dig(:js_env, :deep_link_response, :reloadpage)).to be false
                     end
+
+                    context "with flag enabled" do
+                      before do
+                        course.root_account.enable_feature!(:lti_deep_linking_line_items)
+                      end
+
+                      it "creates a resource link" do
+                        # the resource link has an Assignment context, not course
+                        expect { subject }.to change { Lti::ResourceLink.count }.by 1
+                      end
+
+                      it "creates a module item" do
+                        expect { subject }.to change { context_module.content_tags.count }.by 1
+                      end
+
+                      it "asks to reload page" do
+                        subject
+                        expect(assigns.dig(:js_env, :deep_link_response, :reloadpage)).to be true
+                      end
+                    end
                   end
                 end
               end
@@ -704,6 +758,20 @@ module Lti
                     end
                   end
 
+                  context "from the submission_type_selection placement" do
+                    let(:return_url_params) { super().merge({ placement: "submission_type_selection" }) }
+
+                    context "with no line items" do
+                      let(:content_items) do
+                        [{ type: "ltiResourceLink", url: launch_url, title: "Item 1" }]
+                      end
+
+                      it "does not create a resource link" do
+                        expect { subject }.not_to change { Lti::ResourceLink.count }
+                      end
+                    end
+                  end
+
                   it "creates a module item" do
                     expect { subject }.to change { ContentTag.where(context: course).count }.by 1
                   end
@@ -743,6 +811,30 @@ module Lti
                   it "leaves module items unpublished" do
                     subject
                     expect(ContentTag.where(context: course).last.workflow_state).to eq("unpublished")
+                  end
+
+                  it "returns access denied if user does not have manage_course_content_add permission" do
+                    department_admin_role = custom_role("AccountMembership", "Test Admin", { account: })
+                    account_admin_user_with_role_changes(
+                      account:,
+                      role: department_admin_role,
+                      role_changes: { manage_content: false, manage_course_content_add: false }
+                    )
+                    user_session(@user)
+                    subject
+                    expect(response).to have_http_status(:unauthorized)
+                  end
+
+                  it "returns ok if user has manage_course_content_add permission" do
+                    department_admin_role = custom_role("AccountMembership", "Department Admin", { account: })
+                    account_admin_user_with_role_changes(
+                      account:,
+                      role: department_admin_role,
+                      role_changes: { manage_content: false, manage_course_content_add: true }
+                    )
+                    user_session(@user)
+                    subject
+                    expect(response).to have_http_status(:ok)
                   end
                 end
               end
@@ -950,10 +1042,6 @@ module Lti
             end
 
             context "when on the new assignment page" do
-              before do
-                course.root_account.enable_feature! :lti_assignment_page_line_items
-              end
-
               let(:return_url_params) { super().merge({ placement: "assignment_selection" }) }
               let(:content_items) do
                 [
@@ -961,14 +1049,6 @@ module Lti
                   { type: "ltiResourceLink", url: launch_url, title: "Item 2", lineItem: { scoreMaximum: 4 } },
                   { type: "ltiResourceLink", url: launch_url, title: "Item 3", lineItem: { scoreMaximum: 4 } }
                 ]
-              end
-
-              context "when assignment edit page feature flag is disabled" do
-                before do
-                  course.root_account.disable_feature! :lti_assignment_page_line_items
-                end
-
-                it_behaves_like "does nothing"
               end
 
               it "does not create a new module" do
@@ -1049,6 +1129,107 @@ module Lti
               expected_js_env_attributes = {
                 tool_id: context_external_tool.id,
                 content_items:
+              }
+
+              expect(controller).to have_received(:js_env).with(deep_link_response: hash_including(expected_js_env_attributes))
+            end
+          end
+        end
+
+        context "LTI tools replace content functionality with missing scope" do
+          before do
+            context_external_tool
+          end
+
+          let(:developer_key_scopes) { [] }
+
+          context "when LTI tool sets replace_editor_contents flag to true" do
+            let(:replace_editor_contents) { true }
+
+            it "then replace content shall be enabled on the UI" do
+              allow(controller).to receive(:js_env)
+              subject
+              expected_js_env_attributes = {
+                replaceEditorContents: false
+              }
+
+              expect(controller).to have_received(:js_env).with(deep_link_response: hash_including(expected_js_env_attributes))
+            end
+          end
+
+          context "when LTI tool sets replace_editor_contents flag to false" do
+            let(:replace_editor_contents) { false }
+
+            it "then replace contents shall be disabled on the UI" do
+              allow(controller).to receive(:js_env)
+              subject
+              expected_js_env_attributes = {
+                replaceEditorContents: false
+              }
+
+              expect(controller).to have_received(:js_env).with(deep_link_response: hash_including(expected_js_env_attributes))
+            end
+          end
+
+          context "when LTI tool omit sending replace_editor_contents flag" do
+            let(:replace_editor_contents) { nil } # so that compact will filter this value out
+
+            it "then replace contents shall be disabled on the UI" do
+              allow(controller).to receive(:js_env)
+              subject
+              expected_js_env_attributes = {
+                replaceEditorContents: false
+              }
+
+              expect(controller).to have_received(:js_env).with(deep_link_response: hash_including(expected_js_env_attributes))
+            end
+          end
+        end
+
+        context "LTI tools replace content functionality with correct scope" do
+          before do
+            context_external_tool
+          end
+
+          context "when LTI tool sets replace_editor_contents flag to true" do
+            let(:replace_editor_contents) { true }
+            let(:developer_key_scopes) { ["https://canvas.instructure.com/lti/replace_editor_contents"] }
+
+            it "then replace content shall be enabled on the UI" do
+              allow(controller).to receive(:js_env)
+              subject
+              expected_js_env_attributes = {
+                replaceEditorContents: true
+              }
+
+              expect(controller).to have_received(:js_env).with(deep_link_response: hash_including(expected_js_env_attributes))
+            end
+          end
+
+          context "when LTI tool sets replace_editor_contents flag to false" do
+            let(:replace_editor_contents) { false }
+            let(:developer_key_scopes) { ["https://canvas.instructure.com/lti/replace_editor_contents"] }
+
+            it "then replace contents shall be disabled on the UI" do
+              allow(controller).to receive(:js_env)
+              subject
+              expected_js_env_attributes = {
+                replaceEditorContents: false
+              }
+
+              expect(controller).to have_received(:js_env).with(deep_link_response: hash_including(expected_js_env_attributes))
+            end
+          end
+
+          context "when LTI tool omit sending replace_editor_contents flag" do
+            let(:replace_editor_contents) { nil } # so that compact will filter this value out
+            let(:developer_key_scopes) { ["https://canvas.instructure.com/lti/replace_editor_contents"] }
+
+            it "then replace contents shall be disabled on the UI" do
+              allow(controller).to receive(:js_env)
+              subject
+              expected_js_env_attributes = {
+                replaceEditorContents: false
               }
 
               expect(controller).to have_received(:js_env).with(deep_link_response: hash_including(expected_js_env_attributes))

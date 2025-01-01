@@ -169,28 +169,28 @@ describe AssignmentOverride do
     end
 
     it "does not notify of change for deleted assignment override due to enrollment removal" do
-      due_date_timestamp = DateTime.now.iso8601
+      due_date_timestamp = Time.zone.now.iso8601
       assignment = assignment_model(course: @course)
       override = assignment.assignment_overrides.create!(
         due_at: due_date_timestamp,
         due_at_overridden: true
       )
       override.assignment_override_students.create!(user: @student)
-      assignment.update(due_at: nil, only_visible_to_overrides: true, created_at: Time.now - 4.hours)
+      assignment.update(due_at: nil, only_visible_to_overrides: true, created_at: 4.hours.ago)
       expect(override.notify_change?).to be true
       @student.destroy
       expect(override.reload.notify_change?).to be false
     end
 
     it "does not notify of change for course that has concluded" do
-      due_date_timestamp = DateTime.now.iso8601
+      due_date_timestamp = Time.zone.now.iso8601
       assignment = assignment_model(course: @course)
       override = assignment.assignment_overrides.create!(
         due_at: due_date_timestamp,
         due_at_overridden: true
       )
       override.assignment_override_students.create!(user: @student)
-      assignment.update(due_at: nil, only_visible_to_overrides: true, created_at: Time.now - 4.hours)
+      assignment.update(due_at: nil, only_visible_to_overrides: true, created_at: 4.hours.ago)
       expect(override.notify_change?).to be true
 
       expect do
@@ -222,7 +222,7 @@ describe AssignmentOverride do
     end
   end
 
-  context "#mastery_paths?" do
+  describe "#mastery_paths?" do
     let(:override) do
       described_class.new({
                             set_type: AssignmentOverride::SET_TYPE_NOOP,
@@ -474,6 +474,72 @@ describe AssignmentOverride do
       @override.wiki_page = wiki_page_model
       expect(@override).not_to be_valid
     end
+
+    it "rejects a context module override with dates" do
+      @override = AssignmentOverride.new
+      @override.due_at = 5.days.from_now
+      @override.context_module = @course.context_modules.create!(name: "some module")
+      @override.save
+
+      expect(@override).not_to be_valid
+      expect(@override.errors[:base].first).to eq "cannot set dates for context module overrides"
+    end
+
+    context "sub-assignments" do
+      let(:parent_assignment) { @course.assignments.create! }
+      let(:sub_assignment) { parent_assignment.sub_assignments.create!(context: @course, sub_assignment_tag: CheckpointLabels::REPLY_TO_TOPIC) }
+      let(:parent_override) { parent_assignment.assignment_overrides.create! }
+
+      it "requires a parent_override for new overrides" do
+        override = AssignmentOverride.new(assignment: sub_assignment)
+        expect(override).not_to be_valid
+        expect(override.errors[:parent_override_id]).to include("must be present for sub-assignment overrides")
+      end
+
+      it "is valid with a parent_override" do
+        override = AssignmentOverride.new(assignment: sub_assignment, parent_override:)
+        expect(override).to be_valid
+      end
+
+      it "does not allow removing parent_override from existing overrides" do
+        override = AssignmentOverride.create!(assignment: sub_assignment, parent_override:)
+        override.parent_override = nil
+        expect(override).not_to be_valid
+        expect(override.errors[:parent_override_id]).to include("must be present for sub-assignment overrides")
+      end
+
+      it "marks the child_override as deleted when the parent_override is destroyed" do
+        child_override = AssignmentOverride.create!(assignment: sub_assignment, parent_override:)
+        expect(child_override.workflow_state).not_to eq "deleted"
+        parent_override.destroy
+        expect(child_override.reload.workflow_state).to eq "deleted"
+        expect(parent_override.reload.workflow_state).to eq "deleted"
+      end
+
+      describe "#sub_assignment_due_dates" do
+        before :once do
+          @parent_assignment = @course.assignments.create!
+          @parent_override = AssignmentOverride.create!(title: "Parent Override", set_type: "ADHOC", assignment: @parent_assignment)
+          @child_assignment1 = parent_assignment.sub_assignments.create!(context: @course, sub_assignment_tag: CheckpointLabels::REPLY_TO_TOPIC)
+          @child_assignment2 = parent_assignment.sub_assignments.create!(context: @course, sub_assignment_tag: CheckpointLabels::REPLY_TO_ENTRY)
+          @child_override1 = AssignmentOverride.create!(title: "Child Override 1", set_type: "ADHOC", assignment: @child_assignment1, due_at: 1.day.from_now, parent_override: @parent_override)
+          @child_override2 = AssignmentOverride.create!(title: "Child Override 2", set_type: "ADHOC", assignment: @child_assignment2, due_at: 2.days.from_now, parent_override: @parent_override)
+        end
+
+        it "returns the correct sub_assignment_due_dates" do
+          expected_result = [
+            { sub_assignment_tag: CheckpointLabels::REPLY_TO_TOPIC, due_at: @child_override1.due_at },
+            { sub_assignment_tag: CheckpointLabels::REPLY_TO_ENTRY, due_at: @child_override2.due_at }
+          ]
+          expect(@parent_override.sub_assignment_due_dates).to eq(expected_result)
+        end
+
+        it "returns an empty array when there are no child overrides" do
+          @parent_override.child_overrides.destroy_all
+          expect(@parent_override.sub_assignment_due_dates).to eq([])
+        end
+      end
+    end
   end
 
   describe "title" do
@@ -665,34 +731,34 @@ describe AssignmentOverride do
     end
 
     it "determines date from due_at's timezone" do
-      @override.due_at = Date.today.in_time_zone("Baghdad") + 1.hour # 01:00:00 AST +03:00 today
-      expect(@override.all_day_date).to eq Date.today
+      @override.due_at = Time.zone.today.in_time_zone("Baghdad") + 1.hour # 01:00:00 AST +03:00 today
+      expect(@override.all_day_date).to eq Time.zone.today
 
       @override.due_at = @override.due_at.in_time_zone("Alaska") - 2.hours # 12:00:00 AKDT -08:00 previous day
-      expect(@override.all_day_date).to eq Date.today - 1.day
+      expect(@override.all_day_date).to eq Time.zone.today - 1.day
     end
 
     it "preserves all-day date when only changing time zone" do
-      @override.due_at = Date.today.in_time_zone("Baghdad") # 00:00:00 AST +03:00 today
+      @override.due_at = Time.zone.today.in_time_zone("Baghdad") # 00:00:00 AST +03:00 today
       @override.due_at = @override.due_at.in_time_zone("Alaska") # 13:00:00 AKDT -08:00 previous day
-      expect(@override.all_day_date).to eq Date.today
+      expect(@override.all_day_date).to eq Time.zone.today
     end
 
     it "preserves non-all-day date when only changing time zone" do
       Timecop.freeze(Time.utc(2013, 3, 10, 0, 0)) do
-        @override.due_at = Date.today.in_time_zone("Alaska") - 11.hours # 13:00:00 AKDT -08:00 previous day
+        @override.due_at = Time.zone.today.in_time_zone("Alaska") - 11.hours # 13:00:00 AKDT -08:00 previous day
         @override.due_at = @override.due_at.in_time_zone("Baghdad") # 00:00:00 AST +03:00 today
-        expect(@override.all_day_date).to eq Date.today - 1.day
+        expect(@override.all_day_date).to eq Time.zone.today - 1.day
       end
     end
 
     it "sets the date to 11:59 PM of the same day when the date is 12:00 am" do
-      @override.due_at = Date.today.in_time_zone("Alaska").midnight
-      expect(@override.due_at).to eq Date.today.in_time_zone("Alaska").end_of_day
+      @override.due_at = Time.zone.today.in_time_zone("Alaska").midnight
+      expect(@override.due_at).to eq Time.zone.today.in_time_zone("Alaska").end_of_day
     end
 
     it "sets the date to the date given when date is not 12:00 AM" do
-      expected_time = Date.today.in_time_zone("Alaska") - 11.hours
+      expected_time = Time.zone.today.in_time_zone("Alaska") - 11.hours
       @override.unlock_at = expected_time
       expect(@override.unlock_at).to eq expected_time
     end
@@ -704,12 +770,12 @@ describe AssignmentOverride do
     end
 
     it "sets the date to 11:59 PM of the same day when the date is 12:00 AM" do
-      @override.lock_at = Date.today.in_time_zone("Alaska").midnight
-      expect(@override.lock_at).to eq Date.today.in_time_zone("Alaska").end_of_day
+      @override.lock_at = Time.zone.today.in_time_zone("Alaska").midnight
+      expect(@override.lock_at).to eq Time.zone.today.in_time_zone("Alaska").end_of_day
     end
 
     it "sets the date to the date given when date is not 12:00 AM" do
-      expected_time = Date.today.in_time_zone("Alaska") - 11.hours
+      expected_time = Time.zone.today.in_time_zone("Alaska") - 11.hours
       @override.lock_at = expected_time
       expect(@override.lock_at).to eq expected_time
       @override.lock_at = nil
@@ -1243,7 +1309,7 @@ describe AssignmentOverride do
       topic.update!(group_category: category)
       topic.create_checkpoints(reply_to_topic_points: 4, reply_to_entry_points: 2)
       checkpoint = topic.reply_to_topic_checkpoint
-      override = assignment_override_model(assignment: checkpoint, course: @course, set: group)
+      override = create_group_override_for_assignment(checkpoint, { group: })
       expect(checkpoint.assignment_overrides).to include override
     end
   end

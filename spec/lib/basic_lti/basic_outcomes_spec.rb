@@ -31,7 +31,7 @@ describe BasicLTI::BasicOutcomes do
     @root_account = @course.root_account
     @account = account_model(root_account: @root_account, parent_account: @root_account)
     @course.update_attribute(:account, @account)
-    @user = factory_with_protected_attributes(User, name: "some user", workflow_state: "registered")
+    @user = User.create!(name: "some user", workflow_state: "registered")
     @course.enroll_student(@user)
   end
 
@@ -335,7 +335,7 @@ describe BasicLTI::BasicOutcomes do
       end
 
       it "replace_result succeeds when section dates override course dates" do
-        cs = CourseSection.where(id: @course.enrollments.where(user_id: @user).pluck(:course_section_id)).take
+        cs = CourseSection.find_by(id: @course.enrollments.where(user_id: @user).pluck(:course_section_id))
         cs.start_at = 1.day.ago
         cs.end_at = 1.day.from_now
         cs.restrict_enrollments_to_section_dates = true

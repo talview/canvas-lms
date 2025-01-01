@@ -17,7 +17,7 @@
  */
 
 import React, {useState, useEffect, useLayoutEffect, useCallback, useRef} from 'react'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {TextInput} from '@instructure/ui-text-input'
 import {Flex} from '@instructure/ui-flex'
 import {SimpleSelect} from '@instructure/ui-simple-select'
@@ -32,7 +32,7 @@ import {Button, IconButton} from '@instructure/ui-buttons'
 import CalendarConferenceWidget from '@canvas/calendar-conferences/react/CalendarConferenceWidget'
 import filterConferenceTypes from '@canvas/calendar-conferences/filterConferenceTypes'
 import getConferenceType from '@canvas/calendar-conferences/getConferenceType'
-import * as tz from '@canvas/datetime'
+import * as tz from '@instructure/moment-utils'
 import moment from 'moment'
 import commonEventFactory from '@canvas/calendar/jquery/CommonEvent/index'
 import fcUtil from '@canvas/calendar/jquery/fcUtil'
@@ -47,9 +47,9 @@ import {
 } from '@canvas/calendar/react/RecurringEvents/FrequencyPicker/utils'
 import {renderUpdateCalendarEventDialog} from '@canvas/calendar/react/RecurringEvents/UpdateCalendarEventDialog'
 import FrequencyPicker from '@canvas/calendar/react/RecurringEvents/FrequencyPicker/FrequencyPicker'
-import {encodeQueryString} from '@canvas/query-string-encoding'
+import {encodeQueryString} from '@instructure/query-string-encoding'
 
-const I18n = useI18nScope('calendar.edit_calendar_event')
+const I18n = createI18nScope('calendar.edit_calendar_event')
 
 const screenReaderMessageCallback = msg => {
   showFlashAlert({message: msg, type: 'info', srOnly: true})
@@ -617,6 +617,7 @@ const CalendarEventDetailsForm = ({event, closeCB, contextChangeCB, setSetContex
           <Flex.Item padding="none xxx-small" shouldShrink={true}>
             <Tooltip renderTip={I18n.t('A save is in progress')} on={isWorking ? undefined : []}>
               <Button
+                id="edit-calendar-event-submit-button"
                 data-testid="edit-calendar-event-submit-button"
                 color="primary"
                 onClick={e => {

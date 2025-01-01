@@ -23,24 +23,23 @@ class Mutations::CreateConversation < Mutations::BaseMutation
 
   include ConversationsHelper
 
-  argument :recipients, [String], required: true
-  argument :subject, String, required: false
+  argument :attachment_ids, [ID], required: false, prepare: GraphQLHelpers.relay_or_legacy_ids_prepare_func("Attachment")
   argument :body, String, required: true
   argument :bulk_message, Boolean, required: false
-  argument :force_new, Boolean, required: false
-  argument :group_conversation, Boolean, required: false
-  argument :attachment_ids, [ID], required: false, prepare: GraphQLHelpers.relay_or_legacy_ids_prepare_func("Attachment")
-  argument :media_comment_id, ID, required: false
-  argument :media_comment_type, String, required: false
   argument :context_code, String, required: false
   argument :conversation_id, ID, required: false, prepare: GraphQLHelpers.relay_or_legacy_id_prepare_func("Conversation")
-  argument :user_note, Boolean, required: false
+  argument :force_new, Boolean, required: false
+  argument :group_conversation, Boolean, required: false
+  argument :media_comment_id, ID, required: false
+  argument :media_comment_type, String, required: false
+  argument :recipients, [String], required: true
+  argument :subject, String, required: false
   argument :tags, [String], required: false
 
   field :conversations, [Types::ConversationParticipantType], null: true
   def resolve(input:)
     @current_user = current_user
-    recipients = get_recipients(input[:recipients], input[:context_code], input[:conversation_id])
+    recipients = get_recipients(input[:recipients], input[:context_code], input[:conversation_id], input[:group_conversation])
     tags = infer_tags(tags: input[:tags], recipients: input[:recipients], context_code: input[:context_code])
 
     context = input[:context_code] ? Context.find_by_asset_string(input[:context_code]) : nil
@@ -64,8 +63,7 @@ class Mutations::CreateConversation < Mutations::BaseMutation
       attachment_ids: input[:attachment_ids],
       domain_root_account_id: self.context[:domain_root_account].id,
       media_comment_id: input[:media_comment_id],
-      media_comment_type: input[:media_comment_type],
-      user_note: input[:user_note]
+      media_comment_type: input[:media_comment_type]
     ))
 
     if !batch_group_messages && recipients.size > Conversation.max_group_conversation_size
@@ -109,9 +107,6 @@ class Mutations::CreateConversation < Mutations::BaseMutation
         if message[:attachment_ids].present?
           InstStatsd::Statsd.increment("inbox.message.sent.attachment.react")
         end
-        if !Account.site_admin.feature_enabled?(:deprecate_faculty_journal) && input[:user_note]
-          InstStatsd::Statsd.increment("inbox.conversation.sent.faculty_journal.react")
-        end
         if input[:bulk_message]
           InstStatsd::Statsd.increment("inbox.conversation.sent.individual_message_option.react")
         end
@@ -143,9 +138,6 @@ class Mutations::CreateConversation < Mutations::BaseMutation
         if context_type == "Account" || context_type.nil?
           InstStatsd::Statsd.increment("inbox.conversation.sent.account_context.react")
         end
-        if !Account.site_admin.feature_enabled?(:deprecate_faculty_journal) && input[:user_note]
-          InstStatsd::Statsd.increment("inbox.conversation.sent.faculty_journal.react")
-        end
         if input[:bulk_message]
           InstStatsd::Statsd.increment("inbox.conversation.sent.individual_message_option.react")
         end
@@ -176,10 +168,14 @@ class Mutations::CreateConversation < Mutations::BaseMutation
     validation_error(I18n.t("Course concluded, unable to send messages"))
   rescue ConversationsHelper::InvalidRecipientsError
     validation_error(I18n.t("Invalid recipients"))
+  rescue ConversationsHelper::GroupConversationForDifferentiationTagsNotAllowedError
+    validation_error(I18n.t("Group conversation for differentiation tags not allowed"))
+  rescue ConversationsHelper::InsufficientPermissionsForDifferentiationTagsError
+    validation_error(I18n.t("Insufficient permissions for differentiation tags"))
   end
 
-  def get_recipients(recipient_ids, context_code, conversation_id)
-    recipients = normalize_recipients(recipients: recipient_ids, context_code:, conversation_id:)
+  def get_recipients(recipient_ids, context_code, conversation_id, group_conversation)
+    recipients = normalize_recipients(recipients: recipient_ids, context_code:, conversation_id:, group_conversation:)
     raise ConversationsHelper::InvalidRecipientsError if recipients.blank?
 
     recipients

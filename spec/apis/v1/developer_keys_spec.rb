@@ -162,8 +162,8 @@ describe DeveloperKeysController, type: :request do
 
     it "includes the lti_registration for Dynamic Reg keys" do
       account = Account.default
-      developer_key = developer_key_model(account:)
-      ims_registration = lti_ims_registration_model(developer_key:)
+      developer_key = developer_key_model(account:, is_lti_key: true, public_jwk_url: "https://example.com/jwks")
+      ims_registration = lti_ims_registration_model(developer_key:, lti_registration: developer_key.lti_registration)
       admin_session
       json = api_call(:get, "/api/v1/accounts/#{account.id}/developer_keys", {
                         controller: "developer_keys",
@@ -171,6 +171,7 @@ describe DeveloperKeysController, type: :request do
                         format: "json",
                         account_id: account.id
                       })
+      expect(response).to be_successful
 
       key_json = json.detect { |r| r["id"] == developer_key.global_id }
       expect(key_json["lti_registration"]).to eq ims_registration.as_json

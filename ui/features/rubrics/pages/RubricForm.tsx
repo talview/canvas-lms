@@ -16,19 +16,67 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react'
+import React, {useEffect} from 'react'
 import {Portal} from '@instructure/ui-portal'
-import {RubricForm} from '../components/RubricForm'
+import {RubricForm} from '@canvas/rubrics/react/RubricForm'
+import {RubricBreadcrumbs} from '../components/RubricBreadcrumbs'
+import {useNavigate, useParams} from 'react-router-dom'
 
 export const Component = () => {
+  const [breadcrumbMountPoint] = React.useState(
+    document.querySelector('.ic-app-crumbs-enhanced-rubrics')
+  )
+
+  const navigate = useNavigate()
+  const {rubricId, accountId, courseId} = useParams()
+  const navigateUrl = accountId ? `/accounts/${accountId}/rubrics` : `/courses/${courseId}/rubrics`
+  const canManageRubrics = ENV.PERMISSIONS?.manage_rubrics
+
+  useEffect(() => {
+    if (breadcrumbMountPoint) {
+      breadcrumbMountPoint.innerHTML = ''
+    }
+  }, [breadcrumbMountPoint])
+
+  useEffect(() => {
+    if (!canManageRubrics) {
+      navigate(navigateUrl)
+    }
+  }, [canManageRubrics, navigate, navigateUrl])
+
+  const [rubricTitle, setRubricTitle] = React.useState('')
+
   const mountPoint: HTMLElement | null = document.querySelector('#content')
   if (!mountPoint) {
     return null
   }
 
+  // @ts-expect-error
+  const breadCrumbs = [...ENV.breadcrumbs]
+  breadCrumbs.push({name: rubricTitle, url: ''})
+
   return (
-    <Portal open={true} mountNode={mountPoint}>
-      <RubricForm rootOutcomeGroup={ENV.ROOT_OUTCOME_GROUP} />
-    </Portal>
+    <>
+      <Portal open={true} mountNode={breadcrumbMountPoint}>
+        <RubricBreadcrumbs breadcrumbs={breadCrumbs} />
+      </Portal>
+      <Portal open={true} mountNode={mountPoint}>
+        <RubricForm
+          rubricId={rubricId}
+          accountId={accountId}
+          courseId={courseId}
+          // @ts-expect-error
+          canManageRubrics={ENV.PERMISSIONS?.manage_rubrics}
+          // @ts-expect-error
+          criterionUseRangeEnabled={ENV.FEATURES.rubric_criterion_range}
+          rootOutcomeGroup={ENV.ROOT_OUTCOME_GROUP}
+          // @ts-expect-error
+          showAdditionalOptions={ENV.enhanced_rubric_assignments_enabled}
+          onLoadRubric={title => setRubricTitle(title)}
+          onCancel={() => navigate(navigateUrl)}
+          onSaveRubric={() => navigate(navigateUrl)}
+        />
+      </Portal>
+    </>
   )
 }

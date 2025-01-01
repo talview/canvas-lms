@@ -18,13 +18,13 @@
 
 import React from 'react'
 import PropTypes from 'prop-types'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
-import '@canvas/datetime/jquery'
+import {datetimeString} from '@canvas/datetime/date-functions'
 
-const I18n = useI18nScope('webzip_exports')
+const I18n = createI18nScope('webzip_exports')
 
-// eslint-disable-next-line react/prefer-stateless-function
+ 
 class ExportListItem extends React.Component {
   static propTypes = {
     date: PropTypes.string.isRequired,
@@ -35,10 +35,10 @@ class ExportListItem extends React.Component {
 
   render() {
     let text = <span>{I18n.t('Package export from')}</span>
-    let body = <a href={this.props.link}>{$.datetimeString(this.props.date)}</a>
+    let body = <a href={this.props.link}>{datetimeString(this.props.date)}</a>
     if (this.props.workflowState === 'failed') {
       text = <span className="text-error">{I18n.t('Export failed')}</span>
-      body = $.datetimeString(this.props.date)
+      body = datetimeString(this.props.date)
     } else if (this.props.newExport) {
       text = <span>{I18n.t('Most recent export')}</span>
     }

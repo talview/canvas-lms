@@ -35,6 +35,11 @@ class UserProfile < ActiveRecord::Base
               maximum: maximum_text_length, too_long: "%{count} characters is the maximum allowed"
             },
             allow_blank: true
+  validates :pronunciation,
+            length: {
+              maximum: maximum_string_length, too_long: "%{count} characters is the maximum allowed"
+            },
+            allow_blank: true
 
   TAB_PROFILE,
   TAB_COMMUNICATION_PREFERENCES,
@@ -105,7 +110,7 @@ class UserProfile < ActiveRecord::Base
   private
 
   def insert_profile_tab(tabs, user, opts)
-    if user && opts[:root_account] && opts[:root_account].enable_profiles?
+    if user && opts[:root_account]&.enable_profiles?
       tabs.insert 1,
                   {
                     id: TAB_PROFILE,

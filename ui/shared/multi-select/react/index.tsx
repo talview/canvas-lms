@@ -17,7 +17,7 @@
  */
 
 import React, {useState, useEffect, useRef, useMemo} from 'react'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import keycode from 'keycode'
 import {Select} from '@instructure/ui-select'
 import type {ViewProps} from '@instructure/ui-view'
@@ -28,7 +28,7 @@ import {Alert} from '@instructure/ui-alerts'
 import {Spinner} from '@instructure/ui-spinner'
 import type {FormMessage} from '@instructure/ui-form-field'
 
-const I18n = useI18nScope('app_shared_components')
+const I18n = createI18nScope('app_shared_components')
 
 type OptionProps = {
   id: string
@@ -65,6 +65,7 @@ type Props = {
   id?: string
   isLoading: boolean
   isShowingOptions?: boolean
+  isRequired?: boolean
   label: React.ReactNode
   inputRef?: (inputElement: HTMLInputElement | null) => void
   listRef?: (ref: HTMLUListElement | null) => void
@@ -97,6 +98,7 @@ function CanvasMultiSelect(props: Props) {
     customOnRequestSelectOption,
     customOnBlur,
     isLoading,
+    isRequired,
     onUpdateHighlightedOption,
     setInputRef,
     ...otherProps
@@ -154,7 +156,7 @@ function CanvasMultiSelect(props: Props) {
       key: React.Key
       props: {id: string; children: React.ReactNode; key?: string; group: string; tagText?: string}
     }) {
-      // eslint-disable-next-line @typescript-eslint/no-shadow
+       
       const {id, children, ...optionProps} = child.props
       delete optionProps.tagText
       return (
@@ -209,7 +211,7 @@ function CanvasMultiSelect(props: Props) {
         ...groupsToRender.map(group => (
           <Select.Group key={group} renderLabel={group}>
             {filteredChildren
-              // eslint-disable-next-line @typescript-eslint/no-shadow, react/prop-types
+              // eslint-disable-next-line react/prop-types
               .filter(({props}) => props.group === group)
               .map(option =>
                 renderOption({
@@ -289,7 +291,9 @@ function CanvasMultiSelect(props: Props) {
       term: string
     ) => option.label.match(new RegExp(`^${term}`, 'i'))
     const matcher = customMatcher || defaultMatcher
-    const filtered = childProps.filter(child => matcher(child, value.trim()))
+    const filtered = childProps.filter(
+      child => matcher(child, value.trim()) && !selectedOptionIds.includes(child.id)
+    )
     let message =
       // if number of options has changed, announce the new total.
       filtered.length !== filteredOptionIds?.length
@@ -302,7 +306,8 @@ function CanvasMultiSelect(props: Props) {
           )
         : null
     if (message && filtered.length > 0 && highlightedOptionId !== filtered[0].id) {
-      message = getChildById(filtered[0].id)?.label + '. ' + message
+      const child = getChildById(filtered[0].id)
+      if (child) message = primaryLabel(child) + '. ' + message
     }
     setFilteredOptionIds(filtered.map(f => f.id))
     if (filtered.length > 0) setHighlightedOptionId(filtered[0].id)
@@ -394,6 +399,7 @@ function CanvasMultiSelect(props: Props) {
           'Type or use arrow keys to navigate. Multiple selections are allowed.'
         )}
         renderBeforeInput={contentBeforeInput()}
+        isRequired={isRequired && selectedOptionIds.length === 0}
         {...otherProps}
       >
         {renderChildren()}

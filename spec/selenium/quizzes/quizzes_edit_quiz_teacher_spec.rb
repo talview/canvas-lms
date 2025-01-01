@@ -101,7 +101,7 @@ describe "editing a quiz" do
         expect { @quiz.quiz_questions.count }.to become(1)
       end
 
-      it "shows the speed grader link" do
+      it "shows the SpeedGrader link" do
         get "/courses/#{@course.id}/quizzes/#{@quiz.id}/edit"
         f(".al-trigger").click
         expect(f(".speed-grader-link-quiz")).to be_displayed
@@ -246,7 +246,17 @@ describe "editing a quiz" do
         item = add_quiz_to_module
 
         get "/courses/#{@course.id}/quizzes/#{item.content_id}/edit"
-        expect(f(quiz_edit_form)).to contain_css(due_date_container)
+
+        if Account.site_admin.feature_enabled?(:selective_release_ui_api)
+          if Account.site_admin.feature_enabled?(:selective_release_edit_page)
+            expect(assign_to_card).to be_displayed
+          else
+            expect(manage_assign_to_button).to be_displayed
+          end
+        else
+          expect(f(quiz_edit_form)).to contain_css(due_date_container)
+        end
+
         expect(f(quiz_edit_form)).not_to contain_css(course_pacing_notice)
       end
     end

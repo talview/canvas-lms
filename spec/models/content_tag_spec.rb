@@ -614,7 +614,7 @@ describe ContentTag do
     Setting.set("touch_personal_space", "10")
     course_factory
     mod = @course.context_modules.create!
-    recent = Time.now
+    recent = Time.zone.now
     ContextModule.where(id: mod).update_all(updated_at: recent)
     Timecop.travel(recent + 1.second) do
       ContextModule.transaction do
@@ -673,11 +673,11 @@ describe ContentTag do
 
       it "returns assignments if there is visibility" do
         create_section_override_for_assignment(@assignment, { course_section: @section })
-        expect(ContentTag.visible_to_students_in_course_with_da(@student.id, @course.id)).to include(@tag)
+        expect(ContentTag.visible_to_students_in_course_with_da([@student.id], [@course.id])).to include(@tag)
       end
 
       it "does not return assignments if there is no visibility" do
-        expect(ContentTag.visible_to_students_in_course_with_da(@student.id, @course.id)).not_to include(@tag)
+        expect(ContentTag.visible_to_students_in_course_with_da([@student.id], [@course.id])).not_to include(@tag)
       end
     end
 
@@ -700,18 +700,18 @@ describe ContentTag do
       end
 
       it "returns discussions without attached assignments" do
-        expect(ContentTag.visible_to_students_in_course_with_da(@student.id, @course.id)).to include(@tag)
+        expect(ContentTag.visible_to_students_in_course_with_da([@student.id], [@course.id])).to include(@tag)
       end
 
       it "returns discussions with attached assignments if there is visibility" do
         attach_assignment_to_discussion
         create_section_override_for_assignment(@assignment, { course_section: @section })
-        expect(ContentTag.visible_to_students_in_course_with_da(@student.id, @course.id)).to include(@tag)
+        expect(ContentTag.visible_to_students_in_course_with_da([@student.id], [@course.id])).to include(@tag)
       end
 
       it "does not return discussions with attached assignments if there is no visibility" do
         attach_assignment_to_discussion
-        expect(ContentTag.visible_to_students_in_course_with_da(@student.id, @course.id)).not_to include(@tag)
+        expect(ContentTag.visible_to_students_in_course_with_da([@student.id], [@course.id])).not_to include(@tag)
       end
     end
 
@@ -728,20 +728,42 @@ describe ContentTag do
 
       it "returns a quiz if there is visibility" do
         create_section_override_for_quiz(@quiz, course_section: @section)
-        expect(ContentTag.visible_to_students_in_course_with_da(@student.id, @course.id)).to include(@tag)
+        expect(ContentTag.visible_to_students_in_course_with_da([@student.id], [@course.id])).to include(@tag)
       end
 
       it "does not return quiz if there is not visibility" do
-        expect(ContentTag.visible_to_students_in_course_with_da(@student.id, @course.id)).not_to include(@tag)
+        expect(ContentTag.visible_to_students_in_course_with_da([@student.id], [@course.id])).not_to include(@tag)
       end
     end
 
-    context "other" do
-      it "properly returns wiki pages" do
+    context "wiki pages" do
+      before do
         @page = @course.wiki_pages.create!(title: "some page")
         @module = @course.context_modules.create!(name: "module")
         @tag = @module.add_item({ type: "WikiPage", title: "oh noes!" * 35, id: @page.id })
-        expect(ContentTag.visible_to_students_in_course_with_da(@student.id, @course.id)).to include(@tag)
+      end
+
+      it "includes pages without assignment that are assigned" do
+        expect(ContentTag.visible_to_students_in_course_with_da([@student.id], [@course.id])).to include(@tag)
+      end
+
+      it "includes pages with assignment that are assigned" do
+        @assignment = @course.assignments.create!(title: "some assignment")
+        @page.assignment = @assignment
+        @page.save!
+        expect(ContentTag.visible_to_students_in_course_with_da([@student.id], [@course.id])).to include(@tag)
+      end
+
+      it "does not include pages without assignment that are not assigned" do
+        @page.update!(only_visible_to_overrides: true)
+        expect(ContentTag.visible_to_students_in_course_with_da([@student.id], [@course.id])).not_to include(@tag)
+      end
+
+      it "does not include pages with assignment that are not assigned" do
+        @assignment = @course.assignments.create!(title: "some assignment", only_visible_to_overrides: true)
+        @page.assignment = @assignment
+        @page.save!
+        expect(ContentTag.visible_to_students_in_course_with_da([@student.id], [@course.id])).not_to include(@tag)
       end
     end
   end
@@ -1038,7 +1060,7 @@ describe ContentTag do
 
   describe "#update_module_item_submissions" do
     before do
-      Account.site_admin.enable_feature!(:differentiated_modules)
+      Account.site_admin.enable_feature!(:selective_release_backend)
       course_factory
       @student1 = student_in_course(active_all: true, name: "Student 1").user
       @student2 = student_in_course(active_all: true, name: "Student 2").user
@@ -1073,11 +1095,29 @@ describe ContentTag do
       expect(@quiz.assignment.submissions.length).to eq 1
     end
 
+    it "graded discussion topic is added to a module" do
+      adhoc_override = @context_module.assignment_overrides.create!(set_type: "ADHOC")
+      adhoc_override.assignment_override_students.create!(user: @student1)
+
+      discussion = @course.discussion_topics.create!
+      assignment = @course.assignments.create!(title: "some discussion assignment", only_visible_to_overrides: true)
+      assignment.submission_types = "discussion_topic"
+      assignment.save!
+      discussion.assignment_id = @assignment.id
+      discussion.save!
+
+      expect(discussion.assignment.submissions.length).to eq 2
+
+      @context_module.add_item(id: discussion.id, type: "discussion_topic")
+      discussion.assignment.submissions.reload
+      expect(discussion.assignment.submissions.length).to eq 1
+    end
+
     it "assignment is removed from a module" do
       adhoc_override = @context_module.assignment_overrides.create!(set_type: "ADHOC")
       adhoc_override.assignment_override_students.create!(user: @student1)
 
-      @context_module.update_assignment_submissions(@context_module.current_assignments_and_quizzes)
+      @context_module.update_assignment_submissions(@context_module.current_items_with_assignment)
       @assignment.submissions.reload
       expect(@assignment.submissions.length).to eq 1
 
@@ -1094,7 +1134,7 @@ describe ContentTag do
       adhoc_override = @context_module.assignment_overrides.create!(set_type: "ADHOC")
       adhoc_override.assignment_override_students.create!(user: @student1)
 
-      @context_module.update_assignment_submissions(@context_module.current_assignments_and_quizzes)
+      @context_module.update_assignment_submissions(@context_module.current_items_with_assignment)
       @quiz.assignment.submissions.reload
       expect(@quiz.assignment.submissions.length).to eq 1
 
@@ -1103,12 +1143,35 @@ describe ContentTag do
       expect(@quiz.assignment.submissions.length).to eq 2
     end
 
+    it "discussion topic is removed from a module" do
+      discussion = @course.discussion_topics.create!
+      assignment = @course.assignments.create!
+      assignment.submission_types = "discussion_topic"
+      assignment.save!
+      discussion.assignment_id = assignment.id
+      discussion.save!
+
+      @context_module.add_item(id: discussion.id, type: "discussion_topic")
+      topic_tag = @context_module.content_tags.last
+
+      adhoc_override = @context_module.assignment_overrides.create!(set_type: "ADHOC")
+      adhoc_override.assignment_override_students.create!(user: @student1)
+
+      @context_module.update_assignment_submissions(@context_module.current_items_with_assignment)
+      discussion.assignment.submissions.reload
+      expect(discussion.assignment.submissions.length).to eq 1
+
+      topic_tag.destroy
+      discussion.assignment.submissions.reload
+      expect(discussion.assignment.submissions.length).to eq 2
+    end
+
     it "assignment is moved from one module to another" do
       adhoc_override = @context_module.assignment_overrides.create!(set_type: "ADHOC")
       adhoc_override.assignment_override_students.create!(user: @student1)
       @context_module2 = @course.context_modules.create!
 
-      @context_module.update_assignment_submissions(@context_module.current_assignments_and_quizzes)
+      @context_module.update_assignment_submissions(@context_module.current_items_with_assignment)
       @assignment.submissions.reload
       expect(@assignment.submissions.length).to eq 1
 
@@ -1280,6 +1343,12 @@ describe ContentTag do
             direct_tag
 
             expect(subject).to contain_exactly(direct_tag, unpublished_direct)
+          end
+
+          it "does not find items non-tool related items" do
+            direct_tag.update!(content_type: Assignment)
+
+            expect(subject).to be_empty
           end
         end
 

@@ -575,43 +575,6 @@ describe "account authentication" do
       end
     end
 
-    context "twitter" do
-      let!(:twitter_aac) { AuthenticationProvider::Twitter }
-
-      it "allows creation of config", priority: "2" do
-        add_twitter_config
-        keep_trying_until { expect(twitter_aac.active.count).to eq 1 }
-        config = twitter_aac.active.last.reload
-        expect(config.entity_id).to eq "1234"
-        expect(config.login_attribute).to eq "user_id"
-      end
-
-      it "allows update of config", priority: "2" do
-        add_twitter_config
-        suffix = "twitter_#{twitter_aac.active.last.id}"
-        twitter_form = f("#edit_#{suffix}")
-        twitter_form.find_element(:id, "consumer_key_#{suffix}").clear
-        twitter_form.find("button[type='submit']").click
-        wait_for_ajax_requests
-
-        expect(twitter_aac.active.count).to eq 1
-        config = twitter_aac.active.last.reload
-        expect(config.entity_id).to eq ""
-        expect(config.login_attribute).to eq "user_id"
-      end
-
-      it "allows deletion of config", priority: "2" do
-        skip_if_safari(:alert)
-        add_twitter_config
-        f("#delete-aac-#{twitter_aac.active.last.id}").click
-        accept_alert
-        wait_for_ajax_requests
-
-        expect(twitter_aac.active.count).to eq 0
-        expect(twitter_aac.count).to eq 1
-      end
-    end
-
     context "microsoft" do
       let!(:microsoft_aac) { AuthenticationProvider::Microsoft }
 
@@ -621,7 +584,7 @@ describe "account authentication" do
         keep_trying_until { expect(microsoft_aac.active.count).to eq 1 }
         config = microsoft_aac.active.last.reload
         expect(config.entity_id).to eq "1234"
-        expect(config.login_attribute).to eq "sub"
+        expect(config.login_attribute).to eq "tid+oid"
       end
 
       it "allows update of config", priority: "2" do
@@ -635,7 +598,7 @@ describe "account authentication" do
         expect(microsoft_aac.active.count).to eq 1
         config = microsoft_aac.active.last.reload
         expect(config.entity_id).to eq ""
-        expect(config.login_attribute).to eq "sub"
+        expect(config.login_attribute).to eq "tid+oid"
       end
 
       it "allows deletion of config", priority: "2" do

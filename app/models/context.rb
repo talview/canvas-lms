@@ -84,7 +84,7 @@ module Context
   end
 
   def self.sorted_rubrics(context)
-    associations = RubricAssociation.active.bookmarked.for_context_codes(context.asset_string).preload(rubric: :context)
+    associations = RubricAssociation.active.bookmarked.for_context_codes(context.asset_string).joins(:rubric).where(rubrics: { workflow_state: "active" }).preload(rubric: :context)
     Canvas::ICU.collate_by(associations.to_a.uniq(&:rubric_id).select(&:rubric)) { |r| r.rubric.title || CanvasSort::Last }
   end
 
@@ -429,7 +429,7 @@ module Context
 
     final_scope = scopes.first if scopes.length == 1
     final_scope ||= scopes.first.union(*scopes[1..], from: true)
-    final_scope.order(updated_at: :desc).limit(1).pluck(:updated_at)&.first
+    final_scope.order(updated_at: :desc).limit(1).pick(:updated_at)
   end
 
   def resolved_root_account_id

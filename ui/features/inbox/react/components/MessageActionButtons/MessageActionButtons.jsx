@@ -33,10 +33,10 @@ import {
 } from '@instructure/ui-icons'
 import {Menu} from '@instructure/ui-menu'
 import {Tooltip} from '@instructure/ui-tooltip'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {View} from '@instructure/ui-view'
 
-const I18n = useI18nScope('conversations_2')
+const I18n = createI18nScope('conversations_2')
 
 const Settings = props => (
   <Menu
@@ -88,6 +88,7 @@ const Settings = props => (
 const ActionButton = props => (
   <Tooltip renderTip={props.tip} placement="top">
     <Button
+      id={props.id}
       renderIcon={props.icon}
       onClick={props.onClick}
       margin="0 x-small 0 0"
@@ -117,13 +118,16 @@ export const MessageActionButtons = props => {
     <Flex>
       <Flex.Item shouldGrow={true}>
         <View padding="0 medium 0 0">
-          <ActionButton
-            tip={I18n.t('Compose a new message')}
-            icon={IconComposeLine}
-            onClick={props.compose}
-            testid="compose"
-            ariaLabel={I18n.t('Compose a new message')}
-          />
+          {props.showComposeButton && (
+            <ActionButton
+              id="compose-new-message"
+              tip={I18n.t('Compose a new message')}
+              icon={IconComposeLine}
+              onClick={props.compose}
+              testid="compose"
+              ariaLabel={I18n.t('Compose a new message')}
+            />
+          )}
           {ENV?.react_inbox_labels && (
             <ActionButton
               tip={I18n.t('Manage labels')}
@@ -138,6 +142,7 @@ export const MessageActionButtons = props => {
       </Flex.Item>
       <Flex.Item>
         <ActionButton
+          id="reply-to-message"
           tip={I18n.t('Reply')}
           icon={IconReplyLine}
           onClick={props.reply}
@@ -146,6 +151,7 @@ export const MessageActionButtons = props => {
           ariaLabel={I18n.t('Reply')}
         />
         <ActionButton
+          id="reply-to-all"
           tip={I18n.t('Reply all')}
           icon={IconReplyAll2Line}
           onClick={props.replyAll}
@@ -154,6 +160,7 @@ export const MessageActionButtons = props => {
           ariaLabel={I18n.t('Reply all')}
         />
         <ActionButton
+          id="archive-conversation"
           tip={props.unarchive ? I18n.t('Unarchive') : I18n.t('Archive')}
           icon={props.unarchive ? IconRemoveFromCollectionLine : IconCollectionSaveLine}
           onClick={props.unarchive ? props.unarchive : props.archive}
@@ -162,6 +169,7 @@ export const MessageActionButtons = props => {
           ariaLabel={props.unarchive ? I18n.t('Unarchive') : I18n.t('Archive')}
         />
         <ActionButton
+          id="delete-conversation"
           tip={I18n.t('Delete')}
           icon={IconTrashLine}
           onClick={props.delete}
@@ -195,4 +203,5 @@ MessageActionButtons.propTypes = {
   shouldRenderMarkAsRead: PropTypes.bool,
   shouldRenderMarkAsUnread: PropTypes.bool,
   hasMultipleSelectedMessages: PropTypes.bool,
+  showComposeButton: PropTypes.bool,
 }

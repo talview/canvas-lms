@@ -16,17 +16,17 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import '@canvas/jquery/jquery.ajaxJSON'
-import '@canvas/datetime/jquery' /* datetimeString */
+import {datetimeString} from '@canvas/datetime/date-functions'
 import '@canvas/jquery/jquery.instructure_forms' /* formSubmit, fillFormData, formErrors */
 import '@canvas/jquery/jquery.instructure_misc_plugins' /* confirmDelete */
 import '@canvas/jquery-keycodes'
 import '@canvas/loading-image'
 import '@canvas/util/templateData'
 
-const I18n = useI18nScope('question_banks')
+const I18n = createI18nScope('question_banks')
 
 $(document).ready(function () {
   $('.add_bank_link').click(event => {
@@ -126,7 +126,7 @@ $(document).ready(function () {
       $bank.loadingImage('remove')
       $bank.removeClass('save_in_progress')
       const bank = data.assessment_question_bank
-      bank.last_updated_at = $.datetimeString(bank.updated_at)
+      bank.last_updated_at = datetimeString(bank.updated_at)
       $bank.fillTemplateData({
         data: bank,
         hrefValues: ['id'],

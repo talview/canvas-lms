@@ -28,6 +28,8 @@ module ApplicationHelper
   include NewQuizzesFeaturesHelper
   include HeapHelper
 
+  BYTE_UNITS = %w[B KB MB GB TB PB EB ZB YB].freeze
+
   def context_user_name_display(user)
     name = user.try(:short_name) || user.try(:name)
     user.try(:pronouns) ? "#{name} (#{user.pronouns})" : name
@@ -433,14 +435,9 @@ module ApplicationHelper
   end
 
   def show_user_create_course_button(user, account = nil)
-    return true if account&.grants_any_right?(user, session, :manage_courses, :create_courses)
+    return true if account&.grants_right?(user, :create_courses)
 
-    @domain_root_account.manually_created_courses_account.grants_any_right?(
-      user,
-      session,
-      :manage_courses,
-      :create_courses
-    )
+    @domain_root_account.manually_created_courses_account.grants_right?(user, :create_courses)
   end
 
   # Public: Create HTML for a sidebar button w/ icon.
@@ -640,8 +637,8 @@ module ApplicationHelper
   # <% }, :b => capture { %>
   # <select>...</select>
   # <% } %>
-  def ot(*args)
-    concat(t(*args))
+  def ot(*)
+    concat(t(*))
   end
 
   def join_title(*parts)
@@ -936,15 +933,15 @@ module ApplicationHelper
   end
 
   def dashboard_url(opts = {})
-    return super(opts) if opts[:login_success] || opts[:become_user_id] || @domain_root_account.nil?
+    return super if opts[:login_success] || opts[:become_user_id] || @domain_root_account.nil?
 
-    custom_dashboard_url || super(opts)
+    custom_dashboard_url || super
   end
 
   def dashboard_path(opts = {})
-    return super(opts) if opts[:login_success] || opts[:become_user_id] || @domain_root_account.nil?
+    return super if opts[:login_success] || opts[:become_user_id] || @domain_root_account.nil?
 
-    custom_dashboard_url || super(opts)
+    custom_dashboard_url || super
   end
 
   def custom_dashboard_url
@@ -1041,25 +1038,58 @@ module ApplicationHelper
     csp_enabled? && csp_context.csp_enabled?
   end
 
+  def include_default_source_csp_directives?
+    csp_context&.root_account&.feature_enabled?(:default_source_csp_logging)
+  end
+
   def csp_report_uri
     @csp_report_uri ||=
-      if (host = csp_context.root_account.csp_logging_config["host"])
-        "; report-uri #{host}report/#{csp_context.root_account.global_id}"
+      if include_default_source_csp_directives? && (host = DynamicSettings.find("csp-logging")[:host])
+        " report-uri #{host}; "
       else
         ""
       end
   end
 
-  def csp_header
-    header = +"Content-Security-Policy"
-    header << "-Report-Only" unless csp_enforced?
+  def default_csp_logging_directives(include_script_src: true)
+    if include_default_source_csp_directives?
+      script_src_directive = include_script_src ? "script-src 'self' 'unsafe-eval' #{allow_list_domains};" : ""
 
-    header.freeze
+      directives = "default-src 'self'; \
+                    img-src 'self' data: #{allow_list_domains};\
+                    style-src 'self' 'unsafe-inline' #{allow_list_domains};\
+                    #{script_src_directive}\
+                    script-src-elem 'self' 'unsafe-inline' #{allow_list_domains};\
+                    font-src 'self' data: #{allow_list_domains};\
+                    connect-src 'self' #{allow_list_domains};\
+                    worker-src 'self' blob: #{allow_list_domains};\
+                    manifest-src 'self' #{allow_list_domains};\
+                    media-src 'self' #{allow_list_domains};"
+
+      directives.squish + csp_report_uri
+    else
+      ""
+    end
   end
 
   def include_files_domain_in_csp
     # TODO: make this configurable per-course, and depending on csp_context_is_submission?
     true
+  end
+
+  def apply_csp_header(directives)
+    return unless csp_enforced? && !headers.key?("Content-Security-Policy")
+
+    directives = directives.presence || ""
+    headers["Content-Security-Policy"] = directives
+  end
+
+  def set_default_source_csp_directive_if_enabled
+    return unless include_default_source_csp_directives? && csp_enabled? && csp_report_uri.present?
+
+    # these are the default directives added for all
+    # content types not represented by frames, scripts, or files
+    apply_csp_header(default_csp_logging_directives)
   end
 
   def add_csp_for_root
@@ -1068,42 +1098,35 @@ module ApplicationHelper
     return if csp_report_uri.empty? && !csp_enforced?
 
     # we iframe all files from the files domain into canvas, so we always have to include the files domain here
-    domains =
-      csp_context
-      .csp_whitelisted_domains(request, include_files: true, include_tools: true)
-      .join(" ")
-
+    #
     # Due to New Analytics generating CSV reports as blob on the client-side and then trying to download them,
     # as well as an interesting difference in browser interpretations of CSP, we have to allow blobs as a frame-src
-    headers[csp_header] = "frame-src 'self' blob: #{domains}#{csp_report_uri}; "
+    directives = "frame-src 'self' blob: #{allow_list_domains(include_tools: true)}; "
+    directives += default_csp_logging_directives
+
+    apply_csp_header(directives)
   end
 
   def add_csp_for_file
-    return unless csp_enabled?
     return if csp_report_uri.empty? && !csp_enforced?
 
-    headers[csp_header] = csp_iframe_attribute + csp_report_uri
+    directives = csp_iframe_attribute
+    directives += default_csp_logging_directives(include_script_src: false)
+
+    apply_csp_header(directives)
+  end
+
+  def allow_list_domains(include_tools: false)
+    csp_context.csp_whitelisted_domains(request, include_files: include_files_domain_in_csp, include_tools:).join(" ")
   end
 
   def csp_iframe_attribute
-    frame_domains =
-      csp_context.csp_whitelisted_domains(
-        request,
-        include_files: include_files_domain_in_csp,
-        include_tools: true
-      )
-    script_domains =
-      csp_context.csp_whitelisted_domains(
-        request,
-        include_files: include_files_domain_in_csp,
-        include_tools: false
-      )
     if include_files_domain_in_csp
-      frame_domains = ["'self'"] + frame_domains
-      object_domains = ["'self'"] + script_domains
-      script_domains = ["'self'", "'unsafe-eval'", "'unsafe-inline'"] + script_domains
+      frame_domains = "'self' " + allow_list_domains(include_tools: true)
+      object_domains = "'self' " + allow_list_domains
+      script_domains = "'self' 'unsafe-eval' 'unsafe-inline' " + allow_list_domains
     end
-    "frame-src #{frame_domains.join(" ")} blob:; script-src #{script_domains.join(" ")}; object-src #{object_domains.join(" ")}; "
+    "frame-src #{frame_domains} blob:; script-src #{script_domains}; object-src #{object_domains}; "
   end
 
   # Returns true if the current_path starts with the given value
@@ -1145,10 +1168,16 @@ module ApplicationHelper
       @context.is_a?(Course) && tutorials_enabled? &&
       @context.grants_right?(@current_user, session, :manage)
 
+    is_user_tutorial_enabled =
+      @current_user&.feature_enabled?(:new_user_tutorial_on_off)
+
     js_env NEW_USER_TUTORIALS: { is_enabled: }
+    js_env NEW_USER_TUTORIALS_ENABLED_AT_ACCOUNT: { is_enabled: is_user_tutorial_enabled }
   end
 
   def planner_enabled?
+    return false if @current_user&.student_in_limited_access_account?
+
     !!@current_user&.has_student_enrollment? ||
       (@current_user&.roles(@domain_root_account)&.include?("observer") && k5_user?) ||
       !!@current_user&.roles(@domain_root_account)&.include?("observer") # TODO: ensure observee is a student?
@@ -1161,8 +1190,9 @@ module ApplicationHelper
     super
   end
 
-  def generate_access_verifier(return_url: nil, fallback_url: nil)
+  def generate_access_verifier(return_url: nil, fallback_url: nil, authorization: nil)
     Users::AccessVerifier.generate(
+      authorization:,
       user: @current_user,
       real_user: logged_in_user,
       developer_key: @access_token&.developer_key,
@@ -1344,12 +1374,18 @@ module ApplicationHelper
     render json: { location:, token: file_authenticator.instfs_bearer_token }
   end
 
+  def authenticated_url_options(attachment)
+    options = { original_url: request.original_url }
+    options[:tenant_auth] = attachment.instfs_tenant_auth if attachment&.instfs_tenant_auth.present?
+    options
+  end
+
   def authenticated_download_url(attachment)
-    file_authenticator.download_url(attachment, options: { original_url: request.original_url })
+    file_authenticator.download_url(attachment, options: authenticated_url_options(attachment))
   end
 
   def authenticated_inline_url(attachment)
-    file_authenticator.inline_url(attachment, options: { original_url: request.original_url })
+    file_authenticator.inline_url(attachment, options: authenticated_url_options(attachment))
   end
 
   def authenticated_thumbnail_url(attachment, options = {})
@@ -1416,11 +1452,25 @@ module ApplicationHelper
     hash[:DEFAULT_DUE_TIME] = context.default_due_time if context&.default_due_time.present? && context.root_account.feature_enabled?(:default_due_time)
   end
 
-  def load_hotjar?
-    # Only load hotjar UX survey tool for the Learner Passport prototype
-    # Skip it in production and development environments, include it for Beta & CD
-    controller.controller_name == "learner_passport" &&
-      Canvas.environment !~ /(production|development)/ &&
-      @domain_root_account&.feature_enabled?(:learner_passport)
+  def number_to_human_size_mb(number, options = {})
+    return "0 #{BYTE_UNITS[0]}" unless number.present?
+
+    base = (options[:base] || 1000).to_f
+
+    if number.to_i < base
+      exponent = 0
+    else
+      max_exp = BYTE_UNITS.size - 1
+      exponent = (Math.log(number) / Math.log(base)).to_i
+      exponent = max_exp if exponent > max_exp
+    end
+
+    number /= base**exponent
+
+    formatted_number = number.round(options[:precision] || 2) if options[:round]
+
+    formatted_number ||= number.truncate(options[:precision] || 2)
+
+    "#{formatted_number} #{BYTE_UNITS[exponent]}"
   end
 end

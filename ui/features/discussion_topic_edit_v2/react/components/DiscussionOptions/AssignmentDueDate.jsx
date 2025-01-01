@@ -18,13 +18,13 @@
 
 import React, {useState, useEffect, useRef, useContext} from 'react'
 import PropTypes from 'prop-types'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {DateTimeInput} from '@instructure/ui-date-time-input'
 import {FormFieldGroup} from '@instructure/ui-form-field'
 import {AssignedTo} from './AssignedTo'
-import {GradedDiscussionDueDatesContext} from '../../util/constants'
+import {DiscussionDueDatesContext} from '../../util/constants'
 
-const I18n = useI18nScope('discussion_create')
+const I18n = createI18nScope('discussion_create')
 
 export const AssignmentDueDate = ({
   initialAssignedInformation,
@@ -38,9 +38,7 @@ export const AssignmentDueDate = ({
   const [dueDateErrorMessage, setDueDateErrorMessage] = useState([])
   const [availableFromAndUntilErrorMessage, setAvailableFromAndUntilErrorMessage] = useState([])
 
-  const {gradedDiscussionRefMap, setGradedDiscussionRefMap} = useContext(
-    GradedDiscussionDueDatesContext
-  )
+  const {gradedDiscussionRefMap, setGradedDiscussionRefMap} = useContext(DiscussionDueDatesContext)
 
   const validateDueDate = (dueDate, availableFrom, availableUntil) => {
     const due = new Date(dueDate)

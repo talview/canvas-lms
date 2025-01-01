@@ -17,18 +17,50 @@
  */
 
 import React from 'react'
-import moxios from 'moxios'
-import sinon from 'sinon'
 import {fireEvent, render, waitFor} from '@testing-library/react'
-
+import {setupServer} from 'msw/node'
+import {http} from 'msw'
 import {AnnotatedDocumentSelector} from '../EditAssignment'
 
-describe('AnnotatedDocumentSelector', function () {
-  describe('when attachment prop is present', function () {
+const server = setupServer(
+  http.get('/api/v1/courses/1/folders/root', (_req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.set('link', 'url; rel="current"'),
+      ctx.json({
+        id: 1,
+        name: 'Course files',
+        context_id: 1,
+        context_type: 'course',
+        can_upload: true,
+        locked_for_user: false,
+        parent_folder_id: null,
+      })
+    )
+  }),
+  http.get('/api/v1/folders/1/files', (_req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.set('link', 'url; rel="current"'),
+      ctx.json([
+        {
+          id: 2,
+          display_name: 'thumbnail.jpg',
+          folder_id: 1,
+          thumbnail_url: 'thumbnail.jpg',
+          'content-type': 'text/html',
+        },
+      ])
+    )
+  })
+)
+
+describe('AnnotatedDocumentSelector', () => {
+  describe('when attachment prop is present', () => {
     const filename = 'test.pdf'
     let props
 
-    beforeEach(function () {
+    beforeEach(() => {
       props = {
         attachment: {name: filename},
         onSelect() {},
@@ -36,49 +68,29 @@ describe('AnnotatedDocumentSelector', function () {
       }
     })
 
-    it('renders the attachment name', function () {
+    it('renders the attachment name', () => {
       const {queryByText} = render(<AnnotatedDocumentSelector {...props} />)
       expect(queryByText(filename)).toBeInTheDocument()
     })
 
-    it('renders a button for removing the attachment', function () {
+    it('renders a button for removing the attachment', () => {
       const {queryByText} = render(<AnnotatedDocumentSelector {...props} />)
       expect(queryByText('Remove selected attachment')).toBeInTheDocument()
     })
 
-    it('the button for removing the attachment calls onRemove', function () {
-      props.onRemove = sinon.stub()
+    it('the button for removing the attachment calls onRemove', () => {
+      props.onRemove = jest.fn()
       const {queryByText} = render(<AnnotatedDocumentSelector {...props} />)
       const button = queryByText('Remove selected attachment')
       button.click()
-      expect(props.onRemove.callCount).toBe(1)
+      expect(props.onRemove).toHaveBeenCalledTimes(1)
     })
   })
 
-  describe('when attachment prop is not present', function () {
+  describe('when attachment prop is not present', () => {
     let props
 
-    const courseFolder = {
-      id: 1,
-      name: 'Course files',
-      context_id: 1,
-      context_type: 'course',
-      can_upload: true,
-      locked_for_user: false,
-      parent_folder_id: null,
-    }
-
-    const files = [
-      {
-        id: 2,
-        display_name: 'thumbnail.jpg',
-        folder_id: 1,
-        thumbnail_url: 'thumbnail.jpg',
-        'content-type': 'text/html',
-      },
-    ]
-
-    beforeEach(function () {
+    beforeEach(() => {
       props = {
         attachment: null,
         onSelect() {},
@@ -86,42 +98,35 @@ describe('AnnotatedDocumentSelector', function () {
       }
 
       window.ENV = {context_asset_string: 'courses_1'}
-      moxios.install()
-
-      moxios.stubRequest('/api/v1/courses/1/folders/root', {
-        status: 200,
-        responseText: courseFolder,
-        headers: {link: 'url; rel="current"'},
-      })
-
-      moxios.stubRequest('/api/v1/folders/1/files', {
-        status: 200,
-        responseText: files,
-        headers: {link: 'url; rel="current"'},
-      })
+      server.listen()
     })
 
-    afterEach(function () {
-      moxios.uninstall()
+    afterEach(() => {
+      server.resetHandlers()
+      server.close()
       window.ENV = {}
     })
 
-    it('renders a FileBrowser', async function () {
-      const {queryByText} = render(<AnnotatedDocumentSelector {...props} />)
+    describe('FileBrowser', () => {
+      it('renders a FileBrowser', () => {
+        const {getByText} = render(<AnnotatedDocumentSelector {...props} />)
 
-      await waitFor(function () {
-        expect(queryByText('Available folders')).toBeInTheDocument()
+        expect(getByText('Loading')).toBeInTheDocument()
+
+        waitFor(() => {
+          expect(getByText('Available folders')).toBeInTheDocument()
+        })
       })
-    })
 
-    it('selecting a file in the FileBrowser calls onSelect', async function () {
-      props.onSelect = sinon.stub()
-      const {queryByText} = render(<AnnotatedDocumentSelector {...props} />)
+      it('selecting a file in the FileBrowser calls onSelect', () => {
+        props.onSelect = jest.fn()
+        const {queryByText} = render(<AnnotatedDocumentSelector {...props} />)
 
-      await waitFor(function () {
-        fireEvent.click(queryByText('Course files'))
-        fireEvent.click(queryByText('thumbnail.jpg'))
-        expect(props.onSelect.callCount).toBe(1)
+        waitFor(() => {
+          fireEvent.click(queryByText('Course files'))
+          fireEvent.click(queryByText('thumbnail.jpg'))
+          expect(props.onSelect).toHaveBeenCalledTimes(1)
+        })
       })
     })
   })

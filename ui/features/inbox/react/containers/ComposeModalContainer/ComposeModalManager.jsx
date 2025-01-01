@@ -32,14 +32,14 @@ import {
   SUBMISSION_COMMENTS_QUERY,
   VIEWABLE_SUBMISSIONS_QUERY,
 } from '../../../graphql/Queries'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import ModalSpinner from './ModalSpinner'
 import PropTypes from 'prop-types'
 import React, {useContext, useState, useEffect} from 'react'
-import {useMutation, useQuery} from 'react-apollo'
+import {useMutation, useQuery} from '@apollo/client'
 import {ConversationContext} from '../../../util/constants'
 
-const I18n = useI18nScope('conversations_2')
+const I18n = createI18nScope('conversations_2')
 
 const ComposeModalManager = props => {
   const {setOnFailure, setOnSuccess} = useContext(AlertManagerContext)
@@ -58,11 +58,13 @@ const ComposeModalManager = props => {
   })
 
   const getReplyRecipients = () => {
-    if (isSubmissionCommentsType) return
+    if (isSubmissionCommentsType) return []
+    if (!replyConversationQuery.data?.legacyNode) return []
 
-    const lastAuthor = props.conversationMessage
-      ? props.conversationMessage?.author
-      : props.conversation?.messages[0]?.author
+    const lastMessage =
+      replyConversationQuery.data.legacyNode.conversationMessagesConnection.nodes[0]
+
+    const lastAuthor = lastMessage?.author
 
     if (
       lastAuthor &&
@@ -71,22 +73,14 @@ const ComposeModalManager = props => {
       lastAuthor?._id.toString() !== ENV.current_user_id.toString()
     ) {
       return [lastAuthor]
-    } else {
-      const recipients = props.conversationMessage
-        ? props.conversationMessage?.recipients
-        : props.conversation?.messages[0]?.recipients
-      return recipients || []
     }
-  }
-
-  const getReplyRecipientIDs = () => {
-    return getReplyRecipients()?.map(r => r._id.toString())
+    return lastMessage?.recipients || []
   }
 
   const replyConversationQuery = useQuery(REPLY_CONVERSATION_QUERY, {
     variables: {
       conversationID: props.conversation?._id,
-      participants: getReplyRecipientIDs(),
+      participants: [ENV.current_user_id?.toString()],
       ...(props.conversationMessage && {createdBefore: props.conversationMessage?.createdAt}),
       first: props.isForward && props.conversationMessage ? 1 : null,
     },
@@ -95,17 +89,13 @@ const ComposeModalManager = props => {
   })
 
   const updateConversationsCache = (cache, result) => {
-    let legacyNode
-    try {
-      const queryResult = JSON.parse(
-        JSON.stringify(cache.readQuery(props.conversationsQueryOption))
-      )
-      legacyNode = queryResult.legacyNode
-    } catch (e) {
-      // readQuery throws an exception if the query isn't already in the cache
-      // If its not in the cache we don't want to do anything
+    const queryResult = JSON.parse(JSON.stringify(cache.readQuery(props.conversationsQueryOption)))
+
+    if (!queryResult) {
       return
     }
+
+    const legacyNode = queryResult.legacyNode
 
     if (props.isReply || props.isReplyAll || props.isForward) {
       const conversation = legacyNode.conversationsConnection.nodes.find(
@@ -136,7 +126,7 @@ const ComposeModalManager = props => {
             query: REPLY_CONVERSATION_QUERY,
             variables: {
               conversationID: props.conversation?._id,
-              participants: getReplyRecipientIDs(),
+              participants: [ENV.current_user_id?.toString()],
               ...(props.conversationMessage && {
                 createdBefore: props.conversationMessage?.createdAt,
               }),
@@ -144,6 +134,10 @@ const ComposeModalManager = props => {
           })
         )
       )
+
+      if (!replyQueryResult) {
+        return
+      }
 
       replyQueryResult.legacyNode.conversationMessagesConnection.nodes.unshift(
         result.data.addConversationMessage.conversationMessage
@@ -153,7 +147,7 @@ const ComposeModalManager = props => {
         query: REPLY_CONVERSATION_QUERY,
         variables: {
           conversationID: props.conversation?._id,
-          participants: getReplyRecipientIDs(),
+          participants: [ENV.current_user_id?.toString()],
           ...(props.conversationMessage && {createdBefore: props.conversationMessage?.createdAt}),
         },
         data: {legacyNode: replyQueryResult.legacyNode},
@@ -163,20 +157,21 @@ const ComposeModalManager = props => {
 
   const updateConversationMessagesCache = (cache, result) => {
     if (props?.conversation) {
-      const querytoUpdate = {
+      const queryToUpdate = {
         query: CONVERSATION_MESSAGES_QUERY,
         variables: {
           conversationID: props.conversation._id,
         },
       }
-      const data = JSON.parse(JSON.stringify(cache.readQuery(querytoUpdate)))
+      const data = JSON.parse(JSON.stringify(cache.readQuery(queryToUpdate)))
 
-      data.legacyNode.conversationMessagesConnection.nodes = [
-        result.data.addConversationMessage.conversationMessage,
-        ...data.legacyNode.conversationMessagesConnection.nodes,
-      ]
+      if (result.data?.addConversationMessage.conversationMessage)
+        data.legacyNode.conversationMessagesConnection.nodes = [
+          result.data.addConversationMessage.conversationMessage,
+          ...data.legacyNode.conversationMessagesConnection.nodes,
+        ]
 
-      cache.writeQuery({...querytoUpdate, data})
+      cache.writeQuery({...queryToUpdate, data})
     }
   }
 
@@ -204,7 +199,13 @@ const ComposeModalManager = props => {
         sort: 'desc',
       },
     }
+
     const data = JSON.parse(JSON.stringify(cache.readQuery(queryToUpdate)))
+
+    if (!data) {
+      return
+    }
+
     const submissionToUpdate = data.legacyNode.viewableSubmissionsConnection.nodes.find(
       c => c._id === props.conversation._id
     )
@@ -216,6 +217,12 @@ const ComposeModalManager = props => {
   }
 
   const updateCache = (cache, result) => {
+    if (result?.data?.addConversationMessage?.conversationMessage._id === '0') {
+      // if the user sends another delayed message right now, we will have 2 0 id message in our stack, which will cause duplication
+      // result.data.addConversationMessage.conversationMessage.id = Date.now().toString()
+      window.location.reload()
+      return
+    }
     const submissionFail = result?.data?.createSubmissionComment?.errors
     const addConversationFail = result?.data?.addConversationMessage?.errors
     const createConversationFail = result?.data?.createConversation?.errors
@@ -238,13 +245,9 @@ const ComposeModalManager = props => {
     // success is true if there is no error message or if data === true
     const errorMessage = data?.errors
     const success = errorMessage ? false : !!data
-
     if (success) {
-      // before we do anything, let's allow some time for any ModalSpinner to truly go away
-      setTimeout(() => {
-        props.onDismiss()
-        setOnSuccess(I18n.t('Message sent!'), false)
-      }, 500)
+      props.onDismiss()
+      setOnSuccess(I18n.t('Message sent!'), false)
     } else {
       if (errorMessage && errorMessage[0]?.message) {
         setModalError(errorMessage[0].message)
@@ -295,7 +298,7 @@ const ComposeModalManager = props => {
       props.onSelectedIdsChange(selectedUsers)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSubmissionCommentsType, props.isReply, props.isReplyAll])
+  }, [isSubmissionCommentsType, props.isReply, props.isReplyAll, replyConversationQuery.data])
 
   if (!props.open) {
     return null
@@ -317,7 +320,13 @@ const ComposeModalManager = props => {
   }
 
   const filteredCourses = () => {
-    const courses = coursesQuery?.data?.legacyNode
+    const legacyNode = coursesQuery?.data?.legacyNode
+
+    if (!legacyNode) {
+      return null
+    }
+
+    const courses = JSON.parse(JSON.stringify(legacyNode))
     if (courses) {
       courses.enrollments = courses?.enrollments.filter(enrollment => !enrollment?.concluded)
       courses.favoriteGroupsConnection.nodes = courses?.favoriteGroupsConnection?.nodes.filter(
@@ -330,6 +339,7 @@ const ComposeModalManager = props => {
 
   return (
     <ComposeModalContainer
+      inboxSignatureBlock={props.inboxSignatureBlock}
       addConversationMessage={data => {
         addConversationMessage({
           variables: {
@@ -365,7 +375,8 @@ const ComposeModalManager = props => {
       submissionCommentsHeader={isSubmissionCommentsType ? props?.conversation?.subject : null}
       modalError={modalError}
       isPrivateConversation={!!props?.conversation?.isPrivate}
-      currentCourseFilter={props.currentCourseFilter}
+      activeCourseFilterID={props.activeCourseFilterID}
+      setModalError={setModalError}
     />
   )
 }
@@ -383,7 +394,8 @@ ComposeModalManager.propTypes = {
   selectedIds: PropTypes.array,
   contextIdFromUrl: PropTypes.string,
   maxGroupRecipientsMet: PropTypes.bool,
-  currentCourseFilter: PropTypes.string,
+  activeCourseFilterID: PropTypes.string,
+  inboxSignatureBlock: PropTypes.bool,
 }
 
 export default ComposeModalManager

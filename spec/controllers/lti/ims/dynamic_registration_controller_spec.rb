@@ -23,7 +23,7 @@ describe Lti::IMS::DynamicRegistrationController do
   let(:controller_routes) do
     dynamic_registration_routes = []
     CanvasRails::Application.routes.routes.each do |route|
-      dynamic_registration_routes << route if route.defaults[:controller] == "lti/ims/dynamic_registration"
+      dynamic_registration_routes << route if route.defaults[:controller] == "lti/ims/dynamic_registration" && route.defaults[:action] != "dr_iframe"
     end
 
     dynamic_registration_routes
@@ -33,10 +33,6 @@ describe Lti::IMS::DynamicRegistrationController do
   openapi_spec = YAML.load_file(openapi_location)
 
   verifier = OpenApiSpecHelper::SchemaVerifier.new(openapi_spec)
-
-  before do
-    Account.default.root_account.enable_feature! :lti_dynamic_registration
-  end
 
   after do
     verifier.verify(request, response) if response.sent?
@@ -70,7 +66,7 @@ describe Lti::IMS::DynamicRegistrationController do
         "client_name" => "the client name",
         "jwks_uri" => "https://example.com/api/jwks",
         "token_endpoint_auth_method" => "private_key_jwt",
-        "scope" => scopes.join(" "),
+
         "logo_uri" => "https://example.com/logo.jpg",
         "https://purl.imsglobal.org/spec/lti-tool-configuration" => {
           "domain" => "example.com",
@@ -95,7 +91,9 @@ describe Lti::IMS::DynamicRegistrationController do
           "target_link_uri" => "https://example.com/launch",
           "https://canvas.instructure.com/lti/privacy_level" => "email_only",
         },
-      }
+      }.merge(
+        scopes ? { "scope" => scopes.join(" ") } : {}
+      )
     end
 
     context "with a valid token" do
@@ -105,10 +103,26 @@ describe Lti::IMS::DynamicRegistrationController do
           initiated_at: 1.minute.ago,
           root_account_global_id: Account.default.global_id,
           uuid: SecureRandom.uuid,
+          unified_tool_id: "asdf",
+          registration_url: "https://example.com/registration",
         }
       end
       let(:valid_token) do
         Canvas::Security.create_jwt(token_hash, 1.hour.from_now)
+      end
+
+      context "with no scopes" do
+        subject do
+          request.headers["Authorization"] = "Bearer #{valid_token}"
+          post :create, params: { **registration_params }
+        end
+
+        let(:scopes) { nil }
+
+        it "accepts registrations" do
+          subject
+          expect(response).to have_http_status(:ok)
+        end
       end
 
       context "and with valid registration params" do
@@ -140,6 +154,24 @@ describe Lti::IMS::DynamicRegistrationController do
           expect(created_registration).not_to be_nil
           expect(parsed_body["https://purl.imsglobal.org/spec/lti-tool-configuration"]["https://canvas.instructure.com/lti/registration_config_url"]).to eq "http://test.host/api/lti/registrations/#{created_registration.global_id}/view"
           expect(created_registration.canvas_configuration["custom_fields"]).to eq({ "global_foo" => "global_bar" })
+          expect(created_registration.unified_tool_id).to eq("asdf")
+          expect(created_registration.registration_url).to eq("https://example.com/registration")
+        end
+
+        it "validates using the schema's to_model_attrs" do
+          expect(Schemas::Lti::IMS::OidcRegistration).to receive(:to_model_attrs).and_call_original
+          subject
+          expect(response).to have_http_status(:ok)
+        end
+
+        it "returns the errors if to_model_attrs returns errors" do
+          to_model_attrs_result = { errors: ["oopsy"], registration_attrs: nil }
+          expect(Schemas::Lti::IMS::OidcRegistration).to \
+            receive(:to_model_attrs).and_return(to_model_attrs_result)
+
+          subject
+          expect(response).to have_http_status(:unprocessable_entity)
+          expect(response.body).to match(/oopsy/)
         end
 
         it "fills in values on the developer key" do
@@ -162,22 +194,58 @@ describe Lti::IMS::DynamicRegistrationController do
           post :create, params: invalid_registration_params
         end
 
-        let(:invalid_registration_params) do
-          wrong_grant_types = registration_params
-          wrong_grant_types["grant_types"] = ["not_part_of_the_spec", "implicit"]
-          wrong_grant_types
+        context "with invalid grant types" do
+          let(:invalid_registration_params) do
+            wrong_grant_types = registration_params
+            wrong_grant_types["grant_types"] = ["not_part_of_the_spec", "implicit"]
+            wrong_grant_types
+          end
+
+          it "returns a 422 with validation errors" do
+            subject
+            expect(response).to have_http_status(:unprocessable_entity)
+            expect(response.body).to match(/grant_types.*client_credentials/)
+          end
+
+          it "doesn't create a stray developer key" do
+            expect { subject }.not_to change { DeveloperKey.count }
+          end
         end
 
-        it "returns a 422 with validation errors" do
-          subject
-          expect(response).to have_http_status(:unprocessable_entity)
-          expect(response.body).to include("Must include client_credentials, implicit")
+        context "with invalid response types" do
+          let(:invalid_registration_params) do
+            wrong_response_types = registration_params
+            wrong_response_types["response_types"] = ["not_part_of_the_spec"]
+            wrong_response_types
+          end
+
+          it "returns a 422 with validation errors" do
+            subject
+            expect(response).to have_http_status(:unprocessable_entity)
+            expect(response.body).to match(/response_types.*id_token/)
+          end
+
+          it "doesn't create a stray developer key" do
+            expect { subject }.not_to change { DeveloperKey.count }
+          end
         end
 
-        it "doesn't create a stray developer key" do
-          previous_key_count = DeveloperKey.count
-          subject
-          expect(DeveloperKey.count).to eq(previous_key_count)
+        context "with invalid token endpoint auth method" do
+          let(:invalid_registration_params) do
+            wrong_token_endpoint_auth_method = registration_params
+            wrong_token_endpoint_auth_method["token_endpoint_auth_method"] = "not_part_of_the_spec"
+            wrong_token_endpoint_auth_method
+          end
+
+          it "returns a 422 with validation errors" do
+            subject
+            expect(response).to have_http_status(:unprocessable_entity)
+            expect(response.body).to match(/token_endpoint_auth_method.*private_key_jwt/)
+          end
+
+          it "doesn't create a stray developer key" do
+            expect { subject }.not_to change { DeveloperKey.count }
+          end
         end
       end
     end
@@ -225,10 +293,67 @@ describe Lti::IMS::DynamicRegistrationController do
     end
   end
 
+  describe "#show" do
+    subject do
+      get :show, params: { registration_id: registration.id, account_id: account.id }
+    end
+
+    let(:response_data) { response.parsed_body }
+    let(:account) { Account.default }
+    let(:registration) { lti_ims_registration_model(account:) }
+
+    context "with a user session" do
+      let(:user) { account_admin_user(account:) }
+
+      before do
+        user_session(user)
+      end
+
+      it { is_expected.to be_successful }
+
+      it "returns the expected fields" do
+        subject
+        expected = %w[
+          id
+          lti_registration_id
+          developer_key_id
+          overlay
+          lti_tool_configuration
+          application_type
+          grant_types
+          response_types
+          redirect_uris
+          initiate_login_uri
+          client_name
+          jwks_uri
+          logo_uri
+          token_endpoint_auth_method
+          contacts
+          client_uri
+          policy_uri
+          tos_uri
+          scopes
+          created_at
+          updated_at
+          guid
+          tool_configuration
+          default_configuration
+        ]
+        expect(response_data).to include(*expected)
+      end
+    end
+
+    context "without a user session" do
+      it { is_expected.to be_redirect }
+    end
+  end
+
   describe "#registration_token" do
     subject do
       get :registration_token, params: { account_id: Account.default.id }
     end
+
+    let(:token) { JSON::JWT.decode(response.parsed_body["token"], :skip_verification) }
 
     before do
       account_admin_user(account: Account.default)
@@ -243,6 +368,31 @@ describe Lti::IMS::DynamicRegistrationController do
     it "uses iss domain in config url" do
       subject
       expect(response.parsed_body["oidc_configuration_url"]).to include(Canvas::Security.config["lti_iss"])
+    end
+
+    it "does not include unified_tool_id in token" do
+      subject
+      expect(token[:unified_tool_id]).to be_nil
+    end
+
+    context "with unified_tool_id parameter" do
+      subject { get :registration_token, params: { account_id: Account.default.id, unified_tool_id: } }
+
+      let(:unified_tool_id) { "asdf" }
+
+      it "includes unified_tool_id in token" do
+        subject
+        expect(token[:unified_tool_id]).to eq(unified_tool_id)
+      end
+
+      context "is empty string" do
+        let(:unified_tool_id) { "" }
+
+        it "includes nil in token" do
+          subject
+          expect(token[:unified_tool_id]).to be_nil
+        end
+      end
     end
 
     context "in local dev" do
@@ -274,6 +424,216 @@ describe Lti::IMS::DynamicRegistrationController do
         it "uses https for config url" do
           subject
           expect(response.parsed_body["oidc_configuration_url"]).to include("https://")
+        end
+      end
+    end
+  end
+
+  describe "#dr_iframe" do
+    before do
+      account_admin_user(account: Account.default)
+      Account.default.root_account.enable_feature! :javascript_csp
+      Account.default.root_account.enable_csp!
+      user_session(@admin)
+    end
+
+    it "must include the url parameter" do
+      get :dr_iframe, params: { account_id: Account.default.id }
+      expect(response).to be_bad_request
+    end
+
+    it "returns unauthorized if jwt is expired" do
+      expired_jwt = Canvas::Security.create_jwt({
+                                                  user_id: @admin.id,
+                                                  root_account_global_id: Account.default.id
+                                                },
+                                                5.minutes.ago)
+      get :dr_iframe, params: { account_id: Account.default.id, url: "http://testexample.com?registration_token=#{expired_jwt}" }
+      expect(response).to be_unauthorized
+    end
+
+    it "returns unauthorized if jwt is issued for other account" do
+      expired_jwt = Canvas::Security.create_jwt({
+                                                  user_id: @admin.id,
+                                                  root_account_global_id: 123
+                                                },
+                                                5.minutes.from_now)
+      get :dr_iframe, params: { account_id: Account.default.id, url: "http://testexample.com?registration_token=#{expired_jwt}" }
+      expect(response).to be_unauthorized
+      expect(response.headers["Content-Security-Policy"]).not_to include("testexample.com")
+    end
+
+    it "returns unauthorized if jwt is issued for other user" do
+      expired_jwt = Canvas::Security.create_jwt({
+                                                  user_id: 123,
+                                                  root_account_global_id: Account.default.id
+                                                },
+                                                5.minutes.from_now)
+      get :dr_iframe, params: { account_id: Account.default.id, url: "http://testexample.com?registration_token=#{expired_jwt}" }
+      expect(response).to be_unauthorized
+      expect(response.headers["Content-Security-Policy"]).not_to include("testexample.com")
+    end
+
+    it "adds url to CSP whitelist if registration_token is valid" do
+      valid_jwt = Canvas::Security.create_jwt({
+                                                user_id: @admin.id,
+                                                root_account_global_id: Account.default.global_id
+                                              },
+                                              5.minutes.from_now)
+      get :dr_iframe, params: { account_id: Account.default.id, url: "http://testexample.com?registration_token=#{valid_jwt}" }
+      expect(response).to be_successful
+      expect(response.headers["Content-Security-Policy"]).to include("testexample.com")
+    end
+  end
+
+  describe "#update_registration_overlay" do
+    let(:overlay) do
+      {
+        disabledPlacements: ["course_navigation"],
+        disabledScopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"],
+        placements: [
+          {
+            type: "account_navigation",
+            icon_url: "https://example.com/icon.jpg"
+          }
+        ]
+      }
+    end
+    let(:account) { Account.default }
+    let(:registration) { lti_ims_registration_model(account:) }
+    let(:user) { account_admin_user(account:) }
+
+    it "updates the registration_overlay on the registration" do
+      user_session(user)
+      put :update_registration_overlay,
+          params: { account_id: Account.default.id,
+                    registration_id: registration.id },
+          body: overlay.to_json
+      expect(response).to be_successful
+      expect(registration.reload.registration_overlay).to eq(overlay.deep_stringify_keys)
+    end
+
+    it "removes disabled scopes from the associated developer key" do
+      user_session(user)
+      put :update_registration_overlay,
+          params: { account_id: Account.default.id,
+                    registration_id: registration.id },
+          body: overlay.to_json
+      expect(response).to be_successful
+      expect(registration.reload.developer_key.scopes).not_to include("https://purl.imsglobal.org/spec/lti-ags/scope/lineitem")
+    end
+
+    it "doesn't error if no disabledScopes are included in the request" do
+      user_session(user)
+      put :update_registration_overlay,
+          params: { account_id: Account.default.id,
+                    registration_id: registration.id },
+          body: overlay.except(:disabledScopes).to_json
+      expect(response).to be_successful
+
+      expect(registration.reload.registration_overlay).to eq(overlay.except(:disabledScopes).deep_stringify_keys)
+    end
+
+    it "returns a 422 if the request body does not meet the schema" do
+      user_session(user)
+      put :update_registration_overlay,
+          params: {
+            account_id: Account.default.id,
+            registration_id: registration.id
+          },
+          body: overlay.merge({ invalid: "data" }).to_json
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "returns a 404 if the registration cannot be found" do
+      user_session(user)
+      put :update_registration_overlay,
+          params: {
+            account_id: Account.default.id,
+            registration_id: registration.id + 500,
+          },
+          body: overlay.to_json
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "creates an Lti::Overlay if one isn't present" do
+      user_session(user)
+
+      expect do
+        put :update_registration_overlay,
+            params: { account_id: Account.default.id, registration_id: registration.id },
+            body: overlay.to_json
+      end.to change { Lti::Overlay.count }
+      expect(response).to be_successful
+
+      expect(Lti::Overlay.last.data)
+        .to eq({
+                 "disabled_placements" => overlay[:disabledPlacements],
+                 "disabled_scopes" => overlay[:disabledScopes],
+                 "placements" => {
+                   "account_navigation" => {
+                     "icon_url" => "https://example.com/icon.jpg"
+                   }
+                 }
+               })
+    end
+
+    context "Lti::Overlay is present" do
+      let(:lti_overlay) do
+        lti_overlay = Lti::Overlay.new(account: Account.default,
+                                       updated_by: user_model,
+                                       registration: registration.lti_registration,
+                                       data: {})
+        lti_overlay.save!
+        lti_overlay
+      end
+
+      before do
+        lti_overlay
+      end
+
+      it "updates the registration and Lti::Overlay model" do
+        user_session(user)
+        put :update_registration_overlay, params: { account_id: Account.default.id, registration_id: registration.id }, body: overlay.to_json
+
+        expect(response).to be_successful
+        expect(registration.reload.registration_overlay).to eq(overlay.deep_stringify_keys)
+        expect(lti_overlay.reload.updated_by).to eq(user)
+        expect(lti_overlay.data).to eq({
+                                         "disabled_placements" => ["course_navigation"],
+                                         "disabled_scopes" => ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"],
+                                         "placements" => {
+                                           "account_navigation" => {
+                                             "icon_url" => "https://example.com/icon.jpg"
+                                           }
+                                         }
+                                       })
+      end
+
+      # This is rare but does happen, particularly for overlays that were
+      # backfilled from IMS registrations
+      context "the overlay doesn't have a user associated with it" do
+        before do
+          lti_overlay.update_column(:updated_by_id, nil)
+        end
+
+        it "updates the registration and Lti::Overlay model" do
+          user_session(user)
+          put :update_registration_overlay, params: { account_id: Account.default.id, registration_id: registration.id }, body: overlay.to_json
+
+          expect(response).to be_successful
+          expect(registration.reload.registration_overlay).to eq(overlay.deep_stringify_keys)
+          expect(lti_overlay.reload.updated_by).to eq(user)
+          expect(lti_overlay.data).to eq({
+                                           "disabled_placements" => ["course_navigation"],
+                                           "disabled_scopes" => ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"],
+                                           "placements" => {
+                                             "account_navigation" => {
+                                               "icon_url" => "https://example.com/icon.jpg"
+                                             }
+                                           }
+                                         })
         end
       end
     end

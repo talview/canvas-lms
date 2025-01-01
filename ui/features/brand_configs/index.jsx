@@ -20,8 +20,11 @@ import React from 'react'
 import ReactDOM from 'react-dom'
 import CollectionView from './react/CollectionView'
 import ready from '@instructure/ready'
+import {initializeTopNavPortal} from '@canvas/top-navigation/react/TopNavPortal'
 
 ready(() => {
+  initializeTopNavPortal()
+  // eslint-disable-next-line no-restricted-properties
   ReactDOM.render(
     <CollectionView {...window.ENV.brandConfigStuff} />,
     document.getElementById('content')

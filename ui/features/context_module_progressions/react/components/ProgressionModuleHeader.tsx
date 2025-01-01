@@ -19,9 +19,9 @@
 import React, {useState} from 'react'
 import {Heading} from '@instructure/ui-heading'
 import {Flex} from '@instructure/ui-flex'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
-const I18n = useI18nScope('progression_module_header')
+const I18n = createI18nScope('progression_module_header')
 
 type Props = {
   bridge: {
@@ -32,8 +32,12 @@ type Props = {
   }
 }
 
+type State = {
+  attributes: any
+}
+
 const ProgressionModuleHeader = ({bridge}: Props) => {
-  const [state, setState] = useState()
+  const [state, setState] = useState<State | null>(null)
   bridge.on('selectionChanged', setState)
 
   const renderTitle = () => {

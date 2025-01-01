@@ -132,7 +132,7 @@ describe "API Authentication", type: :request do
           expect(response.header[content_type_key]).to eq "application/json; charset=utf-8"
           json = JSON.parse(response.body)
           token = json["access_token"]
-          expect(json["user"]).to eq({ "id" => @user.id, "global_id" => @user.global_id.to_s, "name" => "test1@example.com", "effective_locale" => "en" })
+          expect(json["user"]).to eq({ "id" => @user.id, "global_id" => @user.global_id.to_s, "name" => "test1@example.com", "effective_locale" => "en", "fake_student" => false })
           reset!
 
           # try an api call
@@ -343,7 +343,7 @@ describe "API Authentication", type: :request do
             expect(response.header[content_type_key]).to eq "application/json; charset=utf-8"
             json = JSON.parse(response.body)
             @token = json["access_token"]
-            expect(json["user"]).to eq({ "id" => @user.id, "global_id" => @user.global_id.to_s, "name" => "test1@example.com", "effective_locale" => "en" })
+            expect(json["user"]).to eq({ "id" => @user.id, "global_id" => @user.global_id.to_s, "name" => "test1@example.com", "effective_locale" => "en", "fake_student" => false })
             reset!
           end
 
@@ -729,6 +729,24 @@ describe "API Authentication", type: :request do
       expect(response["WWW-Authenticate"]).to eq %(Bearer realm="canvas-lms")
     end
 
+    it "errors if the access token is revoked" do
+      @token.update_attribute(:workflow_state, "deleted")
+      get "/api/v1/courses", headers: { "HTTP_AUTHORIZATION" => "Bearer #{@token.full_token}" }
+      assert_status(401)
+      expect(response["WWW-Authenticate"]).to eq %(Bearer realm="canvas-lms")
+      json = JSON.parse(response.body)
+      expect(json["errors"].first["message"]).to eq "Revoked access token."
+    end
+
+    it "errors if the access token is permanently expired" do
+      @token.update_attribute(:permanent_expires_at, 1.hour.ago)
+      get "/api/v1/courses", headers: { "HTTP_AUTHORIZATION" => "Bearer #{@token.full_token}" }
+      assert_status(401)
+      expect(response["WWW-Authenticate"]).to eq %(Bearer realm="canvas-lms")
+      json = JSON.parse(response.body)
+      expect(json["errors"].first["message"]).to eq "Expired access token."
+    end
+
     it "errors if the developer key is inactive" do
       @token.developer_key.deactivate!
       get "/api/v1/courses", headers: { "HTTP_AUTHORIZATION" => "Bearer #{@token.full_token}" }
@@ -895,6 +913,7 @@ describe "API Authentication", type: :request do
                            "login_id" => "blah@example.com",
                            "title" => nil,
                            "bio" => nil,
+                           "pronunciation" => nil,
                            "primary_email" => "blah@example.com",
                            "sis_user_id" => nil,
                            "integration_id" => nil,
@@ -926,6 +945,7 @@ describe "API Authentication", type: :request do
                            "login_id" => "blah@example.com",
                            "title" => nil,
                            "bio" => nil,
+                           "pronunciation" => nil,
                            "primary_email" => "blah@example.com",
                            "sis_user_id" => nil,
                            "integration_id" => nil,
@@ -955,6 +975,7 @@ describe "API Authentication", type: :request do
                            "login_id" => "blah@example.com",
                            "title" => nil,
                            "bio" => nil,
+                           "pronunciation" => nil,
                            "primary_email" => "blah@example.com",
                            "sis_user_id" => nil,
                            "integration_id" => nil,
@@ -991,6 +1012,7 @@ describe "API Authentication", type: :request do
                            "sis_user_id" => "1234",
                            "integration_id" => nil,
                            "bio" => nil,
+                           "pronunciation" => nil,
                            "title" => nil,
                            "primary_email" => "blah@example.com",
                            "time_zone" => "Etc/UTC",
@@ -1027,6 +1049,7 @@ describe "API Authentication", type: :request do
                            "sis_user_id" => "1234",
                            "integration_id" => "1234",
                            "bio" => nil,
+                           "pronunciation" => nil,
                            "title" => nil,
                            "primary_email" => "blah@example.com",
                            "time_zone" => "Etc/UTC",

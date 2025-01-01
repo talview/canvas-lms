@@ -26,14 +26,18 @@ module Importers
     self.item_class = LearningOutcome
 
     def self.process_migration(data, migration)
-      selectable_outcomes = migration.context.respond_to?(:root_account) &&
-                            migration.context.root_account.feature_enabled?(:selectable_outcomes_in_course_copy)
+      selectable_outcomes = migration.context.respond_to?(:root_account)
       outcomes = data["learning_outcomes"] || []
       migration.outcome_to_id_map = {}
       migration.copied_external_outcome_map = {}
       outcomes.each do |outcome|
         import_item = migration.import_object?("learning_outcomes", outcome["migration_id"])
         import_item ||= migration.import_object?("learning_outcome_groups", outcome["migration_id"]) if selectable_outcomes
+        if migration.migration_type == "course_copy_importer" && outcome["type"] == "learning_outcome"
+          o = LearningOutcome.find_by(id: outcome["copied_from_outcome_id"])
+          next if LearningOutcome.active.where(id: o.fetch_outcome_copies, context_id: migration.context_id).count > 0
+        end
+
         next unless import_item || selectable_outcomes
 
         begin

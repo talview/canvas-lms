@@ -30,7 +30,7 @@ import {Badge} from '@instructure/ui-badge'
 import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import StudentViewContext from './Context'
 import {IconChatLine, IconQuestionLine} from '@instructure/ui-icons'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {Link} from '@instructure/ui-link'
 import {Popover} from '@instructure/ui-popover'
 import type {Assignment, Submission} from '../../assignments_show_student'
@@ -39,7 +39,7 @@ import {
   isOriginalityReportVisible,
 } from '@canvas/grading/originalityReportHelper'
 
-const I18n = useI18nScope('assignments_2_student_content')
+const I18n = createI18nScope('assignments_2_student_content')
 
 export type AttemptInformationProps = {
   assignment: Assignment
@@ -110,6 +110,7 @@ export default ({
       restrict_quantitative_data: ENV.restrict_quantitative_data,
       grading_scheme: ENV.grading_scheme,
       points_based_grading_scheme: ENV.points_based,
+      scaling_factor: ENV.scaling_factor,
     })
 
     return (
@@ -148,6 +149,7 @@ export default ({
                 !context.allowChangesToSubmission
               const button = (
                 <Button
+                  // @ts-expect-error
                   renderIcon={IconChatLine}
                   onClick={openCommentTray}
                   disabled={addCommentsDisabled}

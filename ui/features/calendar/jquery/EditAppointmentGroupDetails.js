@@ -18,7 +18,7 @@
 
 import $ from 'jquery'
 import fcUtil from '@canvas/calendar/jquery/fcUtil'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import _, {some} from 'lodash'
 import htmlEscape from '@instructure/html-escape'
 import commonEventFactory from '@canvas/calendar/jquery/CommonEvent/index'
@@ -32,8 +32,9 @@ import '@canvas/jquery/jquery.ajaxJSON'
 import '@canvas/jquery/jquery.disableWhileLoading'
 import '@canvas/jquery/jquery.instructure_forms'
 import {CommonEventShowError} from '@canvas/calendar/jquery/CommonEvent/CommonEvent'
+import {unfudgeDateForProfileTimezone} from '@instructure/moment-utils'
 
-const I18n = useI18nScope('EditAppointmentGroupDetails')
+const I18n = createI18nScope('EditAppointmentGroupDetails')
 
 export default class EditAppointmentGroupDetails {
   constructor(selector, apptGroup, contexts, closeCB, event, useScheduler) {
@@ -306,8 +307,8 @@ export default class EditAppointmentGroupDetails {
     }
     this.timeBlockList.blocks().forEach(range => {
       params['appointment_group[new_appointments]'].push([
-        $.unfudgeDateForProfileTimezone(range[0]).toISOString(),
-        $.unfudgeDateForProfileTimezone(range[1]).toISOString(),
+        unfudgeDateForProfileTimezone(range[0]).toISOString(),
+        unfudgeDateForProfileTimezone(range[1]).toISOString(),
       ])
     })
 
@@ -364,8 +365,8 @@ export default class EditAppointmentGroupDetails {
       params['appointment_group[min_appointments_per_participant]'] = 1
     }
 
-    const onSuccess = data => {
-      ;(data.new_appointments || []).forEach(eventData => {
+    const onSuccess = data_ => {
+      ;(data_.new_appointments || []).forEach(eventData => {
         const event = commonEventFactory(eventData, this.contexts)
         jqueryPublish('CommonEvent/eventSaved', event)
       })

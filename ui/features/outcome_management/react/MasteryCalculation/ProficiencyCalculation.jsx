@@ -18,7 +18,7 @@
 
 import React, {useState, useEffect} from 'react'
 import PropTypes from 'prop-types'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import numberHelper from '@canvas/i18n/numberHelper'
 import {Button} from '@instructure/ui-buttons'
 import {FormFieldGroup} from '@instructure/ui-form-field'
@@ -35,7 +35,7 @@ import CalculationMethodContent from '@canvas/grading/CalculationMethodContent'
 import ConfirmMasteryModal from '../ConfirmMasteryModal'
 import useCanvasContext from '@canvas/outcomes/react/hooks/useCanvasContext'
 
-const I18n = useI18nScope('MasteryScale')
+const I18n = createI18nScope('MasteryScale')
 
 const defaultCalculationMethod = ENV.OUTCOMES_NEW_DECAYING_AVERAGE_CALCULATION
   ? 'weighted_average'
@@ -128,6 +128,7 @@ const CalculationIntInput = ({
   } else {
     return (
       <NumberInput
+        allowStringValue={true}
         renderLabel={() => I18n.t('Parameter')}
         value={typeof calculationInt === 'number' ? calculationInt : ''}
         messages={errorMessages}
@@ -281,6 +282,8 @@ const ProficiencyCalculation = ({
   setError,
   calcIntInputRef,
 }) => {
+  method = JSON.parse(JSON.stringify(method))
+
   const newDecayingAverageFF = ENV.OUTCOMES_NEW_DECAYING_AVERAGE_CALCULATION
 
   if (newDecayingAverageFF) {
@@ -333,7 +336,7 @@ const ProficiencyCalculation = ({
       updateCalculationInt(method.calculationInt)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [method])
+  }, [method.calculationMethod, method.calculationInt])
 
   const [showAlert, setShowAlert] = useState(true)
 
@@ -345,7 +348,7 @@ const ProficiencyCalculation = ({
       })
       setShowAlert(false)
     }
-  }, [displayInvalidCalculationMethod, method, showAlert])
+  }, [displayInvalidCalculationMethod, method.calculationMethod, showAlert])
 
   const calculationMethods = new CalculationMethodContent({
     calculation_method: calculationMethodKey,
