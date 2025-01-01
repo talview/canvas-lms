@@ -18,18 +18,13 @@
 
 import React, {useCallback, useEffect, useState} from 'react'
 import type {CanvasId, CanvasProgress} from './types'
-import {
-  IconArrowOpenDownLine,
-  IconPublishSolid,
-  IconUnpublishedLine,
-  // @ts-ignore
-} from '@instructure/ui-icons'
+import {IconArrowOpenDownLine, IconPublishSolid, IconUnpublishedLine} from '@instructure/ui-icons'
 import {Button} from '@instructure/ui-buttons'
 import {Menu} from '@instructure/ui-menu'
 import {Spinner} from '@instructure/ui-spinner'
 import {View} from '@instructure/ui-view'
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
 import {showFlashAlert} from '@canvas/alerts/react/FlashAlert'
 
@@ -43,7 +38,7 @@ import {
 import {disableContextModulesPublishMenu} from '../utils/publishOneModuleHelper'
 import ContextModulesPublishModal from './ContextModulesPublishModal'
 
-const I18n = useI18nScope('context_modules_publish_menu')
+const I18n = createI18nScope('context_modules_publish_menu')
 
 interface Props {
   readonly courseId: CanvasId
@@ -128,7 +123,7 @@ const ContextModulesPublishMenu = ({courseId, runningProgressId, disabled}: Prop
   }
 
   const onPublishComplete = () => {
-    // eslint-disable-next-line promise/catch-or-return
+     
     refreshPublishStates(true).then(() => reset())
   }
 

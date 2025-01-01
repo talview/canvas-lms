@@ -63,6 +63,17 @@ describe('RetrievingContent', () => {
     })
   })
 
+  describe('with no content items', () => {
+    beforeEach(() => {
+      content_items = []
+      component = renderComponent()
+    })
+
+    it('shows a message about no content items', () => {
+      expect(component.getAllByText('The external app returned with no content.').length).toBe(1)
+    })
+  })
+
   describe('with errored content items', () => {
     beforeEach(() => {
       content_items = [
@@ -141,20 +152,8 @@ describe('DeepLinkingResponse', () => {
       }
     })
 
-    describe('when flag is disabled', () => {
-      it('uses window.top', () => {
-        expect(DeepLinkingResponse.targetWindow(windowMock)).toBe(windowMock.top)
-      })
-    })
-
-    describe('when flag is enabled', () => {
-      beforeEach(() => {
-        windowMock.ENV.deep_linking_use_window_parent = true
-      })
-
-      it('uses window.parent', () => {
-        expect(DeepLinkingResponse.targetWindow(windowMock)).toBe(windowMock.parent)
-      })
+    it('uses window.parent', () => {
+      expect(DeepLinkingResponse.targetWindow(windowMock)).toBe(windowMock.parent)
     })
 
     describe('when tool is opened in new tab', () => {

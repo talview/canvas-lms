@@ -20,7 +20,7 @@ import {Button, IconButton} from '@instructure/ui-buttons'
 import {ChildTopic} from '../../../graphql/ChildTopic'
 import {Flex} from '@instructure/ui-flex'
 import {GroupsMenu} from '../GroupsMenu/GroupsMenu'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {
   IconArrowDownLine,
   IconArrowUpLine,
@@ -29,10 +29,14 @@ import {
   IconPermissionsLine,
 } from '@instructure/ui-icons'
 import PropTypes from 'prop-types'
-import {CURRENT_USER, DiscussionManagerUtilityContext} from '../../utils/constants'
+import {
+  CURRENT_USER,
+  DiscussionManagerUtilityContext,
+  isSpeedGraderInTopUrl,
+} from '../../utils/constants'
 import React, {useContext, useState} from 'react'
 import {Responsive} from '@instructure/ui-responsive'
-import {responsiveQuerySizes} from '../../utils'
+import {hideStudentNames, responsiveQuerySizes} from '../../utils'
 import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import {SimpleSelect} from '@instructure/ui-simple-select'
 import {SplitScreenButton} from './SplitScreenButton'
@@ -41,11 +45,12 @@ import {Tooltip} from '@instructure/ui-tooltip'
 import {View} from '@instructure/ui-view'
 import {AnonymousAvatar} from '@canvas/discussions/react/components/AnonymousAvatar/AnonymousAvatar'
 import {ExpandCollapseThreadsButton} from './ExpandCollapseThreadsButton'
-import ItemAssignToTray from '@canvas/context-modules/differentiated-modules/react/Item/ItemAssignToTray'
-import {MoreMenuButton} from './MoreMenuButton'
+import ItemAssignToManager from '@canvas/context-modules/differentiated-modules/react/Item/ItemAssignToManager'
 import {SummarizeButton} from './SummarizeButton'
+import MoreMenuButton from './MoreMenuButton'
+import AiIcon from '@canvas/ai-icon'
 
-const I18n = useI18nScope('discussions_posts')
+const I18n = createI18nScope('discussions_posts')
 
 export const getMenuConfig = props => {
   const options = {
@@ -59,8 +64,8 @@ export const getMenuConfig = props => {
   return options
 }
 
-const getClearButton = props => {
-  if (!props.searchTerm?.length) return
+const getClearButton = buttonProperties => {
+  if (!buttonProperties.searchTerm?.length) return
 
   return (
     <IconButton
@@ -69,7 +74,7 @@ const getClearButton = props => {
       withBackground={false}
       withBorder={false}
       screenReaderLabel="Clear search"
-      onClick={props.handleClear}
+      onClick={buttonProperties.handleClear}
       data-testid="clear-search-button"
     >
       <IconTroubleLine />
@@ -79,7 +84,10 @@ const getClearButton = props => {
 
 export const DiscussionPostToolbar = props => {
   const [showAssignToTray, setShowAssignToTray] = useState(false)
-  const {translationLanguages} = useContext(DiscussionManagerUtilityContext)
+  const {translationLanguages, setShowTranslationControl} = useContext(
+    DiscussionManagerUtilityContext
+  )
+  const [showTranslate, setShowTranslate] = useState(false)
 
   const clearButton = () => {
     return getClearButton({
@@ -95,6 +103,33 @@ export const DiscussionPostToolbar = props => {
     : I18n.t('Search entries or author...')
 
   const handleClose = () => setShowAssignToTray(false)
+
+  const toggleTranslateText = () => {
+    // Update local state
+    setShowTranslate(!showTranslate)
+    // Update context
+    setShowTranslationControl(!showTranslate)
+  }
+
+  const renderMore = () => {
+    const menuOptions = []
+    if (translationLanguages.current.length > 0) {
+      const text = showTranslate ? I18n.t('Hide Translate Text') : I18n.t('Translate Text')
+      const translationMenuOption = {text, clickItem: toggleTranslateText}
+
+      if (ENV.ai_translation_improvements) {
+        const improvedText = showTranslate
+          ? I18n.t('Turn off Translation')
+          : I18n.t('Translate Discussion')
+        translationMenuOption.text = improvedText
+        translationMenuOption.buttonIcon = AiIcon
+      }
+
+      menuOptions.push(translationMenuOption)
+    }
+
+    return menuOptions.length > 0 && <MoreMenuButton menuOptions={menuOptions} />
+  }
 
   return (
     <Responsive
@@ -169,27 +204,29 @@ export const DiscussionPostToolbar = props => {
                   </Flex.Item>
                 )}
                 {/* Search */}
-                <Flex.Item
-                  shouldGrow={responsiveProps?.search?.shouldGrow}
-                  shouldShrink={responsiveProps?.search?.shouldShrink}
-                  padding={responsiveProps.padding}
-                >
-                  <span className="discussions-search-filter">
-                    <TextInput
-                      data-testid="search-filter"
-                      onChange={event => {
-                        props.onSearchChange(event.target.value)
-                      }}
-                      renderLabel={<ScreenReaderContent>{searchElementText}</ScreenReaderContent>}
-                      value={props.searchTerm}
-                      renderBeforeInput={<IconSearchLine display="block" />}
-                      renderAfterInput={clearButton}
-                      placeholder={searchElementText}
-                      shouldNotWrap={true}
-                      width={responsiveProps?.search?.width}
-                    />
-                  </span>
-                </Flex.Item>
+                {!hideStudentNames && (
+                  <Flex.Item
+                    shouldGrow={responsiveProps?.search?.shouldGrow}
+                    shouldShrink={responsiveProps?.search?.shouldShrink}
+                    padding={responsiveProps.padding}
+                  >
+                    <span className="discussions-search-filter">
+                      <TextInput
+                        data-testid="search-filter"
+                        onChange={event => {
+                          props.onSearchChange(event.target.value)
+                        }}
+                        renderLabel={<ScreenReaderContent>{searchElementText}</ScreenReaderContent>}
+                        value={props.searchTerm}
+                        renderBeforeInput={<IconSearchLine display="block" />}
+                        renderAfterInput={clearButton}
+                        placeholder={searchElementText}
+                        shouldNotWrap={true}
+                        width={responsiveProps?.search?.width}
+                      />
+                    </span>
+                  </Flex.Item>
+                )}
               </Flex>
             </Flex.Item>
 
@@ -202,7 +239,7 @@ export const DiscussionPostToolbar = props => {
                   shouldGrow={responsiveProps?.filter?.shouldGrow}
                   shouldShrink={false}
                 >
-                  <span className="discussions-filter-by-menu">
+                  <span data-testid="toggle-filter-menu">
                     <SimpleSelect
                       renderLabel={<ScreenReaderContent>{I18n.t('Filter by')}</ScreenReaderContent>}
                       defaultValue={props.selectedView}
@@ -258,23 +295,27 @@ export const DiscussionPostToolbar = props => {
                     </span>
                   </Tooltip>
                 </Flex.Item>
-
-                <Flex.Item
-                  margin={responsiveProps?.viewSplitScreen?.margin}
-                  padding={responsiveProps.padding}
-                  shouldGrow={responsiveProps?.viewSplitScreen?.shouldGrow}
-                >
-                  <SplitScreenButton
-                    setUserSplitScreenPreference={props.setUserSplitScreenPreference}
-                    userSplitScreenPreference={props.userSplitScreenPreference}
-                    closeView={props.closeView}
-                    display={matches.includes('mobile') ? 'block' : 'inline-block'}
-                  />
-                </Flex.Item>
-
-                {!props.userSplitScreenPreference && (
+                {!isSpeedGraderInTopUrl && (
+                  <Flex.Item
+                    margin={responsiveProps?.viewSplitScreen?.margin}
+                    padding={responsiveProps.padding}
+                    shouldGrow={responsiveProps?.viewSplitScreen?.shouldGrow}
+                  >
+                    <SplitScreenButton
+                      setUserSplitScreenPreference={props.setUserSplitScreenPreference}
+                      userSplitScreenPreference={props.userSplitScreenPreference}
+                      closeView={props.closeView}
+                      display={matches.includes('mobile') ? 'block' : 'inline-block'}
+                    />
+                  </Flex.Item>
+                )}
+                {(!props.userSplitScreenPreference || isSpeedGraderInTopUrl) && (
                   <Flex.Item margin="0 small 0 0" padding={responsiveProps.padding}>
-                    <ExpandCollapseThreadsButton showText={!matches.includes('mobile')} />
+                    <ExpandCollapseThreadsButton
+                      showText={!matches.includes('mobile')}
+                      isExpanded={props.isExpanded}
+                      onCollapseRepliesToggle={props.onCollapseRepliesToggle}
+                    />
                   </Flex.Item>
                 )}
                 {ENV.user_can_summarize && !props.isSummaryEnabled && (
@@ -287,7 +328,7 @@ export const DiscussionPostToolbar = props => {
                 )}
                 {translationLanguages.current.length > 0 && (
                   <Flex.Item margin="0 small 0 0" padding={responsiveProps.padding}>
-                    <MoreMenuButton />
+                    {renderMore()}
                   </Flex.Item>
                 )}
                 {props.discussionAnonymousState && ENV.current_user_roles?.includes('student') && (
@@ -303,10 +344,10 @@ export const DiscussionPostToolbar = props => {
                     </Flex>
                   </Flex.Item>
                 )}
-                {props.manageAssignTo &&
+                {!isSpeedGraderInTopUrl &&
+                  props.manageAssignTo &&
                   ENV.FEATURES?.selective_release_ui_api &&
-                  !props.isAnnouncement &&
-                  props.contextType === 'Course' && (
+                  props.showAssignTo && (
                     <Flex.Item shouldGrow={true} textAlign="end">
                       <Button
                         data-testid="manage-assign-to"
@@ -321,7 +362,7 @@ export const DiscussionPostToolbar = props => {
             </Flex.Item>
           </Flex>
           {showAssignToTray && (
-            <ItemAssignToTray
+            <ItemAssignToManager
               open={showAssignToTray}
               onClose={handleClose}
               onDismiss={handleClose}
@@ -334,6 +375,7 @@ export const DiscussionPostToolbar = props => {
               locale={ENV.LOCALE || 'en'}
               timezone={ENV.TIMEZONE || 'UTC'}
               removeDueDateInput={!props.isGraded}
+              isCheckpointed={props.isCheckpointed}
             />
           )}
         </View>
@@ -347,7 +389,6 @@ export default DiscussionPostToolbar
 DiscussionPostToolbar.propTypes = {
   isAdmin: PropTypes.bool,
   canEdit: PropTypes.bool,
-  isAnnouncement: PropTypes.bool,
   isGraded: PropTypes.bool,
   childTopics: PropTypes.arrayOf(ChildTopic.shape),
   selectedView: PropTypes.string,
@@ -355,6 +396,7 @@ DiscussionPostToolbar.propTypes = {
   onSearchChange: PropTypes.func,
   onViewFilter: PropTypes.func,
   onSortClick: PropTypes.func,
+  onCollapseRepliesToggle: PropTypes.func,
   searchTerm: PropTypes.string,
   discussionTitle: PropTypes.string,
   discussionId: PropTypes.string,
@@ -366,10 +408,8 @@ DiscussionPostToolbar.propTypes = {
   isSummaryEnabled: PropTypes.bool,
   closeView: PropTypes.func,
   pointsPossible: PropTypes.number,
-  contextType: PropTypes.oneOf(['Course', 'Group']),
   manageAssignTo: PropTypes.bool,
-}
-
-DiscussionPostToolbar.defaultProps = {
-  sortDirection: 'desc',
+  isCheckpointed: PropTypes.bool,
+  isExpanded: PropTypes.bool,
+  showAssignTo: PropTypes.bool,
 }

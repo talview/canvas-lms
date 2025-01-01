@@ -16,35 +16,35 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {useCallback, useRef, useState} from 'react'
-import {useNode} from '@craftjs/core'
+import React, {useCallback, useState} from 'react'
+import {useNode, type Node} from '@craftjs/core'
 
-import {IconButton} from '@instructure/ui-buttons'
+import {Button, CondensedButton, IconButton} from '@instructure/ui-buttons'
 import {Menu, type MenuItemProps, type MenuItem} from '@instructure/ui-menu'
 import {Flex} from '@instructure/ui-flex'
-import {
-  IconLinkLine,
-  IconTextBackgroundColorLine,
-  IconButtonAndIconMakerLine,
-  IconBoxLine,
-} from '@instructure/ui-icons'
+import {Text} from '@instructure/ui-text'
+import {IconArrowOpenDownLine, IconBoxLine} from '@instructure/ui-icons'
+import {type ColorSpec} from '@instructure/canvas-rce'
 
 import {LinkModal} from '../../../editor/LinkModal'
-import {ColorModal} from './ColorModal'
-
-import {isInstuiButtonColor} from './common'
-import type {ButtonBlockProps, ButtonSize, ButtonVariant} from './common'
+import {ToolbarColor} from '../../common/ToolbarColor'
+import type {ButtonBlockProps, ButtonSize, ButtonVariant} from './types'
+import {white, black, getContrastingColor, getEffectiveBackgroundColor} from '../../../../utils'
 import {IconPopup} from '../../common/IconPopup'
+import {useScope as createI18nScope} from '@canvas/i18n'
+
+const I18n = createI18nScope('block-editor')
 
 const ButtonBlockToolbar = () => {
   const {
     actions: {setProp},
+    node,
     props,
-  } = useNode(node => ({
-    props: node.data.props,
+  } = useNode((n: Node) => ({
+    node: n,
+    props: n.data.props,
   }))
   const [linkModalOpen, setLinkModalOpen] = useState(false)
-  const [colorModalOpen, setColorModalOpen] = useState(false)
 
   const handleSizeChange = useCallback(
     (
@@ -65,18 +65,28 @@ const ButtonBlockToolbar = () => {
       _selected: MenuItemProps['selected'],
       _args: MenuItem
     ) => {
-      if (value === 'condensed' && !isInstuiButtonColor(props.color)) {
-        setProp((prps: ButtonBlockProps) => (prps.color = 'primary'))
+      if (value === 'text') {
+        setProp((prps: ButtonBlockProps) => {
+          prps.background = undefined
+          prps.borderColor = undefined
+        })
+      } else if (value === 'outlined') {
+        setProp((prps: ButtonBlockProps) => {
+          prps.background = undefined
+        })
       }
       setProp((prps: ButtonBlockProps) => (prps.variant = value as ButtonVariant))
     },
-    [props.color, setProp]
+    [setProp]
   )
 
   const handleColorChange = useCallback(
-    (color: string) => {
-      setProp((prps: ButtonBlockProps) => (prps.color = color))
-      setColorModalOpen(false)
+    (newcolors: ColorSpec) => {
+      setProp((prps: ButtonBlockProps) => {
+        prps.color = newcolors.fgcolor
+        prps.background = newcolors.bgcolor
+        prps.borderColor = newcolors.bordercolor
+      })
     },
     [setProp]
   )
@@ -89,14 +99,6 @@ const ButtonBlockToolbar = () => {
     setLinkModalOpen(false)
   }, [])
 
-  const handleColorButtonClick = useCallback(() => {
-    setColorModalOpen(true)
-  }, [])
-
-  const handleCloseColorModal = useCallback(() => {
-    setColorModalOpen(false)
-  }, [])
-
   const handleLinkChange = useCallback(
     (text: string, url: string) => {
       setProp((prps: ButtonBlockProps) => {
@@ -107,17 +109,102 @@ const ButtonBlockToolbar = () => {
     [setProp]
   )
 
+  const getButtonStyleName = useCallback(() => {
+    switch (props.variant) {
+      case 'text':
+        return I18n.t('Text')
+      case 'outlined':
+        return I18n.t('Outlined')
+      case 'filled':
+        return I18n.t('Filled')
+      default:
+        return ''
+    }
+  }, [props.variant])
+
+  const getTabsForVariant = useCallback(() => {
+    const effbg = getEffectiveBackgroundColor(node.dom)
+    const clr = getContrastingColor(props.background || effbg)
+    switch (props.variant) {
+      case 'outlined':
+        return {
+          foreground: {
+            color: props.color || clr,
+            default: clr,
+          },
+          border: {
+            color: props.borderColor,
+            default: '#00000000',
+          },
+          effectiveBgColor: effbg,
+        }
+      case 'text':
+        return {
+          foreground: {
+            color: props.color || clr,
+            default: clr,
+          },
+          effectiveBgColor: effbg,
+        }
+      case 'filled':
+      default:
+        return {
+          foreground: {
+            color: props.color,
+            default: white,
+          },
+          background: {
+            color: props.background,
+            default: black,
+          },
+          border: {
+            color: props.borderColor,
+            default: '#00000000',
+          },
+          effectiveBgColor: black,
+        }
+    }
+  }, [node.dom, props.background, props.borderColor, props.color, props.variant])
+
   return (
     <Flex gap="small">
-      <IconButton
-        size="small"
-        withBackground={false}
-        withBorder={false}
-        screenReaderLabel="Link"
-        onClick={handleLinkButtonClick}
+      <Menu
+        placement="bottom"
+        trigger={
+          <Button
+            size="small"
+            color="secondary"
+            title={I18n.t('Style')}
+            themeOverride={{secondaryBackground: '#fff'}}
+          >
+            <Flex gap="medium">
+              <Text>{getButtonStyleName()}</Text>
+              <IconArrowOpenDownLine size="x-small" />
+            </Flex>
+          </Button>
+        }
+        onSelect={handleVariantChange}
       >
-        <IconLinkLine />
-      </IconButton>
+        <Menu.Item value="text" type="checkbox" defaultSelected={props.variant === 'text'}>
+          {I18n.t('Text')}
+        </Menu.Item>
+        <Menu.Item value="outlined" type="checkbox" defaultSelected={props.variant === 'outlined'}>
+          {I18n.t('Outlined')}
+        </Menu.Item>
+        <Menu.Item value="filled" type="checkbox" defaultSelected={props.variant === 'filled'}>
+          {I18n.t('Filled')}
+        </Menu.Item>
+      </Menu>
+
+      <div className="toolbar-separator" />
+
+      <CondensedButton size="small" color="primary" onClick={handleLinkButtonClick}>
+        {I18n.t('Button Text/Link*')}
+      </CondensedButton>
+
+      <div className="toolbar-separator" />
+
+      <ToolbarColor tabs={getTabsForVariant()} onChange={handleColorChange} />
 
       <Menu
         placement="bottom"
@@ -126,65 +213,28 @@ const ButtonBlockToolbar = () => {
             size="small"
             withBackground={false}
             withBorder={false}
-            screenReaderLabel="Size"
+            screenReaderLabel={I18n.t('Size')}
+            title={I18n.t('Size')}
           >
-            <IconBoxLine size="x-small" />
+            <IconBoxLine />
           </IconButton>
         }
         onSelect={handleSizeChange}
       >
         <Menu.Item value="small" type="checkbox" defaultSelected={props.size === 'small'}>
-          Small
+          {I18n.t('Small')}
         </Menu.Item>
         <Menu.Item value="medium" type="checkbox" defaultSelected={props.size === 'medium'}>
-          Medium
+          {I18n.t('Medium')}
         </Menu.Item>
         <Menu.Item value="large" type="checkbox" defaultSelected={props.size === 'large'}>
-          Large
+          {I18n.t('Large')}
         </Menu.Item>
       </Menu>
 
-      <Menu
-        placement="bottom"
-        trigger={
-          <IconButton
-            size="small"
-            withBackground={false}
-            withBorder={false}
-            screenReaderLabel="Style"
-          >
-            <IconButtonAndIconMakerLine size="x-small" />
-          </IconButton>
-        }
-        onSelect={handleVariantChange}
-      >
-        <Menu.Item
-          value="condensed"
-          type="checkbox"
-          defaultSelected={props.variant === 'condensed'}
-        >
-          Text
-        </Menu.Item>
-        <Menu.Item value="outlined" type="checkbox" defaultSelected={props.variant === 'outlined'}>
-          Outlined
-        </Menu.Item>
-        <Menu.Item value="filled" type="checkbox" defaultSelected={props.variant === 'filled'}>
-          Filled
-        </Menu.Item>
-      </Menu>
+      <IconPopup iconName={props.iconName} />
 
-      <IconButton
-        size="small"
-        withBackground={false}
-        withBorder={false}
-        screenReaderLabel="Color"
-        disabled={props.variant === 'condensed'}
-        onClick={handleColorButtonClick}
-      >
-        <IconTextBackgroundColorLine size="x-small" />
-      </IconButton>
-
-      <IconPopup />
+      <div className="toolbar-separator" />
 
       <LinkModal
         open={linkModalOpen}
@@ -192,12 +242,6 @@ const ButtonBlockToolbar = () => {
         url={props.href}
         onClose={handleCloseLinkModal}
         onSubmit={handleLinkChange}
-      />
-      <ColorModal
-        open={colorModalOpen}
-        color={props.color}
-        onClose={handleCloseColorModal}
-        onSubmit={handleColorChange}
       />
     </Flex>
   )

@@ -135,6 +135,11 @@ module Api::V1::Assignment
 
     if opts[:override_dates] && !assignment.new_record?
       assignment = assignment.overridden_for(user)
+      if assignment.has_sub_assignments?
+        assignment.sub_assignments = assignment.sub_assignments.map do |sub_assignment|
+          sub_assignment.overridden_for(user)
+        end
+      end
     end
 
     fields = assignment.new_record? ? API_ASSIGNMENT_NEW_RECORD_FIELDS : API_ALLOWED_ASSIGNMENT_OUTPUT_FIELDS
@@ -173,6 +178,10 @@ module Api::V1::Assignment
     if opts[:include_checkpoints] && assignment.root_account.feature_enabled?(:discussion_checkpoints)
       hash["has_sub_assignments"] = assignment.has_sub_assignments?
       hash["checkpoints"] = assignment.sub_assignments.map { |sub_assignment| Checkpoint.new(sub_assignment, user).as_json }
+    end
+
+    if assignment.checkpoint?
+      hash["sub_assignment_tag"] = assignment.sub_assignment_tag
     end
 
     if opts[:overrides].present?
@@ -306,6 +315,10 @@ module Api::V1::Assignment
       end
     end
 
+    if opts[:include_has_rubric]
+      hash["has_rubric"] = assignment.active_rubric_association?
+    end
+
     unless opts[:exclude_response_fields].include?("rubric")
       if assignment.active_rubric_association?
         hash["use_rubric_for_grading"] = !!assignment.rubric_association.use_for_grading
@@ -354,16 +367,23 @@ module Api::V1::Assignment
       )
     end
 
-    if opts[:include_all_dates] && assignment.assignment_overrides
-      override_count = if assignment.assignment_overrides.loaded?
-                         assignment.assignment_overrides.count(&:active?)
-                       else
-                         assignment.assignment_overrides.active.count
-                       end
-      if override_count < ALL_DATES_LIMIT
-        hash["all_dates"] = assignment.dates_hash_visible_to(user)
-      else
-        hash["all_dates_count"] = override_count
+    if opts[:include_all_dates]
+      overrides = assignment.has_sub_assignments? ? assignment.sub_assignment_overrides : assignment.assignment_overrides
+
+      if overrides
+        override_count = overrides.loaded? ? overrides.count(&:active?) : overrides.active.count
+
+        if assignment.has_sub_assignments? && override_count < ALL_DATES_LIMIT
+          hash["all_dates"] = []
+
+          assignment.sub_assignments.each do |sub_assignment|
+            hash["all_dates"].concat(sub_assignment.dates_hash_visible_to(user))
+          end
+        elsif override_count < ALL_DATES_LIMIT
+          hash["all_dates"] = assignment.dates_hash_visible_to(user)
+        else
+          hash["all_dates_count"] = override_count
+        end
       end
     end
 

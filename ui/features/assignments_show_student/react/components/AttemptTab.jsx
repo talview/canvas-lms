@@ -34,7 +34,7 @@ import {
   IconUploadLine,
   IconTextLine,
 } from '@instructure/ui-icons'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import LoadingIndicator from '@canvas/loading-indicator'
 import LockedAssignment from './LockedAssignment'
 import React, {Component} from 'react'
@@ -43,12 +43,12 @@ import SubmissionTypeButton from './SubmissionTypeButton'
 import {Submission} from '@canvas/assignments/graphql/student/Submission'
 import {Text} from '@instructure/ui-text'
 import {uploadFile} from '@canvas/upload-file'
-import {useQuery} from 'react-apollo'
+import {useQuery} from '@apollo/client'
 import {View} from '@instructure/ui-view'
 import theme from '@instructure/canvas-theme'
 import {isOriginalityReportVisible} from '@canvas/grading/originalityReportHelper'
 
-const I18n = useI18nScope('assignments_2_attempt_tab')
+const I18n = createI18nScope('assignments_2_attempt_tab')
 
 const ExternalToolSubmission = lazy(() =>
   import(
@@ -515,8 +515,8 @@ export default class AttemptTab extends Component {
             {selectedType != null && (
               <div
                 style={{
-                  backgroundColor: theme.variables.colors.backgroundLight,
-                  borderTop: `2px solid ${theme.variables.colors.borderMedium}`,
+                  backgroundColor: theme.colors.backgroundLight,
+                  borderTop: `2px solid ${theme.colors.borderMedium}`,
                 }}
               >
                 {this.renderByType(selectedType, context, this.props.selectedExternalTool)}

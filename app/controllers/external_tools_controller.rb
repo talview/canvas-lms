@@ -81,7 +81,8 @@ class ExternalToolsController < ApplicationController
   #        "updated_at": "2037-07-28T19:38:31Z",
   #        "privacy_level": "anonymous",
   #        "custom_fields": {"key": "value"},
-  #        "is_rce_favorite": false
+  #        "is_rce_favorite": false,
+  #        "is_top_nav_favorite": false,
   #        "account_navigation": {
   #             "canvas_icon_class": "icon-lti",
   #             "icon_url": "...",
@@ -123,7 +124,8 @@ class ExternalToolsController < ApplicationController
   #        "selection_height": 500,
   #        "icon_url": "...",
   #        "not_selectable": false,
-  #        "deployment_id": null
+  #        "deployment_id": null,
+  #        "unified_tool_id": null
   #      },
   #      { ...  }
   #     ]
@@ -181,7 +183,7 @@ class ExternalToolsController < ApplicationController
       end
 
       launch_type = placement.present? ? :indirect_link : :content_item
-      Lti::LogService.new(tool:, context: @context, user: @current_user, session_id: session[:session_id], placement:, launch_type:).call
+      Lti::LogService.new(tool:, context: @context, user: @current_user, session_id: session[:session_id], placement:, launch_type:, launch_url: url).call
 
       display_override = params["borderless"] ? "borderless" : params[:display]
       render Lti::AppUtil.display_template(@tool.display_type(placement), display_override:)
@@ -350,7 +352,7 @@ class ExternalToolsController < ApplicationController
       if tool
         placement = launch_settings.dig("metadata", "placement")
         launch_type = launch_settings.dig("metadata", "launch_type")&.to_sym
-        Lti::LogService.new(tool:, context: @context, user: @current_user, session_id: session[:session_id], placement:, launch_type:).call
+        Lti::LogService.new(tool:, context: @context, user: @current_user, session_id: session[:session_id], placement:, launch_type:, launch_url: launch_settings["launch_url"]).call
         log_asset_access(tool, "external_tools", "external_tools", overwrite: false)
       end
 
@@ -373,6 +375,7 @@ class ExternalToolsController < ApplicationController
   # @response_field privacy_level How much user information to send to the external tool: "anonymous", "name_only", "email_only", "public"
   # @response_field custom_fields Custom fields that will be sent to the tool consumer
   # @response_field is_rce_favorite Boolean determining whether this tool should be in a preferred location in the RCE.
+  # @response_field is_top_nav_favorite Boolean determining whether this tool should have a dedicated button in Top Navigation.
   # @response_field account_navigation The configuration for account navigation links (see create API for values)
   # @response_field assignment_selection The configuration for assignment selection links (see create API for values)
   # @response_field course_home_sub_navigation The configuration for course home navigation links (see create API for values)
@@ -388,6 +391,7 @@ class ExternalToolsController < ApplicationController
   # @response_field selection_height The pixel height of the iFrame that the tool will be rendered in
   # @response_field icon_url The url for the tool icon
   # @response_field not_selectable whether the tool is not selectable from assignment and modules
+  # @response_field unified_tool_id The unique identifier for the tool in LearnPlatform
   # @response_field deployment_id The unique identifier for the deployment of the tool
   #
   # @example_response
@@ -491,12 +495,33 @@ class ExternalToolsController < ApplicationController
         js_env(LTI_LAUNCH_RESOURCE_URL: @lti_launch.resource_url)
         set_tutorial_js_env
 
-        Lti::LogService.new(tool: @tool, context: @context, user: @current_user, session_id: session[:session_id], placement:, launch_type: :direct_link).call
+        Lti::LogService.new(tool: @tool, context: @context, user: @current_user, session_id: session[:session_id], placement:, launch_type: :direct_link, launch_url: @tool.url_with_environment_overrides(launch_url || @tool.url)).call
 
         render Lti::AppUtil.display_template(@tool.display_type(placement), display_override: params[:display])
         timing_meta.tags = { lti_version: @tool&.lti_version }.compact
       end
     end
+  end
+
+  def migration_info
+    # Define tool to be the external tool associated with the external tool id from the route
+    tool = ContextExternalTool.find(params[:external_tool_id])
+
+    # Instance variable for the migration status -- this will be used for conditional rendering
+    migration_running = tool.migrating?
+
+    unless migration_running
+      return render json: { migration_running: }
+    end
+
+    migration_progress = tool.progresses.where.not(workflow_state: "completed").first
+
+    total_items = migration_progress.results[:total_batches]
+
+    tool_id = migration_progress.results[:tool_id]
+    completed_items = total_items - Delayed::Job.where(strand: "ContextExternalTool#migrate_content_to_1_3/#{tool_id}").count
+
+    render json: { migration_running:, total_items:, completed_items: }
   end
 
   def tool_return_success_url(selection_type = nil)
@@ -538,13 +563,19 @@ class ExternalToolsController < ApplicationController
       selection_type = "editor_button" if params[:editor]
       selection_type = "homework_submission" if params[:homework]
 
-      @return_url = named_context_url(@context, :context_external_content_success_url, "external_tool_dialog", { include_host: true })
       @headers = false
 
       unless find_tool(params[:external_tool_id], selection_type)
         timing_meta.tags = { error: true }
         return
       end
+
+      @return_url =
+        if @tool&.use_1_3?
+          deep_linking_cancel_url(include_host: true, placement:)
+        else
+          named_context_url(@context, :context_external_content_success_url, "external_tool_dialog", include_host: true)
+        end
 
       @lti_launch = lti_launch(tool: @tool, selection_type:, launch_token: params[:launch_token])
       unless @lti_launch
@@ -758,7 +789,7 @@ class ExternalToolsController < ApplicationController
                                        @context.user_has_been_student?(student)
                           raise Lti::Errors::UnauthorizedError unless can_launch
 
-                          adapter.generate_post_payload_for_student_context_card(student_id: student.global_id)
+                          adapter.generate_post_payload_for_student_context_card(student:)
                         elsif tool.extension_setting(selection_type, "required_permissions")
                           can_launch = tool.visible_with_permission_check?(selection_type, @current_user, @context, session)
                           raise Lti::Errors::UnauthorizedError unless can_launch
@@ -1097,6 +1128,9 @@ class ExternalToolsController < ApplicationController
   #   Default: false, if set to true LTI query params will not be copied to the
   #   post body.
   #
+  # @argument unified_tool_id [String]
+  #   The unique identifier for the tool in LearnPlatform
+  #
   # @example_request
   #
   #   This would create a tool on this course with two custom fields and a course navigation tab
@@ -1140,7 +1174,7 @@ class ExternalToolsController < ApplicationController
     if params.key?(:client_id)
       raise ActiveRecord::RecordInvalid unless developer_key.usable_in_context?(@context)
 
-      @tool = developer_key.tool_configuration.new_external_tool(@context)
+      @tool = developer_key.lti_registration.new_external_tool(@context)
     else
       external_tool_params = (params[:external_tool] || params).to_unsafe_h
       @tool = @context.context_external_tools.new
@@ -1225,7 +1259,7 @@ class ExternalToolsController < ApplicationController
     @tool = @context.context_external_tools.active.find(params[:id] || params[:external_tool_id])
     if authorized_action(@tool, @current_user, :update_manually)
       external_tool_params = (params[:external_tool] || params).to_unsafe_h
-      if request.content_type == "application/x-www-form-urlencoded"
+      if request.media_type == "application/x-www-form-urlencoded"
         custom_fields = Lti::AppUtil.custom_params(request.raw_post)
         external_tool_params[:custom_fields] = custom_fields if custom_fields.present?
       end
@@ -1283,7 +1317,7 @@ class ExternalToolsController < ApplicationController
   #   curl -X POST 'https://<canvas>/api/v1/accounts/<account_id>/external_tools/rce_favorites/<id>' \
   #        -H "Authorization: Bearer <token>"
   def add_rce_favorite
-    if authorized_action(@context, @current_user, [:lti_add_edit, :manage_lti_add])
+    if authorized_action(@context, @current_user, :manage_lti_add)
       @tool = ContextExternalTool.find_external_tool_by_id(params[:id], @context)
       raise ActiveRecord::RecordNotFound unless @tool
       unless @tool.can_be_rce_favorite?
@@ -1298,7 +1332,10 @@ class ExternalToolsController < ApplicationController
         valid_ids.map! { |id| Shard.global_id_for(id) }
         favorite_ids &= valid_ids # try to clear out any possibly deleted tool references first before causing a fuss
       end
-      if favorite_ids.length > 2
+      # On_by_default tools don't count towards the limit
+      client_ids = ContextExternalTool.find_external_tool_client_id(favorite_ids, @context)
+      on_by_default_ids = ContextExternalTool.on_by_default_ids
+      if (client_ids - on_by_default_ids).length > 2
         render json: { message: "Cannot have more than 2 favorited tools" }, status: :bad_request
       else
         @context.settings[:rce_favorite_tool_ids] = { value: favorite_ids }
@@ -1317,13 +1354,65 @@ class ExternalToolsController < ApplicationController
   #   curl -X DELETE 'https://<canvas>/api/v1/accounts/<account_id>/external_tools/rce_favorites/<id>' \
   #        -H "Authorization: Bearer <token>"
   def remove_rce_favorite
-    if authorized_action(@context, @current_user, [:lti_add_edit, :manage_lti_delete])
+    if authorized_action(@context, @current_user, :manage_lti_delete)
       favorite_ids = @context.get_rce_favorite_tool_ids
       if favorite_ids.delete(Shard.global_id_for(params[:id]))
         @context.settings[:rce_favorite_tool_ids] = { value: favorite_ids }
         @context.save!
       end
       render json: { rce_favorite_tool_ids: favorite_ids.map { |id| Shard.relative_id_for(id, Shard.current, Shard.current) } }
+    end
+  end
+
+  # @API Add tool to Top Navigation Favorites
+  # Adds a dedicated button in Top Navigation for the specified tool for the given account.
+  # Cannot set more than 2 top_navigation Favorites.
+  #
+  # @example_request
+  #
+  #   curl -X POST 'https://<canvas>/api/v1/accounts/<account_id>/external_tools/top_nav_favorites/<id>' \
+  #        -H "Authorization: Bearer <token>"
+  def add_top_nav_favorite
+    if authorized_action(@context, @current_user, :manage_lti_add)
+      @tool = ContextExternalTool.find_external_tool_by_id(params[:id], @context)
+      raise ActiveRecord::RecordNotFound unless @tool
+      unless @tool.can_be_top_nav_favorite?
+        return render json: { message: "Tool does not have top_navigation placement" }, status: :bad_request
+      end
+
+      favorite_ids = @context.get_top_nav_favorite_tool_ids
+      favorite_ids << @tool.global_id
+      favorite_ids.uniq!
+      if favorite_ids.length > 2
+        valid_ids = Lti::ContextToolFinder.new(@context, placements: [:top_navigation]).all_tools_scope_union.pluck(:id)
+        valid_ids.map! { |id| Shard.global_id_for(id) }
+        favorite_ids &= valid_ids # try to clear out any possibly deleted tool references first before causing a fuss
+      end
+      if favorite_ids.length > 2
+        render json: { message: "Cannot have more than 2 favorited tools" }, status: :bad_request
+      else
+        @context.settings[:top_nav_favorite_tool_ids] = { value: favorite_ids }
+        @context.save!
+        render json: { top_nav_favorite_tool_ids: favorite_ids.map { |id| Shard.relative_id_for(id, Shard.current, Shard.current) } }
+      end
+    end
+  end
+
+  # @API Remove tool from Top Navigation Favorites
+  # Removes the dedicated button in Top Navigation for the specified tool for the given account.
+  #
+  # @example_request
+  #
+  #   curl -X DELETE 'https://<canvas>/api/v1/accounts/<account_id>/external_tools/top_nav_favorites/<id>' \
+  #        -H "Authorization: Bearer <token>"
+  def remove_top_nav_favorite
+    if authorized_action(@context, @current_user, :manage_lti_delete)
+      favorite_ids = @context.get_top_nav_favorite_tool_ids
+      if favorite_ids.delete(Shard.global_id_for(params[:id]))
+        @context.settings[:top_nav_favorite_tool_ids] = { value: favorite_ids }
+        @context.save!
+      end
+      render json: { top_nav_favorite_tool_ids: favorite_ids.map { |id| Shard.relative_id_for(id, Shard.current, Shard.current) } }
     end
   end
 
@@ -1620,7 +1709,9 @@ class ExternalToolsController < ApplicationController
                 not_selectable
                 app_center_id
                 oauth_compliant
-                is_rce_favorite]
+                is_rce_favorite
+                is_top_nav_favorite
+                unified_tool_id]
     attrs += [:allow_membership_service_access] if @context.root_account.feature_enabled?(:membership_service_for_lti_tools)
 
     attrs.each do |prop|
@@ -1654,7 +1745,7 @@ class ExternalToolsController < ApplicationController
   end
 
   def require_tool_create_rights
-    authorized_action(@context, @current_user, [:create_tool_manually, :manage_lti_add])
+    authorized_action(@context, @current_user, :manage_lti_add)
   end
 
   def require_tool_configuration

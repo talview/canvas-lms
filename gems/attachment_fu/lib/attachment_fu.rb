@@ -299,12 +299,12 @@ module AttachmentFu # :nodoc:
 
     # Sets the content type.
     def content_type=(new_type)
-      write_attribute :content_type, new_type.to_s.strip
+      super(new_type.to_s.strip)
     end
 
     # Sanitizes a filename.
     def filename=(new_name)
-      write_attribute :filename, sanitize_filename(new_name)
+      super(sanitize_filename(new_name))
     end
 
     # Returns the width/height in a suitable format for the image_tag helper: (100x100)
@@ -365,10 +365,13 @@ module AttachmentFu # :nodoc:
         # a new unique filename for this file so any children of this attachment
         # will still be able to get at the original.
         unless new_record?
+          # if the file doesn't have a filename for some reason, it often pulls from the root attachment
+          # but if you remove the root attachment, you lose the filename, so we're saving it first
+          orig_filename = filename
           self.root_attachment = nil
           self.root_attachment_id = nil
           self.workflow_state = nil
-          self.filename = filename.sub(/\A\d+_\d+__/, "")
+          self.filename = orig_filename.sub(/\A\d+_\d+__/, "")
           self.filename = "#{Time.now.to_i}_#{rand(999)}__#{filename}" if filename
         end
         unless attachment_options[:skip_sis]
@@ -394,7 +397,7 @@ module AttachmentFu # :nodoc:
         if (existing_attachment = find_existing_attachment_for_md5)
           self.temp_path = nil if respond_to?(:temp_path=)
           self.temp_data = nil if respond_to?(:temp_data=)
-          write_attribute(:filename, nil) if respond_to?(:filename=)
+          self.filename = nil if respond_to?(:filename=)
           self.root_attachment = existing_attachment
         end
         file_data

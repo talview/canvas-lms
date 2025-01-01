@@ -30,37 +30,38 @@ export const FILTERED_SECTIONS_DATA = [
 ]
 
 export const STUDENTS_DATA = [
-  {id: '1', name: 'Ben', created_at: '2023-01-01', sortable_name: 'Ben', sis_user_id: 'ben001'},
   {
-    id: '2',
-    name: 'Peter',
-    created_at: '2023-01-01',
-    sortable_name: 'Peter',
-    sis_user_id: 'peter002',
+    id: 'student-1',
+    value: 'Ben',
+    sisID: 'ben001',
+    group: 'Students',
   },
   {
-    id: '3',
-    name: 'Grace',
-    created_at: '2023-01-01',
-    sortable_name: 'Grace',
-    sis_user_id: 'grace003',
+    id: 'student-2',
+    value: 'Peter',
+    sisID: 'peter002',
+    group: 'Students',
   },
   {
-    id: '4',
-    name: 'Secilia',
-    created_at: '2023-01-01',
-    sortable_name: 'Secilia',
-    sis_user_id: 'random_id_8',
+    id: 'student-3',
+    value: 'Grace',
+    sisID: 'grace003',
+    group: 'Students',
+  },
+  {
+    id: 'student-4',
+    value: 'Secilia',
+    sisID: 'random_id_8',
+    group: 'Students',
   },
 ]
 
 export const FILTERED_STUDENTS_DATA = [
   {
     id: '4',
-    name: 'Secilia',
-    created_at: '2023-01-01',
-    sortable_name: 'Secilia',
-    sis_user_id: 'random_id_8',
+    value: 'Secilia',
+    sisID: 'random_id_8',
+    group: 'Students',
   },
 ]
 
@@ -102,3 +103,33 @@ export const ASSIGNMENT_OVERRIDES_DATA = [
     },
   },
 ]
+
+export const ADHOC_WITHOUT_STUDENTS = {
+  id: '23',
+  due_at: '2023-10-05T12:00:00Z',
+  unlock_at: '2023-10-01T12:00:00Z',
+  lock_at: '2023-11-01T12:00:00Z',
+  only_visible_to_overrides: false,
+  visible_to_everyone: false,
+  overrides: [
+    {
+      id: '1',
+      assignment_id: '23',
+      title: 'No Title',
+      unassign_item: false,
+      student_ids: [],
+      students: [],
+    },
+    {
+      id: '2',
+      assignment_id: '23',
+      title: 'Section A',
+      due_at: '2023-10-02T12:00:00Z',
+      all_day: false,
+      all_day_date: '2023-10-02',
+      unlock_at: null,
+      lock_at: null,
+      course_section_id: '4',
+    },
+  ],
+}

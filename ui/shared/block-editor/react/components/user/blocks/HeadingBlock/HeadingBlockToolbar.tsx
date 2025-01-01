@@ -39,9 +39,14 @@ import {useNode} from '@craftjs/core'
 import {Button} from '@instructure/ui-buttons'
 import {Flex} from '@instructure/ui-flex'
 import {Menu, type MenuItemProps, type MenuItem} from '@instructure/ui-menu'
-import {IconArrowOpenDownLine} from '@instructure/ui-icons'
+import {IconMiniArrowDownLine} from '@instructure/ui-icons'
 import {Text} from '@instructure/ui-text'
 import {type ViewOwnProps} from '@instructure/ui-view'
+import {type HeadingBlockProps} from './types'
+
+import {useScope as createI18nScope} from '@canvas/i18n'
+
+const I18n = createI18nScope('block-editor')
 
 const HeadingBlockToolbar = () => {
   const {
@@ -53,38 +58,103 @@ const HeadingBlockToolbar = () => {
 
   const handleLevelChange = useCallback(
     (
-      e: React.MouseEvent<ViewOwnProps, MouseEvent>,
+      _e: any,
       value: MenuItemProps['value'] | MenuItemProps['value'][],
       _selected: MenuItemProps['selected'],
       _args: MenuItem
     ) => {
-      setProp(prps => (prps.level = value))
+      const level = value as HeadingBlockProps['level']
+      setProp((prps: HeadingBlockProps) => (prps.level = level))
+    },
+    [setProp]
+  )
+  const handleFontSizeChange = useCallback(
+    (
+      _e: any,
+      value: MenuItemProps['value'] | MenuItemProps['value'][],
+      _selected: MenuItemProps['selected'],
+      _args: MenuItem
+    ) => {
+      if (value === 'default') {
+        setProp((prps: HeadingBlockProps) => delete prps.fontSize)
+      } else {
+        setProp((prps: HeadingBlockProps) => (prps.fontSize = value as string))
+      }
     },
     [setProp]
   )
 
   return (
-    <Menu
-      label="Heading level"
-      trigger={
-        <Button size="small">
-          <Flex gap="small">
-            <Text size="small">Level</Text>
-            <IconArrowOpenDownLine size="x-small" />
-          </Flex>
-        </Button>
-      }
-    >
-      <Menu.Item value="h2" onSelect={handleLevelChange}>
-        <Text size="small">Heading 2</Text>
-      </Menu.Item>
-      <Menu.Item value="h3" onSelect={handleLevelChange}>
-        <Text size="small">Heading 3</Text>
-      </Menu.Item>
-      <Menu.Item value="h4" onSelect={handleLevelChange}>
-        <Text size="small">Heading 4</Text>
-      </Menu.Item>
-    </Menu>
+    <Flex gap="x-small">
+      <Menu
+        label="Heading level"
+        trigger={
+          <Button size="small">
+            <Flex gap="x-small">
+              <Text size="small">Level</Text>
+              <IconMiniArrowDownLine size="x-small" />
+            </Flex>
+          </Button>
+        }
+      >
+        <Menu.Item
+          type="checkbox"
+          value="h2"
+          onSelect={handleLevelChange}
+          selected={props.level === 'h2'}
+        >
+          <Text size="small">Heading 2</Text>
+        </Menu.Item>
+        <Menu.Item
+          type="checkbox"
+          value="h3"
+          onSelect={handleLevelChange}
+          selected={props.level === 'h3'}
+        >
+          <Text size="small">Heading 3</Text>
+        </Menu.Item>
+        <Menu.Item
+          type="checkbox"
+          value="h4"
+          onSelect={handleLevelChange}
+          selected={props.level === 'h4'}
+        >
+          <Text size="small">Heading 4</Text>
+        </Menu.Item>
+      </Menu>
+
+      <Menu
+        label="Font size"
+        trigger={
+          <Button size="small">
+            <Flex gap="x-small">
+              <Text size="small">{I18n.t('Font Size')}</Text>
+              <IconMiniArrowDownLine size="x-small" />
+            </Flex>
+          </Button>
+        }
+      >
+        <Menu.Item
+          type="checkbox"
+          value="default"
+          onSelect={handleFontSizeChange}
+          selected={props.fontSize === undefined}
+        >
+          {I18n.t('Default')}
+        </Menu.Item>
+        {['0.875rem', '1rem', '1.375rem', '1.75rem', '2.375rem', '3rem', '4rem'].map(size => (
+          <Menu.Item
+            type="checkbox"
+            key={size}
+            value={size}
+            onSelect={handleFontSizeChange}
+            selected={props.fontSize === size}
+          >
+            <Text size="small">{size}</Text>
+          </Menu.Item>
+        ))}
+      </Menu>
+    </Flex>
   )
 }
 

@@ -20,10 +20,9 @@ import React, {useState, useRef, useEffect, useMemo, useCallback} from 'react'
 import {Link} from '@instructure/ui-link'
 import {View} from '@instructure/ui-view'
 import {Checkbox} from '@instructure/ui-checkbox'
-import {useScope as useI18nScope} from '@canvas/i18n'
-import ItemAssignToTray, {
-  getEveryoneOption,
-} from '@canvas/context-modules/differentiated-modules/react/Item/ItemAssignToTray'
+import {useScope as createI18nScope} from '@canvas/i18n'
+import ItemAssignToManager from '@canvas/context-modules/differentiated-modules/react/Item/ItemAssignToManager'
+import {getEveryoneOption} from '@canvas/context-modules/differentiated-modules/react/Item/ItemAssignToTray'
 import {IconEditLine} from '@instructure/ui-icons'
 import _ from 'underscore'
 import {forEach, map} from 'lodash'
@@ -46,7 +45,7 @@ import {Pill} from '@instructure/ui-pill'
 import DateValidator from '@canvas/grading/DateValidator'
 import GradingPeriodsAPI from '@canvas/grading/jquery/gradingPeriodsApi'
 
-const I18n = useI18nScope('DueDateOverrideView')
+const I18n = createI18nScope('DueDateOverrideView')
 
 const DifferentiatedModulesSection = ({
   onSync,
@@ -61,12 +60,14 @@ const DifferentiatedModulesSection = ({
   onTrayOpen,
   onTrayClose,
   supportDueDates = true,
+  isCheckpointed,
+  postToSIS = false,
 }) => {
   const [open, setOpen] = useState(false)
   // stagedCards are the itemAssignToCards that will be saved when the assignment is saved
-  const [stagedCards, setStagedCards] = useState([])
+  const [stagedCards, setStagedCardsInner] = useState([])
   // stagedOverrides represent individual overrides to a student/section/group/etc that will be submitted.
-  const [stagedOverrides, setStagedOverrides] = useState(null)
+  const [stagedOverrides, setStagedOverridesInner] = useState(null)
   // preSavedOverrides are the state of the overrides as they are displayed and edited in the tray. Canceling the tray
   // Will causes these to reset to the last stagedOverrides
   const [preSavedOverrides, setPreSavedOverrides] = useState(null)
@@ -80,15 +81,31 @@ const DifferentiatedModulesSection = ({
   const [hasModuleOverrides, setHasModuleOverrides] = useState(false)
   const [moduleAssignees, setModuleAssignees] = useState([])
   const linkRef = useRef()
-  const dateValidator = useRef(
-    new DateValidator({
-      date_range: {...ENV.VALID_DATE_RANGE},
-      hasGradingPeriods: ENV.HAS_GRADING_PERIODS,
-      gradingPeriods: GradingPeriodsAPI.deserializePeriods(ENV.active_grading_periods),
-      userIsAdmin: ENV.current_user_is_admin,
-      postToSIS: ENV.POST_TO_SIS && ENV.DUE_DATE_REQUIRED_FOR_ACCOUNT,
-    })
+  const dateValidator = useMemo(
+    () =>
+      new DateValidator({
+        date_range: {...ENV.VALID_DATE_RANGE},
+        hasGradingPeriods: ENV.HAS_GRADING_PERIODS,
+        gradingPeriods: GradingPeriodsAPI.deserializePeriods(ENV.active_grading_periods),
+        userIsAdmin: ENV.current_user_is_admin,
+        postToSIS,
+      }),
+    [postToSIS]
   )
+
+  const stagedCardsRef = useRef(stagedCards)
+
+  const setStagedCards = cards => {
+    stagedCardsRef.current = cards
+    setStagedCardsInner(cards)
+  }
+
+  const stagedOverridesRef = useRef(stagedOverrides)
+
+  const setStagedOverrides = overrides => {
+    stagedOverridesRef.current = overrides
+    setStagedOverridesInner(overrides)
+  }
 
   const shouldRenderImportantDates = useMemo(
     () => type === 'assignment' || type === 'discussion' || type === 'quiz',
@@ -135,6 +152,7 @@ const DifferentiatedModulesSection = ({
       setHasModuleOverrides(overrides.some(card => card.context_module_id))
       const allModuleAssignees = overrides
         .filter(override => override.context_module_id)
+         
         ?.map(moduleOverride => {
           if (moduleOverride.course_section_id) {
             return `section-${moduleOverride.course_section_id}`
@@ -196,7 +214,7 @@ const DifferentiatedModulesSection = ({
         unlock_at: dates.unlock_at,
         lock_at: dates.lock_at,
       }
-      const dateErrors = dateValidator.current.validateDatetimes(data)
+      const dateErrors = dateValidator.validateDatetimes(data)
       return {
         key: cardId,
         isValid: uniqueIds.length > 0 && Object.keys(dateErrors).length === 0,
@@ -204,6 +222,8 @@ const DifferentiatedModulesSection = ({
         hasAssignees: uniqueIds.length > 0,
         due_at: dates.due_at,
         unlock_at: dates.unlock_at,
+        reply_to_topic_due_at: dates.reply_to_topic_due_at,
+        required_replies_due_at: dates.required_replies_due_at,
         lock_at: dates.lock_at,
         selectedAssigneeIds: uniqueIds,
         defaultOptions: uniqueIds,
@@ -247,20 +267,20 @@ const DifferentiatedModulesSection = ({
     // revert changes in the overrides of the page
     resetOverrides(overrides, preSavedOverrides)
     // revert changes in the tray cards
-    const preSaved = stagedOverrides.filter(o =>
+    let preSaved = stagedOverridesRef.current.filter(o =>
       preSavedOverrides.find(override => o.stagedOverrideId === override.stagedOverrideId)
     )
-    const defaultState = getParsedOverrides(preSaved, checkPoint)
-    const checkPointOverrides = getAllOverridesFromCards(defaultState).filter(
-      card =>
-        card.course_section_id ||
-        card.student_ids ||
-        card.noop_id ||
-        card.course_id ||
-        card.group_id
+    const deletedOverrides = preSavedOverrides.filter(
+      o =>
+        stagedOverridesRef.current.find(
+          override => o.stagedOverrideId === override.stagedOverrideId
+        ) === undefined
     )
+    preSaved = [...preSaved, ...deletedOverrides]
+    const defaultState = getParsedOverrides(preSaved, checkPoint)
+    const checkPointOverrides = getAllOverridesFromCards(defaultState)
     setStagedOverrides(checkPointOverrides)
-    const newStagedCards = resetStagedCards(stagedCards, checkPoint, defaultState)
+    const newStagedCards = resetStagedCards(stagedCardsRef.current, checkPoint, defaultState)
     setStagedCards(newStagedCards)
     linkRef.current.focus()
   }
@@ -269,8 +289,8 @@ const DifferentiatedModulesSection = ({
     const newCard = CardActions.handleAssigneeAdd({}, [], cardId, {})[0]
     delete newCard.student_ids
     newCard.draft = true
-    newCard.index = stagedOverrides.length + 1
-    const oldOverrides = getAllOverridesFromCards(stagedCards).filter(
+    newCard.index = cards[cards.length - 1].index + 1
+    const oldOverrides = getAllOverridesFromCards(stagedCardsRef.current).filter(
       card =>
         card.course_section_id ||
         card.student_ids ||
@@ -283,29 +303,34 @@ const DifferentiatedModulesSection = ({
   }
 
   const handleCardRemove = cardId => {
-    const newStagedCards = {...stagedCards}
+    const newStagedCards = {...stagedCardsRef.current}
     delete newStagedCards[cardId]
     setStagedCards(newStagedCards)
+
+    const newStagedOverrides = stagedOverridesRef.current.filter(
+      override => override.rowKey.toString() !== cardId
+    )
+    setStagedOverrides(newStagedOverrides)
   }
 
   const updateCard = (cardId, newOverrides, cardDates) => {
     const tmp = {}
     const dates = cardDates || datesFromOverride(newOverrides[0])
-    const currentIndex = stagedCards[cardId]?.index
+    const currentIndex = stagedCardsRef.current[cardId]?.index
     tmp[cardId] = {overrides: newOverrides, dates, index: currentIndex}
 
-    const newCards = _.extend({...stagedCards}, tmp)
+    const newCards = _.extend({...stagedCardsRef.current}, tmp)
     setStagedCards(newCards)
   }
 
   const addOverride = () => {
-    const cardsCount = stagedOverrides.length + 1
+    const cardsCount = cards[cards.length - 1].index + 1
     generateCard(cardsCount)
   }
 
   const handleChange = (cardId, newAssignee, deletedAssignees) => {
     // Cards without assignees are emty objects
-    // ui/shared/context-modules/differentiated-modules/react/Item/ItemAssignToTray.tsx
+    // ui/shared/context-modules/differentiated-modules/react/Item/ItemAssignToManager.tsx
     if (Object.keys(newAssignee).length > 0) {
       handleAssigneeAddition(cardId, newAssignee)
     }
@@ -317,7 +342,7 @@ const DifferentiatedModulesSection = ({
   }
 
   const handleDatesUpdate = (cardId, dateType, newDate) => {
-    const card = {...stagedCards[cardId]}
+    const card = {...stagedCardsRef.current[cardId]}
     const oldOverrides = card.overrides || []
     const oldDates = card.dates
     const date = newDate === '' ? null : newDate
@@ -335,10 +360,18 @@ const DifferentiatedModulesSection = ({
     const newDates = _.extend(oldDates, tmp)
 
     updateCard(cardId, newOverrides, newDates)
+
+    const updatedOverrides = [...stagedOverridesRef.current]
+    updatedOverrides.forEach(override => {
+      if (String(override.rowKey) === String(cardId)) {
+        override[dateType] = newDate
+      }
+    })
+    setStagedOverrides(updatedOverrides)
   }
 
   const handleAssigneeAddition = (cardId, newAssignee) => {
-    const targetedItemCard = stagedCards[cardId]
+    const targetedItemCard = stagedCardsRef.current[cardId]
     // returns all new overrides
     const newOverridesForCard = CardActions.handleAssigneeAdd(
       newAssignee,
@@ -356,7 +389,7 @@ const DifferentiatedModulesSection = ({
       : uid()
 
     // Create a copy of the stagedOverrides array
-    const updatedOverrides = [...stagedOverrides]
+    const updatedOverrides = [...stagedOverridesRef.current]
 
     // Check if stagedOverrides contains an object with the same stagedOverrideId
     const existingOverrideIndex = updatedOverrides.findIndex(
@@ -375,9 +408,9 @@ const DifferentiatedModulesSection = ({
   }
 
   const handleAssigneeDeletion = (cardId, tokenToRemove) => {
-    const targetedItemCard = stagedCards[cardId]
+    const targetedItemCard = stagedCardsRef.current[cardId]
     // These are unique overrides that are not associated with the card currently being edited
-    const nonTargetedOverrides = getAllOverridesFromCards(stagedCards).filter(
+    const nonTargetedOverrides = getAllOverridesFromCards(stagedCardsRef.current).filter(
       override => override.rowKey !== cardId
     )
 
@@ -497,6 +530,7 @@ const DifferentiatedModulesSection = ({
           <IconEditLine size="x-small" color="primary" />
         </View>
         <Link
+          id="manage-assign-to"
           margin="medium none"
           data-testid="manage-assign-to"
           isWithinText={false}
@@ -504,7 +538,7 @@ const DifferentiatedModulesSection = ({
           onClick={() => (open ? handleClose() : handleOpen())}
         >
           <View as="div">
-            {I18n.t('Manage Assign To')}
+            {I18n.t('Manage Due Dates and Assign To')}
             {showPendingChangesPill && (
               <Pill data-testid="pending_changes_pill" color="info" margin="auto small">
                 {I18n.t('Pending Changes')}
@@ -514,7 +548,7 @@ const DifferentiatedModulesSection = ({
         </Link>
       </View>
       {shouldRenderImportantDates && importantDatesCheckbox()}
-      <ItemAssignToTray
+      <ItemAssignToManager
         open={open}
         onClose={handleClose}
         onDismiss={handleDismiss}
@@ -538,6 +572,8 @@ const DifferentiatedModulesSection = ({
         onDatesChange={handleDatesUpdate}
         onCardRemove={handleCardRemove}
         removeDueDateInput={!supportDueDates}
+        isCheckpointed={isCheckpointed}
+        postToSIS={postToSIS}
       />
     </>
   )
@@ -556,6 +592,8 @@ DifferentiatedModulesSection.propTypes = {
   onTrayOpen: func,
   onTrayClose: func,
   supportDueDates: bool,
+  isCheckpointed: bool,
+  postToSIS: bool,
 }
 
 export default DifferentiatedModulesSection

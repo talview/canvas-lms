@@ -421,6 +421,15 @@ describe "course settings" do
       expect(admin_cog("#nav_edit_tab_id_0")).to be_falsey
     end
 
+    it "does not show Home tab when in a horizon course" do
+      Account.site_admin.enable_feature!(:horizon_course_setting)
+      @course.update!(horizon_course: true)
+      @course.save!
+      get "/courses/#{@course.id}/settings#tab-navigation"
+      # The Home tab always has this ID
+      expect(element_exists?("#nav_edit_tab_id_0")).to be_falsey
+    end
+
     it "changes course details" do
       course_name = "new course name"
       course_code = "new course-101"
@@ -485,6 +494,54 @@ describe "course settings" do
         cog_menu_button.click # open the menu
         ff(".disable_nav_item_link")[2].click # click "Disable"
         check_element_has_focus(cog_menu_button)
+      end
+    end
+
+    context "participation" do
+      it "allows setting both dates as empty" do
+        get "/courses/#{@course.id}/settings"
+
+        f("input[title='Term']").click
+        fj("li[class*='optionItem']:contains('Course')").click
+        fj("button:contains('Update Course Details')").click
+        expect(fj("span:contains('Course was successfully updated')")).to be_present
+      end
+
+      it "allows end date to be empty" do
+        get "/courses/#{@course.id}/settings"
+
+        f("input[title='Term']").click
+        fj("li[class*='optionItem']:contains('Course')").click
+        ff("input[id*='Selectable_']").first.send_keys(Time.zone.now.to_s)
+        fj("button:contains('Update Course Details')").click
+        expect(fj("span:contains('Course was successfully updated')")).to be_present
+      end
+
+      it "allows start date to be empty" do
+        get "/courses/#{@course.id}/settings"
+
+        f("input[title='Term']").click
+        fj("li[class*='optionItem']:contains('Course')").click
+        ff("input[id*='Selectable_']").last.send_keys(Time.zone.now.to_s)
+        fj("button:contains('Update Course Details')").click
+        expect(fj("span:contains('Course was successfully updated')")).to be_present
+      end
+
+      it "gives a validation when end is greater than start" do
+        current_date = Time.zone.now
+        yesterday = current_date - 1.day
+        get "/courses/#{@course.id}/settings"
+
+        f("input[title='Term']").click
+        fj("li[class*='optionItem']:contains('Course')").click
+        ff("input[id*='Selectable_']").first.send_keys(current_date.to_s)
+        ff("input[id*='Selectable_']").last.send_keys(yesterday.to_s)
+
+        fj("button:contains('Update Course Details')").click
+        # Adding expectation for the error shown after the end field
+        expect(fj("span:contains('The end date can not occur before the start date.')")).to be_present
+        # Adding expectation for the error shown in the Flash notification
+        expect(fj("span:contains('The course end date can not occur before the course start date.')")).to be_present
       end
     end
 
@@ -577,8 +634,7 @@ describe "course settings" do
     it "shows publish/unpublish buttons in sidebar and no status badge if user can change publish state" do
       course_with_teacher_logged_in(active_all: true)
       get "/courses/#{@course.id}/settings"
-      expect(f("#course_status_form")).to be_present
-      expect(f("#course_status_form #continue_to")).to have_attribute("value", "#{course_url(@course)}/settings")
+      expect(f("#course_publish_button")).to be_present
       expect(f("#content")).not_to contain_css("#course-status")
     end
 
@@ -586,7 +642,7 @@ describe "course settings" do
       course_with_ta_logged_in(active_all: true)
       get "/courses/#{@course.id}/settings"
       expect(f("#course-status")).to be_present
-      expect(f("#content")).not_to contain_css("#course_status_form")
+      expect(f("#content")).not_to contain_css("#course_publish_button")
     end
   end
 

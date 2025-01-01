@@ -26,14 +26,15 @@ import {FormFieldGroup} from '@instructure/ui-form-field'
 import {TextInput} from '@instructure/ui-text-input'
 import {propType as termsPropType} from '../store/TermsStore'
 import SearchableSelect from './SearchableSelect'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import CoursesStore from '../store/CoursesStore'
 import AccountsTreeStore from '../store/AccountsTreeStore'
 import {showFlashAlert, showFlashError} from '@canvas/alerts/react/FlashAlert'
 import preventDefault from '@canvas/util/preventDefault'
 import {flatten} from 'lodash'
+import {clearDashboardCache} from '../../../../shared/dashboard-card/dashboardCardQueries'
 
-const I18n = useI18nScope('account_course_user_search')
+const I18n = createI18nScope('account_course_user_search')
 
 const nonBreakingSpace = '\u00a0'
 const renderAccountOptions = (accounts = [], depth = 0) =>
@@ -86,6 +87,9 @@ export default function NewCourseModal({terms, children}) {
           </Text>
         ),
       })
+      if (window?.ENV?.FEATURES?.dashboard_graphql_integration) {
+        clearDashboardCache()
+      }
     }
 
     const errorHandler = showFlashError(

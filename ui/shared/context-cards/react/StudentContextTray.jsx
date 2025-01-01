@@ -18,7 +18,7 @@
 
 import React from 'react'
 import PropTypes from 'prop-types'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import Avatar from './Avatar'
 import LastActivity from './LastActivity'
 import MetricsList from './MetricsList'
@@ -35,7 +35,7 @@ import {Tray} from '@instructure/ui-tray'
 
 import {Link} from '@instructure/ui-link'
 
-const I18n = useI18nScope('student_context_trayStudentContextTray')
+const I18n = createI18nScope('student_context_trayStudentContextTray')
 
 const courseShape = PropTypes.shape({
   permissions: PropTypes.shape({}).isRequired,
@@ -249,6 +249,7 @@ export default class StudentContextTray extends React.Component {
                         <div className="StudentContextTray-Header__Name">
                           <Heading level="h3" as="h2">
                             <Link
+                              data-testid="student-name-link"
                               size="large"
                               href={`/courses/${this.props.courseId}/users/${this.props.studentId}`}
                               isWithinText={false}

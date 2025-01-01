@@ -18,21 +18,22 @@
 
 import React, {useCallback, useState} from 'react'
 import {useNode} from '@craftjs/core'
-import {IconButton} from '@instructure/ui-buttons'
+import {Button} from '@instructure/ui-buttons'
 import {Popover} from '@instructure/ui-popover'
-import {IconImageLine} from '@instructure/ui-icons'
 import {IconPicker} from '../blocks/IconBlock'
 
-type IconPopupProps = {
+import {useScope as createI18nScope} from '@canvas/i18n'
+
+const I18n = createI18nScope('block-editor')
+
+export type IconPopupProps = {
   iconName?: string
 }
 
 const IconPopup = ({iconName}: IconPopupProps) => {
   const {
     actions: {setProp},
-  } = useNode(node => ({
-    props: node.data.props,
-  }))
+  } = useNode()
   const [isShowingContent, setIsShowingContent] = useState(false)
   const [selectedIcon, setSelectedIcon] = useState(iconName)
 
@@ -48,21 +49,17 @@ const IconPopup = ({iconName}: IconPopupProps) => {
     (newIconName: string) => {
       setSelectedIcon(newIconName)
       setProp((prps: {iconName: string}) => (prps.iconName = newIconName))
+      handleHideContent()
     },
-    [setProp]
+    [handleHideContent, setProp]
   )
 
   return (
     <Popover
       renderTrigger={
-        <IconButton
-          size="small"
-          withBackground={false}
-          withBorder={false}
-          screenReaderLabel="Button Icon"
-        >
-          <IconImageLine size="x-small" />
-        </IconButton>
+        <Button size="small" withBackground={false}>
+          Select Icon
+        </Button>
       }
       isShowingContent={isShowingContent}
       onShowContent={handleShowContent}
@@ -70,13 +67,13 @@ const IconPopup = ({iconName}: IconPopupProps) => {
       on="click"
       placement="bottom start"
       shadow="resting"
-      screenReaderLabel="Popover Dialog Example"
+      screenReaderLabel={I18n.t('Select an icon')}
       shouldAlignArrow={true}
       shouldContainFocus={true}
       shouldReturnFocus={true}
       shouldCloseOnDocumentClick={true}
     >
-      <IconPicker iconName={selectedIcon} onSelect={handleSelectIcon} />
+      <IconPicker iconName={selectedIcon} onSelect={handleSelectIcon} onClose={handleHideContent} />
     </Popover>
   )
 }

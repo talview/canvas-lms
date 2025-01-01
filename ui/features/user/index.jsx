@@ -27,15 +27,15 @@ ready(() => {
   const pairing_container = document.getElementById('pairing-code')
 
   const permissions = ENV.PERMISSIONS
-  
-  const tempEnrollPermissions = {
+
+  const modifyPermissions = {
     canAdd: permissions.can_add_temporary_enrollments,
     canEdit: permissions.can_edit_temporary_enrollments,
     canDelete: permissions.can_delete_temporary_enrollments,
     canView: permissions.can_view_temporary_enrollments,
   }
 
-  const enrollPerm = {
+  const rolePermissions = {
     teacher: permissions.can_add_teacher,
     ta: permissions.can_add_ta,
     student: permissions.can_add_student,
@@ -46,23 +46,27 @@ ready(() => {
   const roles = Array.prototype.slice.call(ENV.COURSE_ROLES)
 
   if (pairing_container) {
+    // eslint-disable-next-line no-restricted-properties
     ReactDOM.render(
       <GeneratePairingCode userId={ENV.USER_ID} name={ENV.CONTEXT_USER_DISPLAY_NAME} />,
       pairing_container
     )
   }
 
-  if (tempEnrollPermissions.canView !== undefined) {
-    const temp_enrollments_container = document.getElementById('manage-temp-enrollments-mount-point')
+  if (modifyPermissions.canView !== undefined) {
+    const temp_enrollments_container = document.getElementById(
+      'manage-temp-enrollments-mount-point'
+    )
 
     if (temp_enrollments_container) {
+      // eslint-disable-next-line no-restricted-properties
       ReactDOM.render(
         <ManageTempEnrollButton
-         user={{id: ENV.USER_ID, name: ENV.CONTEXT_USER_DISPLAY_NAME}}
-         tempEnrollPermissions={tempEnrollPermissions}
-         roles={roles}
-         enrollPerm={enrollPerm}
-         can_read_sis={permissions.can_read_sis}
+          user={{id: ENV.USER_ID, name: ENV.CONTEXT_USER_DISPLAY_NAME}}
+          modifyPermissions={modifyPermissions}
+          roles={roles}
+          rolePermissions={rolePermissions}
+          can_read_sis={permissions.can_read_sis}
         />,
         temp_enrollments_container
       )

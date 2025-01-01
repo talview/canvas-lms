@@ -1,4 +1,3 @@
-// @ts-nocheck
 /*
  * Copyright (C) 2022 - present Instructure, Inc.
  *
@@ -28,7 +27,7 @@ import {IconXSolid} from '@instructure/ui-icons'
 import {Modal} from '@instructure/ui-modal'
 import {TruncateText} from '@instructure/ui-truncate-text'
 import {Tray} from '@instructure/ui-tray'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {View} from '@instructure/ui-view'
 
 import Body from '../body'
@@ -40,7 +39,7 @@ import UnpublishedWarningModal from '../header/unpublished_warning_modal'
 import {coursePaceActions} from '../../actions/course_paces'
 import {actions as uiActions} from '../../actions/ui'
 
-import {
+import type {
   CoursePace,
   OptionalDate,
   Pace,
@@ -60,14 +59,14 @@ import {
   getUnappliedChangesExist,
 } from '../../reducers/course_paces'
 import {getResponsiveSize} from '../../reducers/ui'
-import {SummarizedChange} from '../../utils/change_tracking'
+import type {SummarizedChange} from '../../utils/change_tracking'
 import PaceModalHeading from './heading'
 import {getSelectedPaceContext} from '../../reducers/pace_contexts'
 import {getEnrolledSection} from '../../reducers/enrollments'
 import PaceModalStats from './stats'
 import {generateModalLauncherId} from '../../utils/utils'
 
-const I18n = useI18nScope('course_paces_modal')
+const I18n = createI18nScope('course_paces_modal')
 
 interface StoreProps {
   readonly coursePace: CoursePace
@@ -152,6 +151,7 @@ export const PaceModal = ({
     }
   }
 
+  // @ts-expect-error
   const handleTrayDismiss = resetFocus => {
     setTrayOpen(false)
     if (resetFocus) {
@@ -183,6 +183,7 @@ export const PaceModal = ({
               renderIcon={IconXSolid}
               screenReaderLabel={I18n.t('Close')}
               onClick={handleClose}
+              // @ts-expect-error
               elementRef={e => (closeButtonRef.current = e)}
             />
           </Flex.Item>
@@ -228,6 +229,7 @@ export const PaceModal = ({
             >
               <UnpublishedChangesTrayContents
                 handleTrayDismiss={handleTrayDismiss}
+                // @ts-expect-error
                 changes={props.changes}
               />
             </Tray>
@@ -272,6 +274,7 @@ export const ResponsivePaceModal = (props: ComponentProps) => (
       large: {responsiveSize: 'large'},
     }}
   >
+    {/* @ts-expect-error */}
     {({responsiveSize}) => <PaceModal outerResponsiveSize={responsiveSize} {...props} />}
   </Responsive>
 )
@@ -300,4 +303,5 @@ export default connect(mapStateToProps, {
   uncompressDates: coursePaceActions.uncompressDates,
   clearCategoryError: uiActions.clearCategoryError,
   setOuterResponsiveSize: uiActions.setOuterResponsiveSize,
+  // @ts-expect-error
 })(ResponsivePaceModal)

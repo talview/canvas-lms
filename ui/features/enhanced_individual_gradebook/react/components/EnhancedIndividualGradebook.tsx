@@ -17,9 +17,8 @@
  */
 
 import React, {useCallback, useEffect, useState} from 'react'
-import {useQuery} from 'react-apollo'
 import {useSearchParams} from 'react-router-dom'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import userSettings from '@canvas/user-settings'
 import {View} from '@instructure/ui-view'
 import gradingHelpers from '@canvas/grading/AssignmentGroupGradeCalculator'
@@ -34,7 +33,6 @@ import type {
   AssignmentSubmissionsMap,
   CustomOptions,
   GradebookOptions,
-  GradebookQueryResponse,
   GradebookUserSubmissionDetails,
   SectionConnection,
   SortableAssignment,
@@ -43,7 +41,6 @@ import type {
   TeacherNotes,
   CustomColumn,
 } from '../../types'
-import {GRADEBOOK_QUERY} from '../../queries/Queries'
 import {
   gradebookOptionsSetup,
   mapAssignmentGroupQueryResults,
@@ -52,8 +49,9 @@ import {
 } from '../../utils/gradebookUtils'
 import {useCurrentStudentInfo} from '../hooks/useCurrentStudentInfo'
 import {useCustomColumns} from '../hooks/useCustomColumns'
+import {useGradebookQuery} from '../hooks/useGradebookQuery'
 
-const I18n = useI18nScope('enhanced_individual_gradebook')
+const I18n = createI18nScope('enhanced_individual_gradebook')
 
 const STUDENT_SEARCH_PARAM = 'student'
 const ASSIGNMENT_SEARCH_PARAM = 'assignment'
@@ -89,11 +87,7 @@ export default function EnhancedIndividualGradebook() {
     gradebookOptionsSetup(ENV)
   )
 
-  const {data, error} = useQuery<GradebookQueryResponse>(GRADEBOOK_QUERY, {
-    variables: {courseId},
-    fetchPolicy: 'no-cache',
-    skip: !courseId,
-  })
+  const {courseData, isLoading, isSuccess} = useGradebookQuery(courseId)
 
   const {customColumnsUrl} = gradebookOptions
 
@@ -113,22 +107,17 @@ export default function EnhancedIndividualGradebook() {
   }, [currentStudent, students])
 
   useEffect(() => {
-    if (error) {
-      // TODO: handle error
-    }
-
-    if (data?.course) {
+    if (courseData?.course && !isLoading && isSuccess) {
       const {
         assignmentGroupsConnection,
         enrollmentsConnection,
         sectionsConnection,
         submissionsConnection,
-      } = data.course
+      } = courseData.course
 
-      const {assignmentGradingPeriodMap, assignmentSubmissionsMap} = mapAssignmentSubmissions(
-        submissionsConnection.nodes
-      )
-      setAssignmentSubmissionsMap(assignmentSubmissionsMap)
+      const {assignmentGradingPeriodMap, assignmentSubmissionsMap: asMap} =
+        mapAssignmentSubmissions(submissionsConnection.nodes)
+      setAssignmentSubmissionsMap(asMap)
 
       const {mappedAssignmentGroupMap, mappedAssignments} = mapAssignmentGroupQueryResults(
         assignmentGroupsConnection.nodes,
@@ -148,7 +137,7 @@ export default function EnhancedIndividualGradebook() {
       )
       setStudents(sortedStudents)
     }
-  }, [data, error])
+  }, [courseData, isLoading, isSuccess])
 
   useEffect(() => {
     if (!selectedAssignment || !assignments || !studentSubmissions || !assignmentGroupMap) {
@@ -233,6 +222,7 @@ export default function EnhancedIndividualGradebook() {
     (newSubmission: GradebookUserSubmissionDetails) => {
       setAssignmentSubmissionsMap(prevAssignmentSubmissions => {
         const {assignmentId, id: submissionId} = newSubmission
+        prevAssignmentSubmissions[assignmentId] ||= {}
         prevAssignmentSubmissions[assignmentId][submissionId] = newSubmission
         return {...prevAssignmentSubmissions}
       })

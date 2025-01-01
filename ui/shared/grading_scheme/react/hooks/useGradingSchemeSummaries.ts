@@ -20,7 +20,7 @@ import {useState, useCallback} from 'react'
 import {buildContextPath} from './buildContextPath'
 
 import doFetchApi from '@canvas/do-fetch-api-effect'
-import type {GradingSchemeSummary} from '../../gradingSchemeApiModel.d'
+import type {GradingSchemeSummary} from '../../gradingSchemeApiModel'
 import {ApiCallStatus} from './ApiCallStatus'
 
 export const useGradingSchemeSummaries = (): {
@@ -47,7 +47,6 @@ export const useGradingSchemeSummaries = (): {
       try {
         setLoadGradingSchemeSummariesStatus(ApiCallStatus.PENDING)
 
-        // @ts-expect-error
         const result = await doFetchApi<GradingSchemeSummary[]>({
           path: `${contextPath}/grading_scheme_summaries${
             assignmentId ? `?assignment_id=${assignmentId}` : ''
@@ -69,6 +68,7 @@ export const useGradingSchemeSummaries = (): {
   )
 
   return {
+    // @ts-expect-error
     loadGradingSchemeSummaries,
     loadGradingSchemeSummariesStatus,
   }

@@ -17,50 +17,43 @@
  */
 
 import React, {useCallback, useEffect, useState} from 'react'
-import {useNode} from '@craftjs/core'
-import {FormFieldGroup, type FormMessage} from '@instructure/ui-form-field'
+import {FormFieldGroup} from '@instructure/ui-form-field'
 import {Button, IconButton} from '@instructure/ui-buttons'
 import {RangeInput} from '@instructure/ui-range-input'
 import {Popover} from '@instructure/ui-popover'
-import {IconCompassLine} from '@instructure/ui-icons'
 import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import {View} from '@instructure/ui-view'
+import {IconResize} from '../../../../assets/internal-icons'
+import {getAspectRatio} from '../../../../utils'
 
-type IconSizePopupProps = {
+import {useScope as createI18nScope} from '@canvas/i18n'
+
+const I18n = createI18nScope('block-editor')
+
+type ImageSizePopupProps = {
   width: number
   height: number
+  maintainAspectRatio: boolean
+  onChange: (width: number, height: number) => void
 }
 
-const IconSizePopup = ({width, height}: IconSizePopupProps) => {
-  const {
-    actions: {setProp},
-    domnode,
-  } = useNode(node => ({
-    props: node.data.props,
-    domnode: node.dom as HTMLImageElement,
-  }))
-  const [widthValue, setWidthValue] = useState<number>(() => {
-    return width || domnode.clientWidth
-  })
-  const [heightValue, setHeightValue] = useState<number>(() => {
-    return height || domnode.clientHeight
-  })
-  const [aspectRatio] = useState<number>(() => {
-    const w = width || domnode.clientWidth
-    const h = height || domnode.clientHeight
-    return w / h
-  })
-  const [messages, setMessages] = useState<FormMessage[]>([])
+const IconSizePopup = ({width, height, maintainAspectRatio, onChange}: ImageSizePopupProps) => {
+  const [widthValue, setWidthValue] = useState<number>(width)
+  const [heightValue, setHeightValue] = useState<number>(height)
+  const [aspectRatio, setAspectRatio] = useState<number>(getAspectRatio(width, height))
   const [isShowingContent, setIsShowingContent] = useState(false)
 
   useEffect(() => {
-    setWidthValue(width || domnode.clientWidth)
-    setHeightValue(height || domnode.clientHeight)
-  }, [width, height, domnode.clientWidth, domnode.clientHeight])
+    setWidthValue(width)
+    setHeightValue(height)
+    setAspectRatio(getAspectRatio(width, height))
+  }, [width, height])
 
   const handleShowContent = useCallback(() => {
+    setWidthValue(width)
+    setHeightValue(height)
     setIsShowingContent(true)
-  }, [])
+  }, [height, width])
 
   const handleHideContent = useCallback(() => {
     setIsShowingContent(false)
@@ -68,31 +61,32 @@ const IconSizePopup = ({width, height}: IconSizePopupProps) => {
 
   const handleChangeWidth = useCallback(
     (value: number | string) => {
-      const w = value as number
-      const h = Math.round(w / aspectRatio)
+      const w = typeof value === 'number' ? value : parseInt(value, 10)
       setWidthValue(w)
-      setHeightValue(h)
+      if (maintainAspectRatio) {
+        const h = Math.round(w / aspectRatio)
+        setHeightValue(h)
+      }
     },
-    [aspectRatio]
+    [aspectRatio, maintainAspectRatio]
   )
 
   const handleChangeHeight = useCallback(
     (value: number | string) => {
-      const h = value as number
+      const h = typeof value === 'number' ? value : parseInt(value, 10)
       setHeightValue(h)
-      const w = Math.round(h * aspectRatio)
-      setWidthValue(w)
+      if (maintainAspectRatio) {
+        const w = Math.round(h * aspectRatio)
+        setWidthValue(w)
+      }
     },
-    [aspectRatio]
+    [aspectRatio, maintainAspectRatio]
   )
 
   const setImageSize = useCallback(() => {
-    setProp(prps => {
-      prps.width = widthValue
-      prps.height = heightValue
-    })
+    onChange(widthValue, heightValue)
     setIsShowingContent(false)
-  }, [heightValue, setProp, widthValue])
+  }, [heightValue, onChange, widthValue])
 
   return (
     <Popover
@@ -101,16 +95,17 @@ const IconSizePopup = ({width, height}: IconSizePopupProps) => {
           size="small"
           withBackground={false}
           withBorder={false}
-          screenReaderLabel="Button Icon"
+          screenReaderLabel={I18n.t('Image Size')}
+          title={I18n.t('Image Size')}
         >
-          <IconCompassLine size="x-small" />
+          <IconResize size="x-small" />
         </IconButton>
       }
       isShowingContent={isShowingContent}
       onShowContent={handleShowContent}
       onHideContent={handleHideContent}
       on="click"
-      screenReaderLabel="Popover Dialog Example"
+      screenReaderLabel={I18n.t('Image Size')}
       shouldContainFocus={true}
       shouldReturnFocus={true}
       shouldCloseOnDocumentClick={true}
@@ -120,11 +115,10 @@ const IconSizePopup = ({width, height}: IconSizePopupProps) => {
           description={<ScreenReaderContent>Image size</ScreenReaderContent>}
           rowSpacing="small"
           layout="stacked"
-          messages={messages}
         >
           <RangeInput
-            label="Width"
-            value={widthValue}
+            label={I18n.t('Width')}
+            value={Math.round(widthValue)}
             width="15rem"
             min={1}
             max={window.innerWidth}
@@ -134,8 +128,8 @@ const IconSizePopup = ({width, height}: IconSizePopupProps) => {
             onChange={handleChangeWidth}
           />
           <RangeInput
-            label="height"
-            value={heightValue}
+            label={I18n.t('Height')}
+            value={Math.round(heightValue)}
             width="15rem"
             min={1}
             max={window.innerWidth / aspectRatio}
@@ -146,12 +140,7 @@ const IconSizePopup = ({width, height}: IconSizePopupProps) => {
           />
         </FormFieldGroup>
         <View as="div" textAlign="end" margin="x-small 0 0 0">
-          <Button
-            onClick={setImageSize}
-            interaction={messages.length === 0 ? 'enabled' : 'disabled'}
-          >
-            Set
-          </Button>
+          <Button onClick={setImageSize}>{I18n.t('Set')}</Button>
         </View>
       </View>
     </Popover>

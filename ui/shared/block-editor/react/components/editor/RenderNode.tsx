@@ -43,282 +43,161 @@
 import React, {useCallback, useEffect, useState} from 'react'
 import ReactDOM from 'react-dom'
 import {useNode, useEditor, type Node} from '@craftjs/core'
-import {ROOT_NODE} from '@craftjs/utils'
 
-import {IconArrowUpLine, IconTrashLine, IconDragHandleLine} from '@instructure/ui-icons'
-import {IconButton} from '@instructure/ui-buttons'
 import {Text} from '@instructure/ui-text'
-import {type ViewProps} from '@instructure/ui-view'
-import {ToolbarSeparator} from './ToolbarSeparator'
+import {View} from '@instructure/ui-view'
 
-const findUpNode = (node: Node, query: any): Node | undefined => {
-  let upnode = node.data.parent ? query.node(node.data.parent).get() : undefined
-  while (upnode && upnode.data.parent && upnode.data.custom?.noToolbar) {
-    upnode = upnode.data.parent ? query.node(upnode.data.parent).get() : undefined
+import {type AddSectionPlacement, type RenderNodeProps} from './types'
+import {TemplateEditor} from '../../types'
+import {SectionBrowser} from './SectionBrowser'
+import {mountNode} from '../../utils'
+import {BlockResizer} from './BlockResizer'
+import {
+  getToolbarPos as getToolbarPosUtil,
+  findUpNode,
+  findContainingSection,
+} from '../../utils/renderNodeHelpers'
+import {BlockToolbar} from './BlockToolbar'
+
+interface RenderNodeComponent extends React.FC<RenderNodeProps> {
+  globals: {
+    selectedSectionId: string
+    enableResizer: boolean
+    templateEditor: TemplateEditor
   }
-  return upnode && upnode.id !== ROOT_NODE ? upnode : undefined
 }
 
-const findContainingSection = (node: Node, query: any): Node | undefined => {
-  if (node.data.custom?.isSection) return node
-  let upnode = findUpNode(node, query)
-  while (upnode && !upnode.data.custom?.isSection) {
-    upnode = findUpNode(upnode, query)
-  }
-  return upnode && upnode.data.custom?.isSection ? upnode : undefined
-}
-
-type RenderNodeProps = {
-  render: React.ReactElement
-}
-
-export const RenderNode = ({render}: RenderNodeProps) => {
+export const RenderNode: RenderNodeComponent = ({render}: RenderNodeProps) => {
   const {actions, query} = useEditor(state => {
     if (state.events.selected.size === 0) {
       RenderNode.globals.selectedSectionId = ''
     }
   })
-  const {
-    nodeActions,
-    hovered,
-    selected,
-    node,
-    dom,
-    name,
-    moveable,
-    deletable,
-    connectors: {drag},
-  } = useNode((n: Node) => ({
-    nodeActions: actions,
-    node: n,
-    hovered: n.events.hovered,
-    selected: n.events.selected,
-    dom: n.dom,
-    name: n.data.custom.displayName || n.data.displayName,
-    moveable: query.node(n.id).isDraggable(),
-    deletable: query.node(n.id).isDeletable(),
-    props: n.data.props,
-  }))
-
-  const [currentToolbarRef, setCurrentToolbarRef] = useState<HTMLDivElement | null>(null)
-  const [currentMenuRef, setCurrentMenuRef] = useState<HTMLDivElement | null>(null)
-  const [upnodeId] = useState<string | undefined>(findUpNode(node, query)?.id)
-
-  useEffect(() => {
-    // get a newly dropped block selected
-    // select once will select it's section
-    // select again to get the block
-    // (see the following useEffect for details)
-    if (node.id !== 'ROOT') {
-      actions.selectNode(node.id)
-      requestAnimationFrame(() => {
-        actions.selectNode(node.id)
-      })
+  const {hovered, selected, node, name} = useNode((n: Node) => {
+    return {
+      node: n,
+      hovered: n.events.hovered,
+      selected: n.events.selected,
+      name: n.data.custom.displayName || n.data.displayName,
+      props: n.data.props,
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  })
 
-  // first click/select on a block will select its parent section
-  // if the section is selected, a click on a block will select the block
+  const [currentToolbarOrTagRef, setCurrentToolbarOrTagRef] = useState<HTMLDivElement | null>(null)
+  const [sectionBrowserOpen, setSectionBrowserOpen] = useState<AddSectionPlacement>(undefined)
+  const [mountPoint, setMountPoint] = useState(mountNode())
+
   useEffect(() => {
-    if (selected) {
-      const parentSection = findContainingSection(node, query)
-      if (parentSection) {
-        const isMySectionSelected = RenderNode.globals.selectedSectionId === parentSection.id
-        if (!isMySectionSelected) {
-          RenderNode.globals.selectedSectionId = parentSection.id
-          actions.selectNode(parentSection.id)
-        } else if (node.data.custom?.noToolbar) {
-          const upnode = findUpNode(node, query)
-          if (upnode) {
-            actions.selectNode(upnode.id)
-          }
-        }
+    if (mountPoint === null) {
+      setMountPoint(mountNode())
+    }
+  }, [mountPoint])
+
+  useEffect(() => {
+    // if the user clicked on a block's inner component, (e.g. it has no toolbar)
+    // walk up the node tree to find one and select that
+    if (selected && node.data.custom?.noToolbar) {
+      const upnode = findUpNode(node, query)
+      if (upnode && upnode.id !== node.id) {
+        actions.selectNode(upnode.id)
       }
     }
-  }, [actions, node, nodeActions, query, selected])
+  }, [actions, node, query, selected])
 
   useEffect(() => {
-    if (dom) {
-      if (selected) dom.classList.add('selected')
-      else dom.classList.remove('selected')
+    if (node.dom) {
+      if (selected) node.dom.classList.add('selected')
+      else node.dom.classList.remove('selected')
 
-      if (hovered) dom.classList.add('hovered')
-      else dom.classList.remove('hovered')
+      if (hovered) node.dom.classList.add('hovered')
+      else node.dom.classList.remove('hovered')
     }
-  }, [dom, selected, hovered])
+  }, [hovered, node.dom, selected])
 
   const getToolbarPos = useCallback(
-    (domNode: HTMLElement | null) => {
-      const {top, left, bottom} = domNode
-        ? domNode.getBoundingClientRect()
-        : {top: 0, left: 0, bottom: 0}
-      const offset = currentToolbarRef ? currentToolbarRef.getBoundingClientRect().height : 0
-      return {
-        top: `${top > 0 ? top - offset : bottom - offset}px`,
-        left: `${left}px`,
-      }
+    (includeOffset: boolean = true) => {
+      return getToolbarPosUtil(node.dom, mountPoint, currentToolbarOrTagRef, includeOffset)
     },
-    [currentToolbarRef]
-  )
-  const getMenuPos = useCallback(
-    (domNode: HTMLElement | null) => {
-      const {top, left, bottom, width} = domNode
-        ? domNode.getBoundingClientRect()
-        : {top: 0, left: 0, bottom: 0, width: 0}
-      const offset = currentMenuRef ? width - currentMenuRef.getBoundingClientRect().width : 0
-      return {
-        top: `${top > 0 ? top : bottom}px`,
-        left: `${left + offset}px`,
-      }
-    },
-    [currentMenuRef]
+    [currentToolbarOrTagRef, node.dom, mountPoint]
   )
 
-  const scroll = useCallback(() => {
-    if (currentMenuRef) {
-      const {top, left} = getMenuPos(dom)
-      currentMenuRef.style.top = top
-      currentMenuRef.style.left = left
-    }
-    if (currentToolbarRef) {
-      const {top, left} = getToolbarPos(dom)
-      currentToolbarRef.style.top = top
-      currentToolbarRef.style.left = left
-    }
-  }, [currentMenuRef, currentToolbarRef, dom, getMenuPos, getToolbarPos])
-
-  useEffect(() => {
-    const scroller = document.getElementById('drawer-layout-content') || document
-    scroller.addEventListener('scroll', scroll)
-
-    return () => {
-      scroller.removeEventListener('scroll', scroll)
-    }
-  }, [dom, scroll])
-
-  // TODO: maybe setState the upnode so we know whether to show the up button or not
-  const handleGoUp = useCallback(
-    (e: React.KeyboardEvent<ViewProps> | React.MouseEvent<ViewProps>) => {
-      e.stopPropagation()
-      actions.selectNode(upnodeId)
-    },
-    [actions, upnodeId]
-  )
-
-  const handleDeleteNode = useCallback(
-    (e: React.KeyboardEvent<ViewProps> | React.MouseEvent<ViewProps>) => {
-      e.stopPropagation()
-      actions.delete(node.id)
-    },
-    [actions, node.id]
-  )
-
-  // TODO: this should be role="toolbar" and nav with arrow keys
   const renderBlockToolbar = () => {
+    return ReactDOM.createPortal(
+      <BlockToolbar templateEditor={RenderNode.globals.templateEditor} />,
+      mountPoint
+    )
+  }
+
+  const renderHoverTag = () => {
     if (node.data?.custom?.noToolbar) return null
-    const mountPoint = document.querySelector('.block-editor-editor')
+
+    const parentSection = findContainingSection(node, query)
+    if (!parentSection) return null
+
+    const isMySectionSelected = RenderNode.globals.selectedSectionId === parentSection.id
+    if (!isMySectionSelected) return null
+
     if (!mountPoint) return null
 
+    const {left, top} = getToolbarPos()
     return ReactDOM.createPortal(
       <div
-        ref={(el: HTMLDivElement) => setCurrentToolbarRef(el)}
-        className="block-toolbar"
+        ref={(el: HTMLDivElement) => setCurrentToolbarOrTagRef(el)}
+        className="block-tag"
         style={{
-          left: getToolbarPos(dom).left,
-          top: getToolbarPos(dom).top,
+          left: `${left}px`,
+          top: `${top}px`,
         }}
-        data-timestamp={Date.now()}
       >
-        <Text size="small">{name}</Text>
-        {moveable ? (
-          <IconButton
-            cursor="move"
-            size="small"
-            elementRef={el => el && drag(el as HTMLElement)}
-            screenReaderLabel="Drag to move"
-            withBackground={false}
-            withBorder={false}
-          >
-            <IconDragHandleLine size="x-small" />
-          </IconButton>
-        ) : null}
-        {upnodeId && (
-          <IconButton
-            cursor="pointer"
-            size="small"
-            onClick={handleGoUp}
-            screenReaderLabel="Go to parent"
-            withBackground={false}
-            withBorder={false}
-          >
-            <IconArrowUpLine size="x-small" />
-          </IconButton>
-        )}
-        {node.related.toolbar && (
-          <>
-            <ToolbarSeparator />
-            {React.createElement(node.related.toolbar)}
-          </>
-        )}
-        {deletable ? (
-          <>
-            <ToolbarSeparator />
-            <IconButton
-              cursor="pointer"
-              size="small"
-              onClick={handleDeleteNode}
-              screenReaderLabel="Delete"
-              withBackground={false}
-              withBorder={false}
-              color="danger"
-            >
-              <IconTrashLine size="x-small" />
-            </IconButton>
-          </>
-        ) : null}
+        <View as="div" background="secondary" padding="0 xx-small" borderRadius="small">
+          <Text size="small">{name}</Text>
+        </View>
       </div>,
       mountPoint
     )
   }
 
-  const renderSectionMenu = () => {
-    const mountPoint = document.querySelector('.block-editor-editor')
+  const renderResizer = () => {
     if (!mountPoint) return null
-    return node.related?.sectionMenu
-      ? ReactDOM.createPortal(
-          <div
-            ref={(el: HTMLDivElement) => setCurrentMenuRef(el)}
-            className="block-menu"
-            style={{
-              left: getMenuPos(dom).left,
-              top: getMenuPos(dom).top,
-            }}
-          >
-            {React.createElement(node.related.sectionMenu)}
-          </div>,
-          mountPoint
-        )
-      : null
+
+    return ReactDOM.createPortal(
+      <BlockResizer mountPoint={mountPoint} sizeVariant={node.data.props.sizeVariant || 'pixel'} />,
+      mountPoint
+    )
   }
 
   const renderRelated = () => {
+    return renderBlockToolbar()
+  }
+
+  const renderSectionAdder = () => {
     return (
-      <>
-        {renderBlockToolbar()}
-        {renderSectionMenu()}
-      </>
+      !!sectionBrowserOpen && (
+        <SectionBrowser
+          open={true}
+          onClose={() => setSectionBrowserOpen(undefined)}
+          where={sectionBrowserOpen}
+        />
+      )
     )
   }
 
   return (
     <>
+      {!selected && hovered && renderHoverTag()}
       {selected && node.related && renderRelated()}
+      {RenderNode.globals.enableResizer &&
+        selected &&
+        node.data.custom?.isResizable &&
+        renderResizer()}
       {render}
+      {node.data.custom?.isSection && renderSectionAdder()}
     </>
   )
 }
 
 RenderNode.globals = {
   selectedSectionId: '',
+  enableResizer: true,
+  templateEditor: TemplateEditor.NONE,
 }

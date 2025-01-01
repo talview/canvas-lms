@@ -28,7 +28,8 @@ describe('CreateOrEditSetModal', () => {
 
   it('should render the correct error message if the api call returns an errors object', async () => {
     const contextId = '1'
-    const errorMessage = 'fake response error message'
+    const errorMessage =
+      'An error occurred while creating the Group Set: doFetchApi received a bad response: 400 Bad Request'
     fetchMock.postOnce(`post:/api/v1/accounts/${contextId}/group_categories`, {
       body: {
         errors: {
@@ -38,7 +39,7 @@ describe('CreateOrEditSetModal', () => {
       status: 400,
     })
     const {getByText, getAllByText, getByPlaceholderText} = render(
-      <CreateOrEditSetModal allowSelfSignup={true} contextId={contextId} />
+      <CreateOrEditSetModal allowSelfSignup={true} contextId={contextId} />,
     )
     fireEvent.input(getByPlaceholderText('Enter Group Set Name'), {
       target: {value: 'name'},
@@ -47,5 +48,65 @@ describe('CreateOrEditSetModal', () => {
 
     await fetchMock.flush(true)
     expect(getAllByText(/error/i)[0].innerHTML).toContain(errorMessage)
+  })
+
+  describe('small screen', () => {
+    beforeEach(() => {
+      window.matchMedia = jest.fn().mockImplementation(query => {
+        return {
+          matches: query.includes('(max-width: 600px)'),
+          media: query,
+          onchange: null,
+          addListener: jest.fn(),
+          removeListener: jest.fn(),
+        }
+      })
+    })
+
+    it('renders components with column direction', () => {
+      const {getByTestId} = render(<CreateOrEditSetModal allowSelfSignup={true} contextId="1" />)
+
+      const groupSetName = getByTestId('group-name-controls')
+      const groupSetNameStyle = getComputedStyle(groupSetName)
+      expect(groupSetNameStyle.flexDirection).toBe('column')
+
+      const groupStructure = getByTestId('group-structure-controls')
+      const groupStructuretyle = getComputedStyle(groupStructure)
+      expect(groupStructuretyle.flexDirection).toBe('column')
+
+      const groupSelfSignUp = getByTestId('group-self-sign-up-controls')
+      const groupSelfSignUpStyle = getComputedStyle(groupSelfSignUp)
+      expect(groupSelfSignUpStyle.flexDirection).toBe('column')
+    })
+  })
+
+  describe('not small screen', () => {
+    beforeEach(() => {
+      window.matchMedia = jest.fn().mockImplementation(query => {
+        return {
+          matches: !query.includes('(max-width: 600px)'),
+          media: query,
+          onchange: null,
+          addListener: jest.fn(),
+          removeListener: jest.fn(),
+        }
+      })
+    })
+
+    it('renders components with row direction', () => {
+      const {getByTestId} = render(<CreateOrEditSetModal allowSelfSignup={true} contextId="1" />)
+
+      const groupSetName = getByTestId('group-name-controls')
+      const groupSetNameStyle = getComputedStyle(groupSetName)
+      expect(groupSetNameStyle.flexDirection).toBe('row')
+
+      const groupStructure = getByTestId('group-structure-controls')
+      const groupStructuretyle = getComputedStyle(groupStructure)
+      expect(groupStructuretyle.flexDirection).toBe('row')
+
+      const groupSelfSignUp = getByTestId('group-self-sign-up-controls')
+      const groupSelfSignUpStyle = getComputedStyle(groupSelfSignUp)
+      expect(groupSelfSignUpStyle.flexDirection).toBe('row')
+    })
   })
 })

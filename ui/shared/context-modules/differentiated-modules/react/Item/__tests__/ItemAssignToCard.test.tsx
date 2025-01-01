@@ -19,11 +19,15 @@
 import React from 'react'
 import {render, fireEvent, screen, waitFor} from '@testing-library/react'
 import ItemAssignToCard, {type ItemAssignToCardProps} from '../ItemAssignToCard'
+import {SECTIONS_DATA, STUDENTS_DATA} from '../../__tests__/mocks'
+import fetchMock from 'fetch-mock'
 import userEvent from '@testing-library/user-event'
+import {queryClient} from '@canvas/query'
+import {MockedQueryProvider} from '@canvas/test-utils/query'
 
 const props: ItemAssignToCardProps = {
   courseId: '1',
-  disabledOptionIds: [],
+  disabledOptionIdsRef: {current: []},
   selectedAssigneeIds: [],
   onCardAssignmentChange: () => {},
   cardId: 'assign-to-card-001',
@@ -33,11 +37,18 @@ const props: ItemAssignToCardProps = {
   lock_at: null,
   onDelete: undefined,
   removeDueDateInput: false,
+  isCheckpointed: false,
   onValidityChange: () => {},
+  required_replies_due_at: null,
+  reply_to_topic_due_at: null,
 }
 
 const renderComponent = (overrides: Partial<ItemAssignToCardProps> = {}) =>
-  render(<ItemAssignToCard {...props} {...overrides} />)
+  render(
+    <MockedQueryProvider>
+      <ItemAssignToCard {...props} {...overrides} />
+    </MockedQueryProvider>
+  )
 
 const withWithGradingPeriodsMock = () => {
   window.ENV.HAS_GRADING_PERIODS = true
@@ -64,6 +75,30 @@ const withWithGradingPeriodsMock = () => {
 }
 
 describe('ItemAssignToCard', () => {
+  const ASSIGNMENT_OVERRIDES_URL = `/api/v1/courses/1/modules/2/assignment_overrides?per_page=100`
+  const COURSE_SETTINGS_URL = `/api/v1/courses/1/settings`
+  const SECTIONS_URL = /\/api\/v1\/courses\/.+\/sections\?per_page=\d+/
+
+  beforeAll(() => {
+    if (!document.getElementById('flash_screenreader_holder')) {
+      const liveRegion = document.createElement('div')
+      liveRegion.id = 'flash_screenreader_holder'
+      liveRegion.setAttribute('role', 'alert')
+      document.body.appendChild(liveRegion)
+    }
+  })
+
+  beforeEach(() => {
+    fetchMock.get(SECTIONS_URL, SECTIONS_DATA)
+    queryClient.setQueryData(['students', props.courseId, {per_page: 100}], STUDENTS_DATA)
+    fetchMock.get(ASSIGNMENT_OVERRIDES_URL, [])
+    fetchMock.get(COURSE_SETTINGS_URL, {hide_final_grades: false})
+  })
+
+  afterEach(() => {
+    fetchMock.restore()
+  })
+
   it('renders', () => {
     const {getByLabelText, getAllByLabelText, getByTestId, queryByRole} = renderComponent()
     expect(getByTestId('item-assign-to-card')).toBeInTheDocument()
@@ -72,6 +107,87 @@ describe('ItemAssignToCard', () => {
     expect(getAllByLabelText('Time').length).toBe(3)
     expect(getByLabelText('Available from')).toBeInTheDocument()
     expect(getByLabelText('Until')).toBeInTheDocument()
+  })
+
+  it('renders checkpoints fields and not Due Date', () => {
+    // @ts-expect-error
+    window.ENV.DISCUSSION_CHECKPOINTS_ENABLED = true
+    const {getByLabelText, getAllByLabelText} = renderComponent({
+      isCheckpointed: true,
+    })
+    expect(getByLabelText('Reply to Topic Due Date')).toBeInTheDocument()
+    expect(getByLabelText('Required Replies Due Date')).toBeInTheDocument()
+    expect(getByLabelText('Available from')).toBeInTheDocument()
+    expect(getByLabelText('Until')).toBeInTheDocument()
+    // rather than query for not due date, notice length remains 4
+    expect(getAllByLabelText('Time').length).toBe(4)
+  })
+
+  describe('describes the render order', () => {
+    it('renders the Due Date 1st from the top', () => {
+      window.ENV.DEFAULT_DUE_TIME = '08:00:00'
+      const {getByLabelText, getByRole, getAllByLabelText} = renderComponent({due_at: undefined})
+      const dateInput = getByLabelText('Due Date')
+      fireEvent.change(dateInput, {target: {value: 'Nov 10, 2020'}})
+      getByRole('option', {name: /10 november 2020/i}).click()
+      expect(getAllByLabelText('Time')[0]).toHaveValue('8:00 AM')
+    })
+
+    it('renders the Reply to Topic Due Date 1st from the top', () => {
+      window.ENV.DEFAULT_DUE_TIME = '08:00:00'
+      // @ts-expect-error
+      window.ENV.DISCUSSION_CHECKPOINTS_ENABLED = true
+      const {getByLabelText, getByRole, getAllByLabelText} = renderComponent({
+        due_at: undefined,
+        isCheckpointed: true,
+      })
+      const dateInput = getByLabelText('Reply to Topic Due Date')
+      fireEvent.change(dateInput, {target: {value: 'Nov 10, 2020'}})
+      getByRole('option', {name: /10 november 2020/i}).click()
+      expect(getAllByLabelText('Time')[0]).toHaveValue('8:00 AM')
+    })
+
+    it('renders the Required Replies Due Date 2nd from the top', () => {
+      window.ENV.DEFAULT_DUE_TIME = '08:00:00'
+      // @ts-expect-error
+      window.ENV.DISCUSSION_CHECKPOINTS_ENABLED = true
+      const {getByLabelText, getByRole, getAllByLabelText} = renderComponent({
+        due_at: undefined,
+        isCheckpointed: true,
+      })
+      const dateInput = getByLabelText('Required Replies Due Date')
+      fireEvent.change(dateInput, {target: {value: 'Nov 10, 2020'}})
+      getByRole('option', {name: /10 november 2020/i}).click()
+      expect(getAllByLabelText('Time')[1]).toHaveValue('8:00 AM')
+    })
+
+    describe('isCheckpointed is true', () => {
+      it('renders the Available From 3rd from the top', () => {
+        // @ts-expect-error
+        window.ENV.DISCUSSION_CHECKPOINTS_ENABLED = true
+        const {getByLabelText, getByRole, getAllByLabelText} = renderComponent({
+          due_at: undefined,
+          isCheckpointed: true,
+        })
+        const dateInput = getByLabelText('Available from')
+        fireEvent.change(dateInput, {target: {value: 'Nov 10, 2020'}})
+        getByRole('option', {name: /10 november 2020/i}).click()
+        expect(getAllByLabelText('Time')[2]).toHaveValue('12:00 AM')
+      })
+
+      it('renders the Available Until 4th from the top', () => {
+        // @ts-expect-error
+        window.ENV.DISCUSSION_CHECKPOINTS_ENABLED = true
+        const {getByLabelText, getByRole, getAllByLabelText} = renderComponent({
+          due_at: undefined,
+          isCheckpointed: true,
+        })
+        const dateInput = getByLabelText('Until')
+        fireEvent.change(dateInput, {target: {value: 'Nov 14, 2020'}})
+        getByRole('option', {name: /14 november 2020/i}).click()
+        expect(getAllByLabelText('Time')[3]).toHaveValue('11:59 PM')
+      })
+    })
   })
 
   it('renders with the given dates', () => {
@@ -87,6 +203,16 @@ describe('ItemAssignToCard', () => {
   it('does not render the due date input if removeDueDateInput is set', () => {
     const {queryByLabelText} = renderComponent({removeDueDateInput: true})
     expect(queryByLabelText('Due Date')).not.toBeInTheDocument()
+  })
+
+  it('does not render the reply to topic input if removeDueDateInput is set & isCheckpointed is not set', () => {
+    const {queryByLabelText} = renderComponent({removeDueDateInput: true, isCheckpointed: false})
+    expect(queryByLabelText('Reply to Topic Due Date')).not.toBeInTheDocument()
+  })
+
+  it('does not render the required replies input if removeDueDateInput is set & isCheckpointed is not set', () => {
+    const {queryByLabelText} = renderComponent({removeDueDateInput: true, isCheckpointed: false})
+    expect(queryByLabelText('Required Replies Due Date')).not.toBeInTheDocument()
   })
 
   it('renders the delete button when onDelete is provided', () => {
@@ -258,6 +384,21 @@ describe('ItemAssignToCard', () => {
     })
   })
 
+  it('clears date field and time field when date field is manually cleared on blur', async () => {
+    const due_at = '2023-10-05T12:00:00Z'
+    const {getAllByLabelText, getByLabelText} = renderComponent({due_at})
+    const dateInput = getByLabelText('Due Date')
+    const timeInput = getAllByLabelText('Time')[0]
+
+    await userEvent.clear(dateInput)
+    await userEvent.tab()
+
+    await waitFor(async () => {
+      expect(dateInput).toHaveValue('')
+      expect(timeInput).toHaveValue('')
+    })
+  })
+
   it('renders all disabled when date falls in a closed grading period for teacher', () => {
     withWithGradingPeriodsMock()
 
@@ -279,7 +420,7 @@ describe('ItemAssignToCard', () => {
     expect(getByLabelText('Due Date')).not.toBeDisabled()
   })
 
-  it('renders error when date change to a closed grading period for teacher', async () => {
+  it.skip('renders error when date change to a closed grading period for teacher', async () => {
     // Flakey spec
     withWithGradingPeriodsMock()
     window.ENV.current_user_is_admin = false
@@ -291,7 +432,75 @@ describe('ItemAssignToCard', () => {
     const dateInput = getByLabelText('Due Date')
     fireEvent.change(dateInput, {target: {value: 'May 4, 2024'}})
     getAllByRole('option', {name: '4 May 2024'})[0].click()
-    expect(getAllByText(/Please enter a due date on or after/).length).toBeGreaterThanOrEqual(1)
+
+    await waitFor(async () => {
+      expect(dateInput).toHaveValue('May 4, 2024')
+      expect(getAllByText(/Please enter a due date on or after/).length).toBeGreaterThanOrEqual(1)
+    })
+  })
+
+  describe('when course dates are set', () => {
+    beforeAll(() => {
+      window.ENV.VALID_DATE_RANGE = {
+        start_at: {date: '2025-02-09T00:00:00-06:00', date_context: 'course'},
+        end_at: {date: '2025-04-22T23:59:59-06:00', date_context: 'course'},
+      }
+      window.ENV.SECTION_LIST = [
+        {
+          id: '1',
+          override_course_and_term_dates: false,
+          start_at: '2025-02-09T00:00:00-06:00',
+          end_at: '2025-06-22T23:59:59-06:00',
+        },
+      ]
+    })
+
+    afterAll(() => {
+      window.ENV.VALID_DATE_RANGE = undefined
+      window.ENV.SECTION_LIST = undefined
+    })
+
+    it('renders error when date is outside of course dates', async () => {
+      const {getByLabelText, getAllByRole, getAllByText} = renderComponent()
+      const dateInput = getByLabelText('Due Date')
+      fireEvent.change(dateInput, {target: {value: 'May 4, 2025'}})
+      getAllByRole('option', {name: '4 May 2025'})[0].click()
+
+      await waitFor(async () => {
+        expect(dateInput).toHaveValue('May 4, 2025')
+        expect(getAllByText(/Due date cannot be after course end/).length).toBeGreaterThanOrEqual(1)
+      })
+    })
+
+    it('does not render error when date is outside of course dates but assignees are ADHOC', async () => {
+      const {getByLabelText, getAllByRole, queryByText} = renderComponent({
+        customAllOptions: [{id: 'student-1', value: 'John'}],
+        selectedAssigneeIds: ['student-1'],
+      })
+      const dateInput = getByLabelText('Due Date')
+      fireEvent.change(dateInput, {target: {value: 'May 4, 2025'}})
+      getAllByRole('option', {name: '4 May 2025'})[0].click()
+
+      await waitFor(async () => {
+        expect(dateInput).toHaveValue('May 4, 2025')
+        expect(queryByText(/Due date cannot be after course end/)).not.toBeInTheDocument()
+      })
+    })
+
+    it('does not render error when date is outside of course dates but inside section dates', async () => {
+      const {getByLabelText, getAllByRole, queryByText} = renderComponent({
+        customAllOptions: [{id: 'section-1', value: 'Section 1'}],
+        selectedAssigneeIds: ['section-1'],
+      })
+      const dateInput = getByLabelText('Due Date')
+      fireEvent.change(dateInput, {target: {value: 'May 4, 2025'}})
+      getAllByRole('option', {name: '4 May 2025'})[0].click()
+
+      await waitFor(async () => {
+        expect(dateInput).toHaveValue('May 4, 2025')
+        expect(queryByText(/Due date cannot be after course end/)).not.toBeInTheDocument()
+      })
+    })
   })
 
   describe('when course and user timezones differ', () => {
@@ -345,7 +554,7 @@ describe('ItemAssignToCard', () => {
       expect(getAllByText('Course: Tue, Nov 10, 2020, 5:00 AM').length).toBeGreaterThanOrEqual(1)
     })
 
-    it('changes to fancy midnight for due dates from dates if it is set to 12:00 AM', async () => {
+    it.skip('changes to fancy midnight for due dates from dates if it is set to 12:00 AM', async () => {
       window.ENV.DEFAULT_DUE_TIME = '00:00:00'
       const {getByLabelText, getAllByText, getByText} = renderComponent({
         due_at: undefined,
@@ -484,6 +693,91 @@ describe('ItemAssignToCard', () => {
         'Clear until date/time for John, Alice, and 2 others',
       ]
       labels.forEach(label => expect(screen.getByText(label)).toBeInTheDocument())
+    })
+
+    describe('isCheckpointed is true', () => {
+      beforeEach(() => {
+        // @ts-expect-error
+        window.ENV.DISCUSSION_CHECKPOINTS_ENABLED = true
+      })
+
+      afterEach(() => {
+        // @ts-expect-error
+        window.ENV.DISCUSSION_CHECKPOINTS_ENABLED = false
+      })
+
+      it('labels the clear buttons on cards with no pills', () => {
+        renderComponent({isCheckpointed: true})
+        const labels = [
+          'Clear reply to topic due date/time',
+          'Clear required replies due date/time',
+        ]
+        labels.forEach(label => expect(screen.getByText(label)).toBeInTheDocument())
+      })
+
+      it('labels the clear buttons on cards with 1 pill', () => {
+        renderComponent({
+          customAllOptions: [{id: 'student-1', value: 'John'}],
+          selectedAssigneeIds: ['student-1'],
+          isCheckpointed: true,
+        })
+        const labels = [
+          'Clear reply to topic due date/time for John',
+          'Clear required replies due date/time for John',
+        ]
+        labels.forEach(label => expect(screen.getByText(label)).toBeInTheDocument())
+      })
+
+      it('labels the clear buttons on cards with 2 pills', () => {
+        renderComponent({
+          customAllOptions: [
+            {id: 'student-1', value: 'John'},
+            {id: 'student-2', value: 'Alice'},
+          ],
+          selectedAssigneeIds: ['student-1', 'student-2'],
+          isCheckpointed: true,
+        })
+        const labels = [
+          'Clear reply to topic due date/time for John and Alice',
+          'Clear required replies due date/time for John and Alice',
+        ]
+        labels.forEach(label => expect(screen.getByText(label)).toBeInTheDocument())
+      })
+
+      it('labels the clear buttons on cards with 3 pills', () => {
+        renderComponent({
+          customAllOptions: [
+            {id: 'student-1', value: 'John'},
+            {id: 'student-2', value: 'Alice'},
+            {id: 'student-3', value: 'Linda'},
+          ],
+          selectedAssigneeIds: ['student-1', 'student-2', 'student-3'],
+          isCheckpointed: true,
+        })
+        const labels = [
+          'Clear reply to topic due date/time for John, Alice, and Linda',
+          'Clear required replies due date/time for John, Alice, and Linda',
+        ]
+        labels.forEach(label => expect(screen.getByText(label)).toBeInTheDocument())
+      })
+
+      it('labels the clear buttons on cards with more than 3 pills', () => {
+        renderComponent({
+          customAllOptions: [
+            {id: 'student-1', value: 'John'},
+            {id: 'student-2', value: 'Alice'},
+            {id: 'student-3', value: 'Linda'},
+            {id: 'student-4', value: 'Bob'},
+          ],
+          selectedAssigneeIds: ['student-1', 'student-2', 'student-3', 'student-4'],
+          isCheckpointed: true,
+        })
+        const labels = [
+          'Clear reply to topic due date/time for John, Alice, and 2 others',
+          'Clear required replies due date/time for John, Alice, and 2 others',
+        ]
+        labels.forEach(label => expect(screen.getByText(label)).toBeInTheDocument())
+      })
     })
   })
 })

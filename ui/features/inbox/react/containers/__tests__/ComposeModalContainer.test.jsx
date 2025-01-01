@@ -17,7 +17,7 @@
  */
 
 import {AlertManagerContext} from '@canvas/alerts/react/AlertManager'
-import {ApolloProvider} from 'react-apollo'
+import {ApolloProvider} from '@apollo/client'
 import ComposeModalManager from '../ComposeModalContainer/ComposeModalManager'
 import {fireEvent, render, waitFor} from '@testing-library/react'
 import waitForApolloLoading from '../../../util/waitForApolloLoading'
@@ -139,6 +139,27 @@ describe('ComposeModalContainer', () => {
       fireEvent.click(selectOptions[0])
 
       expect(await component.findByTestId('include-observer-button')).toBeTruthy()
+    })
+  })
+
+  it('validates course', async () => {
+    const component = setup()
+
+    // Wait for modal to load
+    await component.findByTestId('message-body')
+
+    // Hit send
+    const button = component.getByTestId('send-button')
+    fireEvent.click(button)
+    await waitFor(() => expect(component.findByText('Please select a course')).toBeTruthy(), {
+      timeout: 3000,
+    })
+  })
+
+  describe('Inbox Settings Loader', () => {
+    it('shows loader when Inbox Signature Block Setting is enabled', async () => {
+      const {findAllByText} = setup({inboxSignatureBlock: true})
+      expect((await findAllByText('Loading Inbox Settings')).length).toBe(2)
     })
   })
 
@@ -490,31 +511,13 @@ describe('ComposeModalContainer', () => {
     expect(component.findByText('Please select a recipient.')).toBeTruthy()
 
     // Write something...
-    fireEvent.change(component.getByTestId('address-book-input'), {target: {value: 'potato'}})
+    fireEvent.change(component.getByTestId('compose-modal-header-address-book-input'), {
+      target: {value: 'potato'},
+    })
 
     // Hit send
     fireEvent.click(button)
 
     expect(component.findByText('No matches found. Please insert a valid recipient.')).toBeTruthy()
-  })
-
-  it('validates course', async () => {
-    const component = setup()
-
-    // Wait for modal to load
-    await component.findByTestId('message-body')
-
-    // Hit send
-    const button = component.getByTestId('send-button')
-    fireEvent.click(button)
-
-    expect(component.findByText('Please select a course')).toBeTruthy()
-  })
-
-  describe('Inbox Settings Loader', () => {
-    it('shows loader when Inbox Signature Block Setting is enabled', async () => {
-      const {findAllByText} = setup({inboxSignatureBlock: true})
-      expect((await findAllByText('Loading Inbox Settings')).length).toBe(2)
-    })
   })
 })

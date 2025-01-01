@@ -36,8 +36,8 @@ pipeline {
     DOCKER_BUILDKIT = 1
     FORCE_FAILURE = commitMessageFlag('force-failure-js').asBooleanInteger()
     PROGRESS_NO_TRUNC = 1
-    SELENIUM_NODE_IMAGE = "starlord.inscloudgate.net/jenkins/selenium-node-chrome:120.0"
-    SELENIUM_HUB_IMAGE = "starlord.inscloudgate.net/jenkins/selenium-hub:4.16"
+    SELENIUM_NODE_IMAGE = "948781806214.dkr.ecr.us-east-1.amazonaws.com/docker.io/selenium/node-chromium:126.0-20240621"
+    SELENIUM_HUB_IMAGE = "948781806214.dkr.ecr.us-east-1.amazonaws.com/docker.io/selenium/hub:4.22.0"
   }
 
   stages {
@@ -75,9 +75,7 @@ pipeline {
               String index = i
               extendedStage("Runner - Jest ${i}").hooks(stageHooks).nodeRequirements(label: nodeLabel(), podTemplate: jsStage.jestNodeRequirementsTemplate(index)).obeysAllowStages(false).timeout(10).queue(runnerStages) {
                 def tests = [:]
-
                 callableWithDelegate(jsStage.queueJestDistribution(index))(tests)
-
                 parallel(tests)
               }
             }
@@ -86,18 +84,23 @@ pipeline {
               String index = i
               extendedStage("Runner - Karma ${i}").hooks(stageHooks).nodeRequirements(label: nodeLabel(), podTemplate: jsStage.karmaNodeRequirementsTemplate(index)).obeysAllowStages(false).timeout(10).queue(runnerStages) {
                 def tests = [:]
-
                 callableWithDelegate(jsStage.queueKarmaDistribution(index))(tests)
-
                 parallel(tests)
               }
             }
 
-            extendedStage('Runner - Packages').hooks(stageHooks).nodeRequirements(label: nodeLabel(), podTemplate: jsStage.packagesNodeRequirementsTemplate()).obeysAllowStages(false).timeout(10).queue(runnerStages) {
+            for (int i = 0; i < jsStage.RCE_NODE_COUNT; i++) {
+              String index = i
+              extendedStage("Runner - RCE ${i}").hooks(stageHooks).nodeRequirements(label: nodeLabel(), podTemplate: jsStage.rceNodeRequirementsTemplate(index)).obeysAllowStages(false).timeout(12).queue(runnerStages) {
+                def tests = [:]
+                callableWithDelegate(jsStage.queueRceDistribution(index))(tests)
+                parallel(tests)
+              }
+            }
+
+            extendedStage('Runner - Packages').hooks(stageHooks).nodeRequirements(label: nodeLabel(), podTemplate: jsStage.packagesNodeRequirementsTemplate()).obeysAllowStages(false).timeout(12).queue(runnerStages) {
               def tests = [:]
-
               callableWithDelegate(jsStage.queuePackagesDistribution())(tests)
-
               parallel(tests)
             }
 

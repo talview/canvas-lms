@@ -16,11 +16,16 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react'
+import {assignLocation} from '@canvas/util/globalUtils'
 import {render, screen, waitFor} from '@testing-library/react'
 import userEvent, {PointerEventsCheckLevel} from '@testing-library/user-event'
 import {merge} from 'lodash'
+import React from 'react'
 import {DiscussionRow} from '../DiscussionRow'
+
+jest.mock('@canvas/util/globalUtils', () => ({
+  assignLocation: jest.fn(),
+}))
 
 // We can't call the wrapped component because a lot of these tests are depending
 // on the class component instances. So we've got to cobble up enough of the date
@@ -57,6 +62,7 @@ describe('DiscussionRow', () => {
             html_url: '',
             avatar_image_url: null,
           },
+          permissions: {},
           subscribed: false,
           read_state: 'unread',
           unread_count: 0,
@@ -65,6 +71,7 @@ describe('DiscussionRow', () => {
           html_url: '',
           user_count: 10,
           last_reply_at: new Date(2018, 1, 14, 0, 0, 0, 0),
+          ungraded_discussion_overrides: [],
         },
         canPublish: false,
         canReadAsAdmin: true,
@@ -87,8 +94,9 @@ describe('DiscussionRow', () => {
         DIRECT_SHARE_ENABLED: false,
         contextType: '',
         dateFormatter,
+        breakpoints: {mobileOnly: false},
       },
-      props
+      props,
     )
 
   const openManageMenu = async title => {
@@ -117,7 +125,7 @@ describe('DiscussionRow', () => {
     const discussion = {discussion_subentry_count: 5}
     render(<DiscussionRow {...makeProps({discussion})} />)
     const nodes = screen.getAllByText('0 unread replies')
-    expect(nodes.length).toBe(2)
+    expect(nodes).toHaveLength(2)
   })
 
   it('renders title as a link', () => {
@@ -148,7 +156,7 @@ describe('DiscussionRow', () => {
           updateDiscussion: updateDiscussionMock,
           discussion,
         })}
-      />
+      />,
     )
 
     await openManageMenu(discussion.title)
@@ -162,7 +170,7 @@ describe('DiscussionRow', () => {
         successMessage: 'Lock discussion blerp succeeded',
         failMessage: 'Lock discussion blerp failed',
       }),
-      expect.anything()
+      expect.anything(),
     )
   })
 
@@ -177,7 +185,7 @@ describe('DiscussionRow', () => {
           updateDiscussion: updateDiscussionMock,
           discussion,
         })}
-      />
+      />,
     )
 
     await openManageMenu(discussion.title)
@@ -191,7 +199,7 @@ describe('DiscussionRow', () => {
         successMessage: 'Unlock discussion blerp succeeded',
         failMessage: 'Unlock discussion blerp failed',
       }),
-      expect.anything()
+      expect.anything(),
     )
   })
 
@@ -235,7 +243,7 @@ describe('DiscussionRow', () => {
   it('renders the publish ToggleIcon', () => {
     const discussion = {published: false}
     render(<DiscussionRow {...makeProps({canPublish: true, discussion})} />)
-    expect(screen.getByText('Publish Hello World')).toBeInTheDocument()
+    expect(screen.getAllByText('Publish Hello World', {exact: false})).toHaveLength(2)
   })
 
   it('when feature flag is off, renders anonymous discussion lock explanation for read_as_admin', () => {
@@ -262,14 +270,52 @@ describe('DiscussionRow', () => {
   it('renders "Delayed until" date label if discussion is delayed', () => {
     const delayedDate = new Date()
     delayedDate.setYear(delayedDate.getFullYear() + 1)
-    const discussion = {delayed_post_at: delayedDate.toISOString()}
+    const discussion = {delayed_post_at: delayedDate}
     render(<DiscussionRow {...makeProps({discussion})} />)
-    expect(screen.getAllByText('Not available until', {exact: false}).length).toBe(2)
+    expect(screen.getAllByText(`Not available until ${dateFormatter(delayedDate)}`)).toBeTruthy()
+  })
+
+  it('renders "Delayed until" date label for ungraded overrides', () => {
+    const delayedDate = new Date()
+    delayedDate.setYear(delayedDate.getFullYear() + 1)
+    const discussion = {
+      ungraded_discussion_overrides: [{assignment_override: {unlock_at: delayedDate}}],
+    }
+    render(<DiscussionRow {...makeProps({discussion})} />)
+    expect(screen.getAllByText(`Not available until ${dateFormatter(delayedDate)}`)).toBeTruthy()
+  })
+
+  it('renders "Delayed until" date label for ungraded overrides even if has discussion has "everyone" dates', () => {
+    const delayedDate = new Date()
+    delayedDate.setYear(delayedDate.getFullYear() + 1)
+    const delayedDate2 = new Date()
+    delayedDate2.setYear(delayedDate.getFullYear() + 1)
+    const discussion = {
+      delayed_post_at: delayedDate,
+      ungraded_discussion_overrides: [{assignment_override: {unlock_at: delayedDate2}}],
+    }
+    render(<DiscussionRow {...makeProps({discussion})} />)
+    expect(screen.getAllByText(`Not available until ${dateFormatter(delayedDate2)}`)).toBeTruthy()
+  })
+
+  it('renders the further "Delayed until" date for ungraded overrides', () => {
+    const delayedDate = new Date()
+    delayedDate.setYear(delayedDate.getFullYear() + 1)
+    const delayedDate2 = new Date()
+    delayedDate2.setYear(delayedDate.getFullYear() + 1)
+    const discussion = {
+      ungraded_discussion_overrides: [
+        {assignment_override: {unlock_at: delayedDate}},
+        {assignment_override: {unlock_at: delayedDate2}},
+      ],
+    }
+    render(<DiscussionRow {...makeProps({discussion})} />)
+    expect(screen.getAllByText(`Not available until ${dateFormatter(delayedDate2)}`)).toBeTruthy()
   })
 
   it('renders a last reply at date', () => {
     render(<DiscussionRow {...makeProps()} />)
-    expect(screen.getAllByText('Last post at 2/14', {exact: false}).length).toBe(2)
+    expect(screen.getAllByText('Last post at 2/14', {exact: false})).toHaveLength(2)
   })
 
   it('does not render last reply at date if there is none', () => {
@@ -283,9 +329,47 @@ describe('DiscussionRow', () => {
     futureDate.setYear(futureDate.getFullYear() + 1)
     const discussion = {lock_at: futureDate}
     render(<DiscussionRow {...makeProps({discussion})} />)
-    expect(screen.getAllByText('Available until', {exact: false}).length).toBe(2)
+    expect(screen.getAllByText('Available until', {exact: false})).toHaveLength(2)
     // We need a relative date to ensure future-ness, so we can't really insist
     // on a given date element appearing this time
+  })
+
+  it('renders available until for ungraded overrides', () => {
+    const futureDate = new Date()
+    futureDate.setYear(futureDate.getFullYear() + 1)
+    const discussion = {
+      ungraded_discussion_overrides: [{assignment_override: {lock_at: futureDate}}],
+    }
+    render(<DiscussionRow {...makeProps({discussion})} />)
+    expect(screen.getAllByText(`Available until ${dateFormatter(futureDate)}`)).toBeTruthy()
+  })
+
+  it('renders available until for ungraded overrides even if has discussion has "everyone" dates', () => {
+    const futureDate = new Date()
+    futureDate.setYear(futureDate.getFullYear() + 1)
+    const futureDate2 = new Date()
+    futureDate2.setYear(futureDate2.getFullYear() + 2)
+    const discussion = {
+      lock_at: futureDate,
+      ungraded_discussion_overrides: [{assignment_override: {lock_at: futureDate2}}],
+    }
+    render(<DiscussionRow {...makeProps({discussion})} />)
+    expect(screen.getAllByText(`Available until ${dateFormatter(futureDate2)}`)).toBeTruthy()
+  })
+
+  it('renders the further available until date for ungraded overrides', () => {
+    const futureDate = new Date()
+    futureDate.setYear(futureDate.getFullYear() + 1)
+    const futureDate2 = new Date()
+    futureDate2.setYear(futureDate2.getFullYear() + 2)
+    const discussion = {
+      ungraded_discussion_overrides: [
+        {assignment_override: {lock_at: futureDate}},
+        {assignment_override: {lock_at: futureDate2}},
+      ],
+    }
+    render(<DiscussionRow {...makeProps({discussion})} />)
+    expect(screen.getAllByText(`Available until ${dateFormatter(futureDate2)}`)).toBeTruthy()
   })
 
   it('renders locked at if appropriate', () => {
@@ -293,7 +377,7 @@ describe('DiscussionRow', () => {
     pastDate.setYear(pastDate.getFullYear() - 1)
     const discussion = {lock_at: pastDate}
     render(<DiscussionRow {...makeProps({discussion})} />)
-    expect(screen.getAllByText('No longer available', {exact: false}).length).toBe(2)
+    expect(screen.getAllByText('No longer available', {exact: false})).toHaveLength(2)
     // We need a relative date to ensure past-ness, so we can't really insist
     // on a given date element appearing this time
   })
@@ -314,8 +398,68 @@ describe('DiscussionRow', () => {
       },
     })
     render(<DiscussionRow {...props} />)
-    expect(screen.getAllByText('Due ', {exact: false}).length).toBe(2)
+    expect(screen.getAllByText('Due ', {exact: false})).toHaveLength(2)
     expect(screen.queryByText('To do', {exact: false})).not.toBeInTheDocument()
+  })
+
+  it('renders checkpoint information', () => {
+    const props = makeProps({
+      discussion: {
+        reply_to_entry_required_count: 2,
+        assignment: {
+          checkpoints: [
+            {
+              tag: 'reply_to_topic',
+              points_possible: 20,
+              due_at: '2024-09-14T05:59:00Z',
+            },
+            {
+              tag: 'reply_to_entry',
+              points_possible: 10,
+              due_at: '2024-09-21T05:59:00Z',
+            },
+          ],
+        },
+      },
+    })
+    render(<DiscussionRow {...props} />)
+    expect(screen.queryByText('Reply to topic:', {exact: false})).toBeInTheDocument()
+    expect(screen.queryByText('Required replies (2):', {exact: false})).toBeInTheDocument()
+    expect(
+      screen.queryByText(props.dateFormatter('2024-09-14T05:59:00Z'), {exact: false}),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(props.dateFormatter('2024-09-21T05:59:00Z'), {exact: false}),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('No Due Date', {exact: false})).not.toBeInTheDocument()
+  })
+
+  it('renders checkpoint information without due dates', () => {
+    const props = makeProps({
+      discussion: {
+        reply_to_entry_required_count: 4,
+        assignment: {
+          checkpoints: [
+            {
+              tag: 'reply_to_topic',
+              points_possible: 10,
+              due_at: null,
+            },
+            {
+              tag: 'reply_to_entry',
+              points_possible: 20,
+              due_at: null,
+            },
+          ],
+        },
+      },
+    })
+    render(<DiscussionRow {...props} />)
+    expect(
+      screen.queryByText('Reply to topic: No Due Date Required replies (4): No Due Date', {
+        exact: false,
+      }),
+    ).toBeInTheDocument()
   })
 
   it('renders to do date if ungraded with a to do date', () => {
@@ -413,8 +557,8 @@ describe('DiscussionRow', () => {
     const ref = React.createRef()
     render(<DiscussionRow ref={ref} {...makeProps({masterCourseData})} />)
     expect(ref.current.masterCourseLock).toBeFalsy()
-    const container = screen.getByTestId('ic-master-course-icon-container')
-    expect(container.hasAttribute('data-tooltip')).toBe(false)
+    const container = screen.queryByTestId('ic-master-course-icon-container')
+    expect(container).not.toBeInTheDocument()
   })
 
   it('renders master course lock icon if masterCourseData is provided', () => {
@@ -443,7 +587,7 @@ describe('DiscussionRow', () => {
           displayManageMenu: true,
           onMoveDiscussion: () => {},
         })}
-      />
+      />,
     )
     // We still should show the menu thingy itself
     expect(screen.getByText('Manage options for Hello World')).toBeInTheDocument()
@@ -457,7 +601,7 @@ describe('DiscussionRow', () => {
           displayManageMenu: true,
           onMoveDiscussion: () => {},
         })}
-      />
+      />,
     )
 
     await openManageMenu('Hello World')
@@ -488,12 +632,12 @@ describe('DiscussionRow', () => {
           canPublish: true,
           published: false,
         })}
-      />
+      />,
     )
 
     const list = await openManageMenu(discussion.title)
     const allKeys = list.querySelectorAll('li')
-    expect(allKeys.length).toBe(3)
+    expect(allKeys).toHaveLength(3)
     expect(allKeys[0].textContent.includes('Close for comments')).toBe(true)
     expect(allKeys[1].textContent.includes('Pin')).toBe(true)
     expect(allKeys[2].textContent.includes('Delete')).toBe(true)
@@ -528,7 +672,7 @@ describe('DiscussionRow', () => {
       expect.objectContaining({
         open: true,
         selection: {discussion_topics: [props.discussion.id]},
-      })
+      }),
     )
   })
 
@@ -552,7 +696,7 @@ describe('DiscussionRow', () => {
           content_type: 'discussion_topic',
           content_id: props.discussion.id,
         },
-      })
+      }),
     )
   })
 
@@ -567,7 +711,7 @@ describe('DiscussionRow', () => {
             },
           },
         })}
-      />
+      />,
     )
 
     expect(screen.getByText('No longer available')).toBeInTheDocument()
@@ -580,12 +724,12 @@ describe('DiscussionRow', () => {
           displayManageMenu: true,
           onMoveDiscussion: () => {},
         })}
-      />
+      />,
     )
 
     const list = await openManageMenu('Hello World')
     const allKeys = list.querySelectorAll('li')
-    expect(allKeys.length).toBe(1)
+    expect(allKeys).toHaveLength(1)
     expect(allKeys[0].textContent.includes('Move To')).toBe(true)
   })
 
@@ -596,12 +740,12 @@ describe('DiscussionRow', () => {
           displayManageMenu: true,
           displayPinMenuItem: true,
         })}
-      />
+      />,
     )
 
     const list = await openManageMenu('Hello World')
     const allKeys = list.querySelectorAll('li')
-    expect(allKeys.length).toBe(1)
+    expect(allKeys).toHaveLength(1)
     expect(allKeys[0].textContent.includes('Pin')).toBe(true)
   })
 
@@ -619,12 +763,12 @@ describe('DiscussionRow', () => {
             },
           },
         })}
-      />
+      />,
     )
 
     const list = await openManageMenu('Hello World')
     const allKeys = list.querySelectorAll('li')
-    expect(allKeys.length).toBe(1)
+    expect(allKeys).toHaveLength(1)
     expect(allKeys[0].textContent.includes('SpeedGrader')).toBe(true)
   })
 
@@ -635,12 +779,12 @@ describe('DiscussionRow', () => {
           displayManageMenu: true,
           displayDuplicateMenuItem: true,
         })}
-      />
+      />,
     )
 
     const list = await openManageMenu('Hello World')
     const allKeys = list.querySelectorAll('li')
-    expect(allKeys.length).toBe(1)
+    expect(allKeys).toHaveLength(1)
     expect(allKeys[0].textContent.includes('Duplicate')).toBe(true)
   })
 
@@ -651,12 +795,12 @@ describe('DiscussionRow', () => {
           displayManageMenu: true,
           displayDeleteMenuItem: true,
         })}
-      />
+      />,
     )
 
     const list = await openManageMenu('Hello World')
     const allKeys = list.querySelectorAll('li')
-    expect(allKeys.length).toBe(1)
+    expect(allKeys).toHaveLength(1)
     expect(allKeys[0].textContent.includes('Delete')).toBe(true)
   })
 
@@ -667,13 +811,37 @@ describe('DiscussionRow', () => {
           displayManageMenu: true,
           displayLockMenuItem: true,
         })}
-      />
+      />,
     )
 
     const list = await openManageMenu('Hello World')
     const allKeys = list.querySelectorAll('li')
-    expect(allKeys.length).toBe(1)
+    expect(allKeys).toHaveLength(1)
     expect(allKeys[0].textContent.includes('Close for comments')).toBe(true)
+  })
+
+  it('renders edit menu item if the user has update permission and discussion has html_url', async () => {
+    render(
+      <DiscussionRow
+        {...makeProps({
+          displayManageMenu: true,
+          discussion: {
+            permissions: {update: true},
+            html_url: 'https://example.com',
+          },
+        })}
+      />,
+    )
+
+    const list = await openManageMenu('Hello World')
+    const allKeys = list.querySelectorAll('li')
+    expect(allKeys).toHaveLength(1)
+    expect(allKeys[0].textContent.includes('Edit')).toBe(true)
+
+    const edit = screen.getByText('Edit')
+    await user.click(edit)
+
+    expect(assignLocation).toHaveBeenCalledWith('https://example.com/edit')
   })
 
   it('renders mastery paths menu item if permitted', async () => {
@@ -686,12 +854,12 @@ describe('DiscussionRow', () => {
           },
           displayMasteryPathsMenuItem: true,
         })}
-      />
+      />,
     )
 
     const list = await openManageMenu('Hello World')
     const allKeys = list.querySelectorAll('li')
-    expect(allKeys.length).toBe(1)
+    expect(allKeys).toHaveLength(1)
     expect(allKeys[0].textContent.includes('Mastery Paths')).toBe(true)
   })
 
@@ -705,7 +873,7 @@ describe('DiscussionRow', () => {
           },
           displayMasteryPathsLink: true,
         })}
-      />
+      />,
     )
 
     expect(screen.getByText('Mastery Paths')).toBeInTheDocument()
@@ -725,12 +893,12 @@ describe('DiscussionRow', () => {
             },
           ],
         })}
-      />
+      />,
     )
 
     const list = await openManageMenu('Hello World')
     const allKeys = list.querySelectorAll('li')
-    expect(allKeys.length).toBe(1)
+    expect(allKeys).toHaveLength(1)
     expect(allKeys[0].textContent.includes('discussion_topic_menu Text')).toBe(true)
   })
 
@@ -754,12 +922,12 @@ describe('DiscussionRow', () => {
             },
           ],
         })}
-      />
+      />,
     )
 
     const list = await openManageMenu('Hello World')
     const allKeys = list.querySelectorAll('li')
-    expect(allKeys.length).toBe(2)
+    expect(allKeys).toHaveLength(2)
     expect(allKeys[0].textContent.includes('discussion_topic_menu Text')).toBe(true)
     expect(allKeys[1].textContent.includes('discussion_topic_menu otherText')).toBe(true)
   })

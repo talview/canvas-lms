@@ -17,7 +17,7 @@
  */
 
 import React, {useContext} from 'react'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {View} from '@instructure/ui-view'
 import {Text} from '@instructure/ui-text'
 import {Flex} from '@instructure/ui-flex'
@@ -25,10 +25,11 @@ import {Checkbox} from '@instructure/ui-checkbox'
 import {IconButton} from '@instructure/ui-buttons'
 import {IconQuestionLine} from '@instructure/ui-icons'
 import {Tooltip} from '@instructure/ui-tooltip'
-import {func} from 'prop-types'
+import {bool, func, string} from 'prop-types'
 import {GroupContext} from './context'
+import SelfSignupEndDate from './SelfSignupEndDate'
 
-const I18n = useI18nScope('groups')
+const I18n = createI18nScope('groups')
 
 const HelpText = () => (
   <div style={{maxWidth: '300px'}}>
@@ -39,13 +40,18 @@ const HelpText = () => (
     </p>
     <p>
       {I18n.t(
-        'Note that as long as this option is enabled, students can move themselves from one group to another.'
+        'With this option enabled, students can move themselves from one group to another. However, you can set an end date to close self sign-up to prevent students from joining or changing groups after a certain date.'
       )}
     </p>
   </div>
 )
 
-export const SelfSignup = ({onChange}) => {
+export const SelfSignup = ({
+  onChange,
+  selfSignupEndDateEnabled = false,
+  endDateOnChange,
+  direction,
+}) => {
   const {selfSignup, bySection} = useContext(GroupContext)
 
   function handleChange(key, val) {
@@ -54,8 +60,12 @@ export const SelfSignup = ({onChange}) => {
     onChange(result)
   }
 
+  const handleEndDateUpdate = value => {
+    endDateOnChange(value)
+  }
+
   return (
-    <Flex>
+    <Flex direction={direction} data-testid="group-self-sign-up-controls">
       <Flex.Item padding="none medium none none">
         <Text>{I18n.t('Self Sign-Up')}</Text>
         <Tooltip renderTip={<HelpText />} placement="top" on={['click', 'hover', 'focus']}>
@@ -72,7 +82,7 @@ export const SelfSignup = ({onChange}) => {
         </Tooltip>
       </Flex.Item>
       <Flex.Item shouldGrow={true}>
-        <View display="block" padding="x-small x-small">
+        <View display="block" padding="x-small x-small" data-testid="allow-self-signup-wrapper">
           <Checkbox
             checked={selfSignup}
             label={I18n.t('Allow self sign-up')}
@@ -93,6 +103,11 @@ export const SelfSignup = ({onChange}) => {
             }}
           />
         </View>
+        {selfSignup && selfSignupEndDateEnabled && (
+          <View display="block" padding="x-small x-small">
+            <SelfSignupEndDate onDateChange={handleEndDateUpdate} />
+          </View>
+        )}
       </Flex.Item>
     </Flex>
   )
@@ -100,4 +115,7 @@ export const SelfSignup = ({onChange}) => {
 
 SelfSignup.propTypes = {
   onChange: func.isRequired,
+  selfSignupEndDateEnabled: bool,
+  endDateOnChange: func,
+  direction: string,
 }

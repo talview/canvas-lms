@@ -69,16 +69,11 @@ describe('IndexHeader', () => {
     expect(screen.getByRole('combobox', {name: 'Announcement Filter'})).toBeInTheDocument()
   })
 
-  it('renders search input', () => {
-    render(<IndexHeader {...defaultProps()} />)
-    expect(screen.getByRole('textbox', {name: 'Search announcements by title'})).toBeInTheDocument()
-  })
-
   it('lets me add an announcement when I have the permission', () => {
     render(
       <IndexHeader {...defaultProps()} permissions={{...defaultPermissions(), create: true}} />
     )
-    expect(screen.getByText('Add announcement')).toBeInTheDocument()
+    expect(screen.getByText('Add Announcement')).toBeInTheDocument()
   })
 
   it('lets me lock an announcement when I have the permission and it is unlocked', () => {
@@ -125,7 +120,7 @@ describe('IndexHeader', () => {
 
     it('renders title', () => {
       render(<IndexHeader {...defaultProps()} />)
-      expect(screen.getByText('All Announcements')).toBeInTheDocument()
+      expect(screen.getByText('Announcements')).toBeInTheDocument()
     })
 
     it('renders icon dropdown next to title', () => {

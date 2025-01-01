@@ -19,6 +19,8 @@
   "adjacent_links_with_the_same_url_should_be_a_singl_7a1f7f6c": {
     "message": "Intilliggande länkar med samma webbadress ska vara en enda länk."
   },
+  "ai_response_9624e8e8": { "message": "AI-svar:" },
+  "ai_tools_fda01177": { "message": "AI-verktyg" },
   "aleph_f4ffd155": { "message": "Aleph" },
   "align_11050992": { "message": "Justera" },
   "alignment_and_lists_5cebcb69": { "message": "Justering och listor" },
@@ -36,6 +38,9 @@
   },
   "an_error_occurred_making_a_network_request_d1bda348": {
     "message": "Ett fel uppstod vid försök att göra en nätverksförfrågan"
+  },
+  "an_error_occurred_processing_your_request_a3a38d84": {
+    "message": "Ett fel uppstod när din begäran behandlades."
   },
   "an_error_occurred_uploading_your_media_71f1444d": {
     "message": "Ett fel uppstod när dina mediefiler laddades upp."
@@ -74,6 +79,7 @@
     "message": "Automatiskt sparat innehåll finns. Vill du läsa in det automatiskt sparade innehållet istället?"
   },
   "available_folders_694d0436": { "message": "Tillgängliga mappar" },
+  "background_1bc88842": { "message": "Bakgrund" },
   "backslash_b2d5442d": { "message": "Omvänt snedstreck" },
   "bar_ec63ed6": { "message": "Fält" },
   "basic_554cdc0a": { "message": "Grundläggande" },
@@ -84,6 +90,7 @@
   "binomial_coefficient_ea5b9bb7": { "message": "Binomialkoefficient" },
   "black_4cb01371": { "message": "Svart" },
   "blue_daf8fea9": { "message": "Blå" },
+  "border_5b08b06d": { "message": "Gräns" },
   "bottom_15a2a9be": { "message": "Längst ned" },
   "bottom_third_5f5fec1d": { "message": "Tredje nerifrån" },
   "bowtie_5f9629e4": { "message": "Rosett" },
@@ -159,13 +166,18 @@
   "collapse_to_hide_types_1ab46d2e": {
     "message": "Minimera för att dölja { types }"
   },
+  "color_a363e1b0": { "message": "Färg" },
+  "color_contrast_4c418add": { "message": "Färgkontrast" },
+  "color_contrast_ratio_687782f0": { "message": "Färgkontrastförhållande" },
   "color_picker_6b359edf": { "message": "Färgväljaren" },
   "color_picker_colorname_selected_ad4cf400": {
     "message": "Färgväljaren ({ colorName } valda)"
   },
+  "color_popup_af39810f": { "message": "Färg-popup" },
   "column_e1ae5c64": { "message": "Kolumn" },
   "column_group_1c062368": { "message": "Kolumngrupp" },
   "complex_numbers_a543d004": { "message": "Komplexa nummer" },
+  "compose_44c904f4": { "message": "Skriv" },
   "computer_1d7dfa6f": { "message": "Dator" },
   "congruent_5a244acd": { "message": "Kongruent" },
   "contains_311f37b7": { "message": "Innehåller" },
@@ -179,6 +191,7 @@
   "content_subtype_5ce35e88": { "message": "Underordnad innehållstyp" },
   "content_type_2cf90d95": { "message": "Innehållstyp" },
   "coproduct_e7838082": { "message": "Samproduktion" },
+  "copy_9748f9f": { "message": "Kopiera" },
   "copyright_holder_66ee111": { "message": "Upphovsrättsinnehavare:" },
   "could_not_insert_content_itemtype_items_are_not_cu_638dfecd": {
     "message": "Det gick inte att infoga innehåll: \"{ itemType }\" artiklarna stöds för närvarande inte i Canvas."
@@ -251,6 +264,7 @@
   "discussions_a5f96392": { "message": "Diskussioner" },
   "discussions_index_6c36ced": { "message": "Diskussionsindex" },
   "disjoint_union_e74351a8": { "message": "Upplöst union" },
+  "dislike_14befc48": { "message": "Ogilla" },
   "display_options_315aba85": { "message": "Visa alternativ" },
   "display_text_link_opens_in_a_new_tab_75e9afc9": {
     "message": "Visa textlänk (öppnas i en ny flik)"
@@ -290,7 +304,7 @@
   },
   "edit_icon_2c6b0e91": { "message": "Redigera ikon" },
   "edit_link_7f53bebb": { "message": "Redigera länk" },
-  "editor_statusbar_26ac81fc": { "message": "Statusfält för redigeraren" },
+  "editor_status_bar_653f44ee": { "message": "Statusfält i redigeraren" },
   "element_starting_with_start_91bf4c3b": {
     "message": "Element som börjar med { start }"
   },
@@ -314,6 +328,7 @@
   },
   "enter_replacement_text_17631bbc": { "message": "ange ersättningstext" },
   "enter_search_text_26cb4459": { "message": "ange söktext" },
+  "enter_text_8b35c65b": { "message": "Skriv in text" },
   "epsilon_54bb8afa": { "message": "Epsilon" },
   "epsilon_variant_d31f1e77": { "message": "Epsilon (variant)" },
   "equals_sign_c51bdc58": { "message": "Lika med-tecken" },
@@ -338,8 +353,12 @@
   "extra_small_9ae33252": { "message": "Extra liten" },
   "extracurricular_icon_67c8ca42": { "message": "Fritidsikon" },
   "f_function_fe422d65": { "message": "F (funktion)" },
+  "fail_544e5dde": { "message": "MISSLYCKADES" },
   "failed_getting_file_contents_e9ea19f4": {
     "message": "Det gick inte att hämta filinnehåll"
+  },
+  "failed_to_copy_response_d3def551": {
+    "message": "Det gick inte att kopiera svaret"
   },
   "failed_to_retrieve_content_from_external_tool_5899c213": {
     "message": "Det gick inte att hämta innehåll från externt verktyg"
@@ -392,6 +411,7 @@
     "message": "Gå till redigerarens verktygsfält"
   },
   "grades_a61eba0a": { "message": "Omdömen" },
+  "graphics_text_bc9568bc": { "message": "Bildtext" },
   "greater_than_e98af662": { "message": "Större än" },
   "greater_than_or_equal_b911949a": { "message": "Större än eller lika med" },
   "greek_65c5b3f7": { "message": "Grekiska" },
@@ -426,6 +446,12 @@
   "health_icon_8d292eb5": { "message": "Hälsoikon" },
   "hearts_suit_e50e04ca": { "message": "Hjärter (kortspel)" },
   "height_69b03e15": { "message": "Höjd" },
+  "hello_please_describe_the_modifications_you_would__49b19837": {
+    "message": "Hej! Beskriv de ändringar du vill göra i din komposition."
+  },
+  "hello_please_describe_the_modifications_you_would__600dbbf0": {
+    "message": "Hej! Beskriv de ändringar du vill göra i ditt urval."
+  },
   "hexagon_d8468e0d": { "message": "Hexagon" },
   "hide_description_bfb5502e": { "message": "Dölj beskrivning" },
   "hide_title_description_caf092ef": {
@@ -442,6 +468,9 @@
   },
   "i_hold_the_copyright_71ee91b1": {
     "message": "Jag är upphovsrättsinnehavare"
+  },
+  "i_m_sorry_but_i_cannot_find_the_ai_s_answer_67569d19": {
+    "message": "Jag hittar inte AI-svaret"
   },
   "icon_215a1dc6": { "message": "Ikon" },
   "icon_8168b2f8": { "message": "ikon" },
@@ -486,6 +515,10 @@
   "indigo_2035fc55": { "message": "Indigo" },
   "inference_fed5c960": { "message": "Slutsats" },
   "infinity_7a10f206": { "message": "Oändlighet" },
+  "input_field_for_alpha_678265fd": { "message": "Inmatningsfält för alfa" },
+  "input_field_for_blue_561e020a": { "message": "Inmatningsfält för blått" },
+  "input_field_for_green_67f8b2b6": { "message": "Inmatningsfält för grönt" },
+  "input_field_for_red_86a84615": { "message": "Inmatningsfält för rött" },
   "insert_593145ef": { "message": "Infoga" },
   "insert_link_6dc23cae": { "message": "Infoga länk" },
   "insert_math_equation_57c6e767": {
@@ -509,6 +542,7 @@
   "language_arts_icon_a798b0f8": { "message": "Språkvetenskapsikon" },
   "languages_icon_9d20539": { "message": "Språkikon" },
   "large_9c5e80e7": { "message": "Stor" },
+  "large_text_e7ba08cd": { "message": "Stor text" },
   "learn_more_about_adjacent_links_2cb9762c": {
     "message": "Läs mer om intilliggande länkar"
   },
@@ -575,6 +609,7 @@
   "links_to_an_external_site_de74145d": {
     "message": "Länkar till en extern sida."
   },
+  "lists_cd1336fc": { "message": "Listor" },
   "lists_should_be_formatted_as_lists_f862de8d": {
     "message": "Listor ska formateras som listor."
   },
@@ -626,6 +661,7 @@
   "minus_plus_3461f637": { "message": "Minus/plus" },
   "misc_3b692ea7": { "message": "Diverse" },
   "miscellaneous_e9818229": { "message": "Blandat" },
+  "modify_6b0b13e3": { "message": "Ändra" },
   "module_90d9fd32": { "message": "Modul" },
   "modules_c4325335": { "message": "Moduler" },
   "moving_image_to_crop_directionword_6f66cde2": {
@@ -635,12 +671,6 @@
   "multi_color_image_63d7372f": { "message": "Flerfärgsbild" },
   "multiplication_sign_15f95c22": { "message": "Multipliceringstecken" },
   "music_icon_4db5c972": { "message": "Musikikon" },
-  "must_be_at_least_percentage_22e373b6": {
-    "message": "Måste vara minst { percentage }%"
-  },
-  "must_be_at_least_width_x_height_px_41dc825e": {
-    "message": "Måste vara minst { width } x { height }pixlar"
-  },
   "my_files_2f621040": { "message": "Mina filer" },
   "n_th_root_9991a6e4": { "message": "N:te rot" },
   "nabla_1e216d25": { "message": "Nabla" },
@@ -695,6 +725,7 @@
   "no_video_1ed00b26": { "message": "Ingen video" },
   "none_3b5e34d2": { "message": "Ingen" },
   "none_selected_b93d56d2": { "message": "Inga valda" },
+  "normal_text_7b03da48": { "message": "Normal text" },
   "not_equal_6e2980e6": { "message": "Är inte lika med" },
   "not_in_not_an_element_of_fb1ffb54": {
     "message": "Inte i (inte ett element av)"
@@ -732,9 +763,6 @@
   },
   "outline_color_3ef2cea7": { "message": "Konturfärg" },
   "outline_size_a6059a21": { "message": "Konturstorlek" },
-  "p_is_not_a_valid_protocol_which_must_be_ftp_http_h_adf13fc2": {
-    "message": "{ p } är inte ett giltigt protokoll. Protokollet måste vara ftp, http, https, mailto, skype, tel eller så kan det utelämnas"
-  },
   "page_50c4823d": { "message": "Sida" },
   "pages_e5414c2c": { "message": "Sidor" },
   "paragraph_5e5ad8eb": { "message": "Paragraf" },
@@ -743,6 +771,7 @@
   },
   "parallel_d55d6e38": { "message": "Parallel" },
   "partial_derivative_4a9159df": { "message": "Partiell (derivat)" },
+  "pass_1c19a2b3": { "message": "GODKÄND" },
   "paste_5963d1c1": { "message": "Klistra in" },
   "pause_12af3bb4": { "message": "Pausa" },
   "pentagon_17d82ea3": { "message": "Pentagon" },
@@ -750,6 +779,9 @@
   "percentage_34ab7c2c": { "message": "Procent" },
   "percentage_must_be_a_number_8033c341": {
     "message": "Procenttalet måste vara ett tal"
+  },
+  "percentage_must_be_at_least_percentage_a98ca8fc": {
+    "message": "Procenttalet måste vara minst { percentage }%"
   },
   "performing_arts_icon_f3497486": { "message": "Underhållningsikon" },
   "perpendicular_7c48ede4": { "message": "Lodrät" },
@@ -760,8 +792,12 @@
   },
   "pi_dc4f0bd8": { "message": "Pi" },
   "pi_variant_10f5f520": { "message": "Pi (variant)" },
+  "pick_a_color_557abfb0": { "message": "Välj en färg" },
   "pink_68ad45cb": { "message": "Rosa" },
   "pixels_52ece7d1": { "message": "Pixlar" },
+  "pixels_must_be_at_least_width_x_height_px_e965edd5": {
+    "message": "Antalet pixlar måste vara minst { width } x { height } pixlar"
+  },
   "play_1a47eaa7": { "message": "Spela upp" },
   "play_media_comment_35257210": { "message": "Spela upp mediekommentar." },
   "play_media_comment_by_name_from_createdat_c230123d": {
@@ -769,6 +805,9 @@
   },
   "please_allow_canvas_to_access_your_microphone_and__dc2c3079": {
     "message": "Ge Canvas åtkomst till din mikrofon och webbkamera."
+  },
+  "please_decribe_what_you_would_like_to_compose_27a51be5": {
+    "message": "Beskriv vad du vill komponera."
   },
   "plus_d43cd4ec": { "message": "Plus" },
   "plus_minus_f8be2e83": { "message": "Plus/minus" },
@@ -787,6 +826,7 @@
   "preview_inline_9787330": { "message": "Inbäddad förhandsgranskning" },
   "previous_bd2ac015": { "message": "Föregående" },
   "previous_findtext_8dfbfd30": { "message": "Föregående { findText }" },
+  "previously_chosen_colors_f1338315": { "message": "Tidigare valda färger" },
   "prime_917ea60e": { "message": "Prim" },
   "prime_numbers_13464f61": { "message": "Primtal" },
   "product_39cf144f": { "message": "Produkt" },
@@ -832,12 +872,16 @@
   },
   "reset_95a81614": { "message": "Återställ" },
   "resize_ec83d538": { "message": "Ändra storlek" },
+  "response_copied_to_clipboard_130d66cd": {
+    "message": "Svar kopierades till Urklipp"
+  },
   "restore_auto_save_deccd84b": {
     "message": "Vill du återställa funktionen Spara automatiskt?"
   },
   "result_index_of_max_7db5ad8b": {
     "message": "Resultat { index } av { max }."
   },
+  "retry_ebd5f8ba": { "message": "Försök igen" },
   "reverse_turnstile_does_not_yield_7558be06": { "message": "Vändkors" },
   "rho_a0244a36": { "message": "Rho" },
   "rho_variant_415245cd": { "message": "Rho (variant)" },
@@ -916,6 +960,7 @@
     "message": "Tryck på Skift+O för att öppna den nätta HTML-redigeraren."
   },
   "shortcut_911d6255": { "message": "Genväg" },
+  "show_all_967a90f0": { "message": "Visa alla" },
   "show_audio_options_b489926b": { "message": "Visa ljudalternativ" },
   "show_image_options_1e2ecc6b": { "message": "Visa bildalternativ" },
   "show_link_options_545338fd": { "message": "Visa länkalternativ" },
@@ -981,6 +1026,7 @@
   },
   "styles_2aa721ef": { "message": "Stilar" },
   "submit_a3cc6859": { "message": "Lämna in" },
+  "submitting_b90fac62": { "message": "Skickar ..." },
   "subscript_59744f96": { "message": "Nedsänkt" },
   "subset_19c1a92f": { "message": "Delmängd" },
   "subset_strict_8d8948d6": { "message": "Delmängd (strikt)" },
@@ -1214,6 +1260,7 @@
   "view_word_and_character_counts_a743dd0c": {
     "message": "Visa ord- och teckenräkning"
   },
+  "waiting_for_response_1efd0c50": { "message": "Väntar på svar" },
   "we_couldn_t_detect_a_working_microphone_connected__ceb71c40": {
     "message": "Det gick inte att identifiera en fungerande mikrofon kopplad till din enhet."
   },
@@ -1228,6 +1275,7 @@
   "webpages_should_only_have_a_single_h1_which_is_aut_dc99189e": {
     "message": "Webbsidor ska bara ha en enkel H1, som automatiskt används för sidans titel. Den första rubriken i ditt innehåll ska vara i H2."
   },
+  "what_would_you_like_to_do_6dc0d541": { "message": "Vad vill du göra?" },
   "when_markup_is_used_that_visually_formats_items_as_f941fc1b": {
     "message": "Om markeringar används som visuellt formaterar objekt som listor men inte visar listans relation kan användare få svårt att navigera informationen."
   },
@@ -1242,8 +1290,18 @@
   "word_count_c77fe3a6": { "message": "Antal ord" },
   "words_b448b7d5": { "message": "Ord" },
   "wreath_product_200b38ef": { "message": "Kransprodukt" },
+  "writing_assistant_a30ac16a": { "message": "Skrivassistent" },
   "xi_149681d0": { "message": "Xi" },
   "yes_dde87d5": { "message": "Ja" },
+  "you_are_on_a_color_palette_to_navigate_on_the_pale_227fc3a6": {
+    "message": "Du är på en färgpalett. För att navigera upp, till vänster/höger eller ned på paletten, använd knapparna W, A, S och D."
+  },
+  "you_are_on_a_color_slider_to_navigate_the_slider_l_e800f68a": {
+    "message": "Du är på ett färgreglage. För att navigera upp, till vänster/höger eller ned i skjutreglaget, använd knapparna A och D."
+  },
+  "you_are_on_an_alpha_slider_to_navigate_the_slider__3a014dc5": {
+    "message": "Du är på ett alfareglage. För att navigera upp, till vänster/höger eller ned i skjutreglaget, använd knapparna A och D."
+  },
   "you_have_unsaved_changes_in_the_icon_maker_tray_do_e8cf5f1b": {
     "message": "Du har ändringar som inte har sparats i facket för ikonverktyget. Vill du fortsätta utan att spara dessa ändringar?"
   },

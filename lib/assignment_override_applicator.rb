@@ -58,6 +58,9 @@ module AssignmentOverrideApplicator
                                .applied_overrides.select { |o| o.set_type == "CourseSection" }
                                .map(&:set_id)
       course_section_ids = context.active_course_sections.map(&:id)
+      course_override_due_at = result_learning_object
+                               .applied_overrides.find { |o| o.set_type == "Course" }
+                               &.due_at
 
       if learning_object.is_a?(Assignment) || learning_object.is_a?(Quizzes::Quiz)
         result_learning_object.due_at =
@@ -68,7 +71,7 @@ module AssignmentOverrideApplicator
             result_learning_object.due_at
           else
             potential_due_dates = [
-              result_learning_object.without_overrides.due_at,
+              course_override_due_at || result_learning_object.without_overrides.due_at,
               result_learning_object.due_at
             ]
             if potential_due_dates.include?(nil)
@@ -85,7 +88,11 @@ module AssignmentOverrideApplicator
 
   def self.version_for_cache(learning_object)
     # don't really care about the version number unless it is an old one
-    learning_object.current_version? ? "current" : learning_object.version_number
+    if learning_object.is_a?(SimplyVersioned::InstanceMethods) && !learning_object.current_version?
+      learning_object.version_number
+    else
+      "current"
+    end
   end
 
   # determine list of overrides (of appropriate version) that apply to the
@@ -106,7 +113,9 @@ module AssignmentOverrideApplicator
         context.shard.activate do
           if (context.user_has_been_admin?(user) || context.user_has_no_enrollments?(user)) && context.grants_right?(user, :read_as_admin)
             overrides = learning_object.all_assignment_overrides
-            if learning_object.current_version?
+            if learning_object.is_a?(SimplyVersioned::InstanceMethods) && !learning_object.current_version?
+              overrides = current_override_version(learning_object, overrides)
+            else
               visible_user_ids = context.enrollments_visible_to(user).select(:user_id)
 
               overrides = if overrides.loaded?
@@ -122,8 +131,6 @@ module AssignmentOverrideApplicator
 
                             ovs + adhoc_ovs
                           end
-            else
-              overrides = current_override_version(learning_object, overrides)
             end
 
             unless ConditionalRelease::Service.enabled_in_context?(learning_object.context)
@@ -151,7 +158,7 @@ module AssignmentOverrideApplicator
             overrides += observed if observed
           end
 
-          unless learning_object.current_version?
+          if learning_object.is_a?(SimplyVersioned::InstanceMethods) && !learning_object.current_version?
             overrides = current_override_version(learning_object, overrides)
           end
 
@@ -254,8 +261,8 @@ module AssignmentOverrideApplicator
         end.pluck(:course_section_id).uniq
     end
 
-    overrides = if learning_object.all_assignment_overrides.loaded?
-                  learning_object.all_assignment_overrides.select { |o| o.set_type == "CourseSection" && section_ids.include?(o.set_id) }
+    overrides = if learning_object.preloaded_all_overrides
+                  learning_object.preloaded_all_overrides.select { |o| o.set_type == "CourseSection" && section_ids.include?(o.set_id) }
                 else
                   learning_object.all_assignment_overrides.where(set_type: "CourseSection", set_id: section_ids)
                 end
@@ -272,8 +279,8 @@ module AssignmentOverrideApplicator
       context = learning_object.context
       return nil if user.enrollments.active.where(course: context).empty?
 
-      if learning_object.all_assignment_overrides.loaded?
-        learning_object.all_assignment_overrides.select { |o| o.set_type == "Course" && o.set_id == context.id }
+      if learning_object.preloaded_all_overrides
+        learning_object.preloaded_all_overrides.select { |o| o.set_type == "Course" && o.set_id == context.id }
       else
         learning_object.all_assignment_overrides.where(set_type: "Course", set_id: context.id)
       end
@@ -359,7 +366,7 @@ module AssignmentOverrideApplicator
           # for any times in the value set, bring them back from raw UTC into the
           # current Time.zone before placing them in the assignment
           value = value.in_time_zone if value.respond_to?(:in_time_zone) && !value.is_a?(Date)
-          cloned_learning_object.write_attribute(field, value)
+          cloned_learning_object[field] = value
         end
       end
     end

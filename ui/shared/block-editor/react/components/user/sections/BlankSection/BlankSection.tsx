@@ -20,40 +20,34 @@ import React, {useState} from 'react'
 import {Element, useEditor} from '@craftjs/core'
 import {NoSections} from '../../common'
 import {Container} from '../../blocks/Container'
-import {SectionMenu} from '../../../editor/SectionMenu'
 import {useClassNames} from '../../../../utils'
 
-type BlankSectionProps = {
-  children?: React.ReactNode
-}
-export const BlankSection = ({children}: BlankSectionProps) => {
+import {useScope as createI18nScope} from '@canvas/i18n'
+
+const I18n = createI18nScope('block-editor')
+
+export const BlankSection = () => {
   const {enabled} = useEditor(state => ({
     enabled: state.options.enabled,
   }))
   const [cid] = useState<string>('blank-section') // uid('columns-section', 2)
   const clazz = useClassNames(enabled, {empty: false}, ['section', 'blank-section'])
 
-  if (enabled) {
-    return (
-      <Container className={clazz}>
-        <Element
-          id={`${cid}_nosection1`}
-          is={NoSections}
-          canvas={true}
-          className="blank-section__inner"
-        />
-      </Container>
-    )
-  }
-  return <div className="section blank-section__inner">{children}</div>
+  return (
+    <Container className={clazz}>
+      <Element
+        id={`${cid}_nosection1`}
+        is={NoSections}
+        canvas={true}
+        className="blank-section__inner"
+      />
+    </Container>
+  )
 }
 
 BlankSection.craft = {
-  displayName: 'Section',
+  displayName: I18n.t('Blank Section'),
   custom: {
     isSection: true,
-  },
-  related: {
-    sectionMenu: SectionMenu,
   },
 }

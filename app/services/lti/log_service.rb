@@ -26,7 +26,7 @@ module Lti
       resource_selection
     ].freeze
 
-    def initialize(tool:, context:, user:, session_id:, launch_type:, placement: nil)
+    def initialize(tool:, context:, user:, session_id:, launch_type:, launch_url: nil, placement: nil)
       raise ArgumentError, "context must be a Course, Account, or Group" unless [Course, Account, Group].include? context.class
       raise ArgumentError, "launch_type must be one of #{LAUNCH_TYPES.join(", ")}" unless LAUNCH_TYPES.include?(launch_type.to_sym)
 
@@ -35,6 +35,7 @@ module Lti
       @context = context
       @user = user
       @launch_type = launch_type
+      @launch_url = launch_url
       @placement = placement
       @session_id = session_id
     end
@@ -48,9 +49,7 @@ module Lti
 
     def log_data
       {
-        # We'll need this column in the near future but don't have the values for it yet.
-        # We're including it to make everyone's life easier when we do have the values.
-        unified_tool_id: nil,
+        unified_tool_id: @tool.unified_tool_id,
         tool_id: @tool.id.to_s,
         tool_provided_id: @tool.tool_id,
         tool_domain: @tool.domain,
@@ -61,6 +60,7 @@ module Lti
         account_id: account_for_context.id.to_s,
         root_account_uuid: @context.root_account.uuid,
         launch_type: @launch_type,
+        launch_url: @launch_url,
         message_type:,
         placement: @placement,
         context_id: @context.id.to_s,

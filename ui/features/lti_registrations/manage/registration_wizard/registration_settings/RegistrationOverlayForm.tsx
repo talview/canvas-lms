@@ -16,7 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {Button} from '@instructure/ui-buttons'
 import {Checkbox} from '@instructure/ui-checkbox'
 import {Flex} from '@instructure/ui-flex'
@@ -27,15 +27,15 @@ import {Text} from '@instructure/ui-text'
 import {TextInput} from '@instructure/ui-text-input'
 import {View} from '@instructure/ui-view'
 import * as React from 'react'
-import type {StoreApi} from 'zustand'
+import {i18nLtiPlacement} from '../../model/i18nLtiPlacement'
+import {i18nLtiScope} from '@canvas/lti/model/i18nLtiScope'
+import type {LtiImsRegistration} from '../../model/lti_ims_registration/LtiImsRegistration'
+import {type LtiPlacement} from '../../model/LtiPlacement'
+import type {LtiPlacementOverlay} from '../../model/PlacementOverlay'
 import {canvasPlatformSettings, type RegistrationOverlayStore} from './RegistrationOverlayState'
 import {RegistrationPrivacyField} from './RegistrationPrivacyField'
-import type {LtiImsRegistration} from '../../model/lti_ims_registration/LtiImsRegistration'
-import {i18nLtiScope} from '../../model/LtiScope'
-import type {LtiPlacementOverlay} from '../../model/PlacementOverlay'
-import {i18nLtiPlacement, type LtiPlacement} from '../../model/LtiPlacement'
 
-const I18n = useI18nScope('react_developer_keys')
+const I18n = createI18nScope('react_developer_keys')
 
 export const RegistrationOverlayForm = (props: {
   ltiRegistration: LtiImsRegistration
@@ -76,7 +76,7 @@ export const RegistrationOverlayForm = (props: {
         </Flex.Item>
         <Flex.Item>
           <Button
-            renderIcon={IconResetLine}
+            renderIcon={IconResetLine as unknown as React.ReactNode}
             margin="0 0 0 small"
             onClick={() => {
               resetOverlays(configuration)

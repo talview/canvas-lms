@@ -148,6 +148,10 @@ class AssignmentGroupsController < ApplicationController
           submissions = submissions_hash(include_params, assignments)
         end
 
+        if assignments.any?
+          DatesOverridable.preload_override_data_for_objects(assignments)
+        end
+
         respond_to do |format|
           format.json do
             render json: index_groups_json(@context, @current_user, groups, assignments, submissions)
@@ -200,7 +204,7 @@ class AssignmentGroupsController < ApplicationController
       groups.touch_all
       groups.each { |assignment_group| AssignmentGroup.notify_observers(:assignments_changed, assignment_group) }
       ids = @group.active_assignments.map(&:id)
-      @context.recompute_student_scores rescue nil
+      @context.recompute_student_scores
       render json: { reorder: true, order: ids }, status: :ok
     end
   end
@@ -317,7 +321,8 @@ class AssignmentGroupsController < ApplicationController
 
   def assignment_includes
     includes = [:context, :external_tool_tag, { quiz: :context }]
-    includes += [:rubric, :rubric_association] unless assignment_excludes.include?("rubric")
+    includes += [:rubric_association] if !assignment_excludes.include?("rubric") || include_params.include?("has_rubric")
+    includes += [:rubric] unless assignment_excludes.include?("rubric")
     includes << :discussion_topic if include_params.include?("discussion_topic")
     includes << :assignment_overrides if include_overrides?
     includes

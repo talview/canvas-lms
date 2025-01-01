@@ -180,6 +180,8 @@ export type Assignment = Readonly<{
   automatic_peer_reviews: boolean
   can_duplicate: boolean
   course_id: string
+  checkpoints: Checkpoint[]
+  discussion_topic: DiscussionTopic
   due_date_required: boolean
   final_grader_id: null | string
   grade_group_students_individually: boolean
@@ -202,6 +204,7 @@ export type Assignment = Readonly<{
   intra_group_peer_reviews: boolean
   is_quiz_assignment: boolean
   lock_at: null | string
+  has_rubric: null | boolean
   locked_for_user: boolean
   lti_context_id: string
   max_name_length: number
@@ -230,6 +233,7 @@ export type Assignment = Readonly<{
   unlock_at: null | string
   unpublishable: boolean
   updated_at: string
+  visible_to_everyone: boolean
   workflow_state: WorkflowState
 }> & {
   anonymize_students: boolean
@@ -390,6 +394,18 @@ export type TurnitinAsset = {
   public_error_message?: string
 }
 
+export type SubAssignmentSubmission = {
+  grade: string | null
+  score: number | null
+  published_grade: string | null
+  published_score: string | null
+  grade_matches_current_submission: boolean
+  sub_assignment_tag: string
+  entered_grade: string | null
+  entered_score: number | null
+  excused: boolean
+}
+
 export type Submission = Readonly<{
   anonymous_id?: string
   assignment_id: string
@@ -415,6 +431,7 @@ export type Submission = Readonly<{
   redo_request: boolean
   score: null | number
   seconds_late: number
+  sticker: string | null
   similarityInfo: null | SimilarityScore
   submission_type: SubmissionType
   url?: null | string
@@ -422,6 +439,7 @@ export type Submission = Readonly<{
   versioned_attachments?: any
   word_count: null | number
   workflow_state: WorkflowState
+  sub_assignment_submissions?: SubAssignmentSubmission[]
 }> & {
   assignedAssessments?: AssignedAssessments[]
   attempt?: number
@@ -592,10 +610,16 @@ export type Account = Readonly<{
   name: string
 }>
 
-// '/api/v1/users/self/favorites/courses?include[]=term&exclude[]=enrollments&sort=nickname',
+// '/api/v1/users/self/favorites/courses?include[]=term&include[]=sections&sort=nickname',
+// '/api/v1/courses/:id',
 export type Course = Readonly<{
   id: string
   name: string
+  course_code?: string
+  start_at?: string
+  end_at?: string
+  time_zone: string
+  blueprint: boolean
   workflow_state: string
   enrollment_term_id: number
   term: {
@@ -603,6 +627,29 @@ export type Course = Readonly<{
   }
   homeroom_course: boolean
   sis_course_id: string | null
+  sections: [
+    {
+      id: string
+      name: string
+    }
+  ]
+  restrict_enrollments_to_course_dates: boolean
+}>
+
+export type ContentMigration = Readonly<{
+  id: string
+  migration_type: string
+}>
+
+export type Term = Readonly<{
+  id: string
+  name: string
+  start_at: string
+  end_at: string
+}>
+
+export type EnrollmentTerms = Readonly<{
+  enrollment_terms: Term[]
 }>
 
 // '/api/v1/users/self/tabs',
@@ -645,4 +692,32 @@ export type ReleaseNote = {
   url: string
   date: string
   new: boolean
+}
+
+export type DiscussionTopic = {
+  reply_to_entry_required_count: number
+}
+
+export type Checkpoint = {
+  due_at: string | null
+  name: string
+  only_visible_to_overrides: boolean
+  overrides: CheckpointOverride[]
+  points_possible: number
+  tag: string
+  unlock_at: string | null
+  lock_at: string | null
+}
+
+export type CheckpointOverride = {
+  all_day: boolean
+  all_day_date: string
+  assignment_id: string
+  due_at: string
+  id: string
+  student_ids: string[]
+  title: string
+  unassign_item: boolean
+  unlock_at: string | null
+  lock_at: string | null
 }

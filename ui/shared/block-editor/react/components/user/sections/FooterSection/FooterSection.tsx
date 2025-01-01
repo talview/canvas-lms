@@ -16,13 +16,12 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {useState} from 'react'
-import {Element, useEditor} from '@craftjs/core'
+import React from 'react'
+import {Element, useEditor, useNode} from '@craftjs/core'
 import {Container} from '../../blocks/Container'
 import {ButtonBlock} from '../../blocks/ButtonBlock'
 import {ImageBlock} from '../../blocks/ImageBlock'
 import {NoSections} from '../../common'
-import {SectionMenu} from '../../../editor/SectionMenu'
 
 import {useClassNames, getContrastingColor, getContrastingButtonColor} from '../../../../utils'
 
@@ -34,8 +33,8 @@ const FooterSection = ({background}: FooterSectionProps) => {
   const {enabled} = useEditor(state => ({
     enabled: state.options.enabled,
   }))
-  const [cid] = useState<string>('hero-section')
-  const clazz = useClassNames(enabled, {empty: false}, ['footer-section'])
+  const {id} = useNode()
+  const clazz = useClassNames(enabled, {empty: false}, ['section, footer-section'])
 
   const backgroundColor = background || FooterSection.craft.defaultProps.background
   const textColor = getContrastingColor(backgroundColor)
@@ -44,28 +43,25 @@ const FooterSection = ({background}: FooterSectionProps) => {
   return (
     <Container className={clazz} style={{color: textColor}} background={backgroundColor}>
       <Element
-        id={`${cid}__footer-no-section`}
+        id={`footer-no-section-${id}`}
         is={NoSections}
         canvas={true}
         className="footer-section__inner"
       >
         <Element
-          id={`${cid}__footer-canvas-icon`}
+          id={`footer-canvas-icon-${id}`}
           is={ImageBlock}
-          canvas={true}
           src="/images/block_editor/canvas_logo_white.svg"
           width={113}
           height={28}
         />
         <Element
-          id={`${cid}__footer-canvas-to-top`}
+          id={`footer-canvas-to-to-${id}`}
           is={ButtonBlock}
-          canvas={true}
           text="Back to top"
-          variant="condensed"
-          color={buttonColor}
+          variant="text"
+          background={buttonColor}
           iconName="arrow_up"
-          iconSize="x-small"
           href="#page-top"
         />
       </Element>
@@ -80,9 +76,6 @@ FooterSection.craft = {
   },
   custom: {
     isSection: true,
-  },
-  related: {
-    sectionMenu: SectionMenu,
   },
 }
 

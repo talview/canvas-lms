@@ -16,20 +16,20 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import gql from 'graphql-tag'
+import {gql} from '@apollo/client'
 import {CourseDashboardCard} from './CourseDashboardCard'
+import {ActivityStreamSummary} from './ActivityStream'
 
 const dashcard_query_enabled = !!ENV?.FEATURES?.dashboard_graphql_integration
 
 export const LOAD_DASHBOARD_CARDS_QUERY = gql`
-  query GetDashboardCards($userID: ID!, $observedUserId: ID = null) {
+  query GetDashboardCards($userID: ID!, $observedUserID: ID = null) {
     legacyNode(_id: $userID, type: User) {
       ... on User {
-        id
-        enrollments {
-          course {
+        favoriteCoursesConnection(dashboardFilter: {observedUserId: $observedUserID}) {
+          nodes {
             _id
-            dashboardCard(dashboardFilter: {observedUserId: $observedUserId}) {
+            dashboardCard {
               ...CourseDashboardCard @include(if: ${dashcard_query_enabled})
             }
           }
@@ -38,4 +38,22 @@ export const LOAD_DASHBOARD_CARDS_QUERY = gql`
     }
   }
   ${CourseDashboardCard.fragment}
+`
+
+export const DASHBOARD_ACTIVITY_STREAM_SUMMARY_QUERY = gql`
+  query GetDashboardActivityStreamSummary($userID: ID!) {
+    legacyNode(_id: $userID, type: User) {
+      ... on User {
+        favoriteCoursesConnection {
+          nodes {
+            _id
+            activityStream {
+              ...ActivityStreamSummary @include(if: ${dashcard_query_enabled})
+            }
+          }
+        }
+      }
+    }
+  }
+  ${ActivityStreamSummary.fragment}
 `

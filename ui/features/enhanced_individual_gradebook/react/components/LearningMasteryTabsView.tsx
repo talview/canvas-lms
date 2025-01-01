@@ -17,20 +17,17 @@
  */
 
 import React, {useEffect, useState} from 'react'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import outcomeGrid from '@canvas/outcome-gradebook-grid'
 import {useQuery as useCanvasQuery} from '@canvas/query'
 import {Tabs} from '@instructure/ui-tabs'
 import {View} from '@instructure/ui-view'
-import {useQuery} from 'react-apollo'
 import {useSearchParams} from 'react-router-dom'
 import type {AssignmentGroupCriteriaMap} from '@canvas/grading/grading.d'
-import {GRADEBOOK_QUERY} from '../../queries/Queries'
 import type {
   CustomColumn,
   CustomOptions,
   GradebookOptions,
-  GradebookQueryResponse,
   Outcome,
   SectionConnection,
   SortableStudent,
@@ -50,8 +47,9 @@ import OutcomeInformation from './OutcomeInformation'
 import OutcomeReult from './OutcomeResult'
 import fetchOutcomeResult from './OutcomeResult/OutcomeResultQuery'
 import StudentInformation from './StudentInformation'
+import {useGradebookQuery} from '../hooks/useGradebookQuery'
 
-const I18n = useI18nScope('enhanced_individual_gradebook')
+const I18n = createI18nScope('enhanced_individual_gradebook')
 
 const STUDENT_SEARCH_PARAM = 'student'
 const OUTCOME_SEARCH_PARAM = 'outcome'
@@ -103,11 +101,7 @@ export default function LearningMasteryTabsView() {
     gradebookOptionsSetup(ENV)
   )
 
-  const {data, error} = useQuery<GradebookQueryResponse>(GRADEBOOK_QUERY, {
-    variables: {courseId},
-    fetchPolicy: 'no-cache',
-    skip: !courseId,
-  })
+  const {courseData, isLoading: isLoadingCourseData} = useGradebookQuery(courseId)
 
   const {data: outcomeRollupsData, isLoading} = useCanvasQuery({
     queryKey: [`fetch-outcome-result-${courseId}`],
@@ -189,18 +183,14 @@ export default function LearningMasteryTabsView() {
   }, [currentStudent, students])
 
   useEffect(() => {
-    if (error) {
-      // TODO: handle error
-    }
-
-    if (data?.course) {
+    if (courseData?.course && !isLoadingCourseData) {
       const {
         assignmentGroupsConnection,
         enrollmentsConnection,
         sectionsConnection,
         submissionsConnection,
         rootOutcomeGroup,
-      } = data.course
+      } = courseData.course
 
       const {assignmentGradingPeriodMap} = mapAssignmentSubmissions(submissionsConnection.nodes)
 
@@ -222,7 +212,7 @@ export default function LearningMasteryTabsView() {
       )
       setStudents(sortedStudents)
     }
-  }, [data, error])
+  }, [courseData, isLoadingCourseData])
 
   const invalidAssignmentGroups = Object.keys(assignmentGroupMap).reduce((invalidKeys, groupId) => {
     const {invalid, name, gradingPeriodsIds} = assignmentGroupMap[groupId]

@@ -16,10 +16,10 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {generateActionTemplates} from '../generateActionTemplates'
 
-const I18n = useI18nScope('permissions_templates_36')
+const I18n = createI18nScope('permissions_templates_36')
 
 export const template = generateActionTemplates(
   [
@@ -48,7 +48,7 @@ export const template = generateActionTemplates(
     },
     {
       description: I18n.t(
-        'To manage associated courses, Courses - view list and Courses - add must also be enabled.'
+        'To manage associated courses, Courses - view list and Courses - manage / update must also be enabled.'
       ),
     },
     {

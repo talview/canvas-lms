@@ -17,6 +17,8 @@
   "adjacent_links_with_the_same_url_should_be_a_singl_7a1f7f6c": {
     "message": "Ba cheart go mbeadh naisc in aice leis an URL céanna ina nasc amháin."
   },
+  "ai_response_9624e8e8": { "message": "Freagra IS" },
+  "ai_tools_fda01177": { "message": "Uirlisí IS" },
   "aleph_f4ffd155": { "message": "Aleph" },
   "align_11050992": { "message": "Ailínigh" },
   "alignment_and_lists_5cebcb69": { "message": "Ailíniú agus Liostaí" },
@@ -34,6 +36,9 @@
   },
   "an_error_occurred_making_a_network_request_d1bda348": {
     "message": "Tharla earráid agus iarratas gréasáin á dhéanamh"
+  },
+  "an_error_occurred_processing_your_request_a3a38d84": {
+    "message": "Tharla earráid agus d''iarratas á phróiseáil"
   },
   "an_error_occurred_uploading_your_media_71f1444d": {
     "message": "Tharla earráid agus do mheáin á uaslódáil."
@@ -144,7 +149,7 @@
     "message": "Cliceáil chun réamhamharc a thaispeáint"
   },
   "close_a_menu_or_dialog_also_returns_you_to_the_edi_739079e6": {
-    "message": "Dún roghchlár nó dialóg. Tugann sé ar ais go dtí an limistéar eagarthóireachta tú freisin"
+    "message": "Dún roghchlár nó dialóg. Cuireann sé ar ais go dtí an limistéar eagarthóireachta thú freisin"
   },
   "close_accessibility_checker_29d1c51e": {
     "message": "Dún Seiceálaí Inrochtaineachta"
@@ -168,23 +173,28 @@
   "column_e1ae5c64": { "message": "Colún" },
   "column_group_1c062368": { "message": "Grúpa colún" },
   "complex_numbers_a543d004": { "message": "Uimhreacha Coimpléascacha" },
+  "compose_44c904f4": { "message": "Cum" },
   "computer_1d7dfa6f": { "message": "Ríomhaire" },
   "congruent_5a244acd": { "message": "Iomchuí" },
   "contains_311f37b7": { "message": "Tá an méid seo ann" },
   "content_1440204b": { "message": "Ábhar" },
+  "content_in_the_editor_will_be_changed_press_cancel_d5bf3357": {
+    "message": "Athrófar ábhar san eagarthóir. Brúigh Cealaigh chun an t-ábhar bunaidh a choinneáil."
+  },
   "content_is_still_being_uploaded_if_you_continue_it_8f06d0cb": {
     "message": "Tá an ábhar fós á uaslódáil, má leanann tú ar aghaidh ní bheidh sé leabaithe i gceart."
   },
   "content_subtype_5ce35e88": { "message": "Fochineál Ábhar" },
   "content_type_2cf90d95": { "message": "Cineál Ábhar" },
   "coproduct_e7838082": { "message": "Comhtháirge" },
+  "copy_9748f9f": { "message": "Cóipeáil" },
   "copyright_holder_66ee111": { "message": "Sealbhóir Cóipchirt:" },
   "could_not_insert_content_itemtype_items_are_not_cu_638dfecd": {
     "message": "Níorbh fhéidir ábhar a chur isteach: Ní thacaítear le míreanna \"{ itemType }\" i gCanvas faoi láthair."
   },
   "count_40eced3b": { "message": "Áireamh" },
   "count_plural_0_0_words_one_1_word_other_words_acf32eca": {
-    "message": "{ count, plural,\n     =0 {0 focal}\n    one {1 focal}\n  other {# focail}\n}"
+    "message": "{ count, plural,\n     =0 {0 focal}\n    one {1 focal}\n  other {An líon seo focail: #}\n}"
   },
   "count_plural_one_item_loaded_other_items_loaded_857023b7": {
     "message": "{ count, plural,\n    one {# mír lódáite}\n  other {# míreanna lódáilte}\n}"
@@ -256,6 +266,7 @@
   "discussions_a5f96392": { "message": "Fóraim" },
   "discussions_index_6c36ced": { "message": "Innéacs Fóraim" },
   "disjoint_union_e74351a8": { "message": "Aontas Scartha" },
+  "dislike_14befc48": { "message": "Tabhair ‘ní maith liom’ dó" },
   "display_options_315aba85": { "message": "Roghanna Taispeána" },
   "display_text_link_opens_in_a_new_tab_75e9afc9": {
     "message": "Taispeáin Nasc Téacs (Osclaítear i táb nua é)"
@@ -297,7 +308,7 @@
   },
   "edit_icon_2c6b0e91": { "message": "Cuir Deilbhín in Eagar" },
   "edit_link_7f53bebb": { "message": "Cuir Nasc in Eagar" },
-  "editor_statusbar_26ac81fc": { "message": "Barra Stádas Eagarthóra" },
+  "editor_status_bar_653f44ee": { "message": "Barra Stádais Eagarthóra" },
   "element_starting_with_start_91bf4c3b": {
     "message": "Eilimint ag tosú le { start }"
   },
@@ -319,6 +330,11 @@
   "enter_at_least_3_characters_to_search_4f037ee0": {
     "message": "Cuir isteach 3 charachtar ar a laghad le cuardaigh"
   },
+  "enter_replacement_text_17631bbc": {
+    "message": "cuir isteach téacs athsholáthair"
+  },
+  "enter_search_text_26cb4459": { "message": "cuir isteach téacs cuardaigh" },
+  "enter_text_8b35c65b": { "message": "Cuir isteach téacs" },
   "epsilon_54bb8afa": { "message": "Eipsealón" },
   "epsilon_variant_d31f1e77": { "message": "Eipsealón (Athraithe)" },
   "equals_sign_c51bdc58": { "message": "Comhartha Comhionann" },
@@ -346,6 +362,9 @@
   "failed_getting_file_contents_e9ea19f4": {
     "message": "Theip ar ábhar an chomhaid a fháil"
   },
+  "failed_to_copy_response_d3def551": {
+    "message": "Theip an freagra a choipeáil"
+  },
   "failed_to_retrieve_content_from_external_tool_5899c213": {
     "message": "Theip ar ábhar a aisghabháil ón uirlis sheachtrach"
   },
@@ -363,13 +382,15 @@
   },
   "files_c300e900": { "message": "Comhaid" },
   "files_index_af7c662b": { "message": "Innéacs Comhaid" },
+  "find_8d605019": { "message": "Aimsigh" },
+  "find_and_replace_6e345933": { "message": "Aimsigh agus Athraigh" },
   "finish_bc343002": { "message": "Críochnaigh" },
   "fix_heading_hierarchy_f60884c4": {
     "message": "Deisigh ordlathas ceannteidil"
   },
   "flat_music_76d5a5c3": { "message": "Maol (Ceol)" },
   "focus_element_options_toolbar_18d993e": {
-    "message": "Barra uirlisí roghanna eilimint fócas"
+    "message": "Barra uirlisí roghanna gné fócais"
   },
   "folder_tree_fbab0726": { "message": "Crann fillteáin" },
   "for_all_b919f972": { "message": "Do Chách" },
@@ -433,6 +454,12 @@
   "health_icon_8d292eb5": { "message": "Deilbhín Sláinte" },
   "hearts_suit_e50e04ca": { "message": "Hart (Dath)" },
   "height_69b03e15": { "message": "Airde" },
+  "hello_please_describe_the_modifications_you_would__49b19837": {
+    "message": "Dia duit. Déan cur síos le do thoil ar na mionathruithe ar mhaith leat a dhéanamh ar do phíosa."
+  },
+  "hello_please_describe_the_modifications_you_would__600dbbf0": {
+    "message": "Dia duit. Déan cur síos le do thoil ar na mionathruithe ar mhaith leat a dhéanamh ar do rogha."
+  },
   "hexagon_d8468e0d": { "message": "Heicseagán" },
   "hide_description_bfb5502e": { "message": "Cuir cur síos i bhfolach" },
   "hide_title_description_caf092ef": {
@@ -448,6 +475,9 @@
     "message": "Tá cead faighte agam an comhad seo a úsáid."
   },
   "i_hold_the_copyright_71ee91b1": { "message": "Tá an cóipcheart agam" },
+  "i_m_sorry_but_i_cannot_find_the_ai_s_answer_67569d19": {
+    "message": "Tá brón orm, ach ní féidir liom teacht ar fhreagra IS"
+  },
   "icon_215a1dc6": { "message": "Deilbhín" },
   "icon_8168b2f8": { "message": "deibhlín" },
   "icon_color_b86dd6d6": { "message": "Dath Deilbhín" },
@@ -487,6 +517,7 @@
   "in_element_of_19ca2f33": { "message": "I (Gné De)" },
   "increase_indent_6af90f7c": { "message": "Méadaigh Eangach" },
   "indefinite_integral_6623307e": { "message": "Slánuimhreach Éiginnte" },
+  "index_of_max_80dcf7a5": { "message": "{ index } de { max }" },
   "indigo_2035fc55": { "message": "Indeagó" },
   "inference_fed5c960": { "message": "Tátal" },
   "infinity_7a10f206": { "message": "Iliomad" },
@@ -505,7 +536,7 @@
   "issue_num_total_f94536cf": { "message": "Eisiúint { num }/{ total }" },
   "kappa_2f14c816": { "message": "Capa" },
   "kappa_variant_eb64574b": { "message": "Capa (Athróg)" },
-  "keyboard_shortcuts_ed1844bd": { "message": "Aicearraí méarchláir" },
+  "keyboard_shortcuts_ed1844bd": { "message": "Aicearraí Méarchláir" },
   "keyboards_navigate_to_links_using_the_tab_key_two__5fab8c82": {
     "message": "Déanann méarchláir nascleanúint chuig naisc ag baint úsáid as an eochair Táb. Is féidir le dhá nasc cóngaracha a dhíríon chuig an gceann scríbe céanna mearbhall a chur ar úsáideoirí méarchláir."
   },
@@ -579,6 +610,7 @@
   "links_to_an_external_site_de74145d": {
     "message": "Naisc chuig suíomh seachtrach."
   },
+  "lists_cd1336fc": { "message": "Liostaí" },
   "lists_should_be_formatted_as_lists_f862de8d": {
     "message": "Ba cheart liostaí a fhormáidiú mar liostaí."
   },
@@ -632,6 +664,7 @@
   "minus_plus_3461f637": { "message": "Lúide/Móide" },
   "misc_3b692ea7": { "message": "Ilchineál" },
   "miscellaneous_e9818229": { "message": "Ilchineálach" },
+  "modify_6b0b13e3": { "message": "Athraigh" },
   "module_90d9fd32": { "message": "Modúl" },
   "modules_c4325335": { "message": "Modúil" },
   "moving_image_to_crop_directionword_6f66cde2": {
@@ -641,12 +674,6 @@
   "multi_color_image_63d7372f": { "message": "Íomhá Ildath" },
   "multiplication_sign_15f95c22": { "message": "Comhartha Iolrúcháin" },
   "music_icon_4db5c972": { "message": "Deilbhín Ceoil" },
-  "must_be_at_least_percentage_22e373b6": {
-    "message": "Ní mór a bheith ar a laghad { percentage }%"
-  },
-  "must_be_at_least_width_x_height_px_41dc825e": {
-    "message": "Ní mór a bheith ar a laghad { width } x { height }px"
-  },
   "my_files_2f621040": { "message": "Mo chomhaid" },
   "n_th_root_9991a6e4": { "message": "N-th Fréamh" },
   "nabla_1e216d25": { "message": "Nabla" },
@@ -662,6 +689,7 @@
   "nested_less_than_27d17e58": { "message": "Neadaithe Níos lú ná" },
   "new_quiz_34aacba6": { "message": "Quiz Nua" },
   "next_40e12421": { "message": "Ar aghaidh" },
+  "next_findtext_9d69f0fe": { "message": "An chéad { findText } eile" },
   "no_accessibility_issues_were_detected_f8d3c875": {
     "message": "Níor aimsíodh aon saincheisteanna inrochtaineachta."
   },
@@ -699,6 +727,7 @@
   },
   "no_quizzes_found_c80c537a": { "message": "Níor aimsíodh aon quizeanna." },
   "no_results_940393cf": { "message": "Gan torthaí." },
+  "no_results_found_58717065": { "message": "Níor aimsíodh aon toradh" },
   "no_results_found_for_filterterm_ad1b04c8": {
     "message": "Níor aimsíodh aon torthaí le haghaidh { filterTerm }"
   },
@@ -742,9 +771,6 @@
   },
   "outline_color_3ef2cea7": { "message": "Dath Imlíne" },
   "outline_size_a6059a21": { "message": "Méid Imlíne" },
-  "p_is_not_a_valid_protocol_which_must_be_ftp_http_h_adf13fc2": {
-    "message": "Ní prótacal bailí é { p } nach mór a bheith ftp, http, https, mailto, skype, teil nó is féidir é a fhágáil ar lár"
-  },
   "page_50c4823d": { "message": "Leathanach" },
   "pages_e5414c2c": { "message": "Leathanaigh" },
   "paragraph_5e5ad8eb": { "message": "Alt" },
@@ -778,6 +804,9 @@
   "please_allow_canvas_to_access_your_microphone_and__dc2c3079": {
     "message": "Tabhair cead do Canvas rochtain a fháil ar do mhicreafón agus ceamara gréasáin."
   },
+  "please_decribe_what_you_would_like_to_compose_27a51be5": {
+    "message": "Déan cur síos le do thoil ar cad ba mhaith leat a chumadh."
+  },
   "plus_d43cd4ec": { "message": "Móide" },
   "plus_minus_f8be2e83": { "message": "Móide/Lúide" },
   "posted_when_a578f5ab": { "message": "Postáilte: { when }" },
@@ -785,11 +814,16 @@
   "precedes_196b9aef": { "message": "Tagann sé Roimh" },
   "precedes_equal_20701e84": { "message": "Tagann sé Roimh Comhionann" },
   "preformatted_d0670862": { "message": "Réamhfhormáidithe" },
+  "prepend_findtext_append_8e0e769a": {
+    "message": "{ prepend }{ findText }{ append }"
+  },
   "prev_f82cbc48": { "message": "Roimhe seo" },
   "preview_53003fd2": { "message": "Réamhamharc" },
   "preview_a3f8f854": { "message": "RÉAMHAMHARC" },
   "preview_in_overlay_ed772c46": { "message": "Réamhamharc i bhforleagan" },
   "preview_inline_9787330": { "message": "Réamhamharc inlíne" },
+  "previous_bd2ac015": { "message": "Roimhe Seo" },
+  "previous_findtext_8dfbfd30": { "message": "Roimhe Seo { findText }" },
   "prime_917ea60e": { "message": "Príomha" },
   "prime_numbers_13464f61": { "message": "Príomhuimhreacha" },
   "product_39cf144f": { "message": "Táirge" },
@@ -818,12 +852,31 @@
   "religion_icon_246e0be1": { "message": "Deilbhín Creideamh" },
   "remove_heading_style_5fdc8855": { "message": "Bain stíl ceannteidil" },
   "remove_link_d1f2f4d0": { "message": "Bain Nasc" },
+  "replace_all_d3d68b3": { "message": "Athraigh Gach Rud" },
+  "replace_all_findtext_with_replacetext_da574b32": {
+    "message": "Athraigh { findText } ar fad le { replaceText }"
+  },
   "replace_e61834a7": { "message": "Ionadaigh" },
+  "replace_findtext_with_replacetext_7b5c7fb3": {
+    "message": "Athraigh { findText } le { replaceText }"
+  },
+  "replace_with_eeff01ad": { "message": "Athraigh le" },
+  "replaced_alertfindtext_with_alertreplacetext_de5c1795": {
+    "message": "Athraíodh { alertFindText } le { alertReplaceText }"
+  },
+  "replaced_all_alertfindtext_with_alertreplacetext_83fdfe59": {
+    "message": "Athraíodh { alertFindText } ar fad le { alertReplaceText }"
+  },
   "reset_95a81614": { "message": "Athshocraigh" },
   "resize_ec83d538": { "message": "Athraigh méid" },
+  "response_copied_to_clipboard_130d66cd": {
+    "message": "Cóipeáladh an freagra chuig an ngearrthaisce"
+  },
   "restore_auto_save_deccd84b": {
     "message": "Athchóirigh sábháil uathoibríoch?"
   },
+  "result_index_of_max_7db5ad8b": { "message": "Toradh { index } de { max }." },
+  "retry_ebd5f8ba": { "message": "Bain triail eile as" },
   "reverse_turnstile_does_not_yield_7558be06": {
     "message": "Cas an Geata Droim ar Ais (Ní Ghéilltear)"
   },
@@ -910,6 +963,7 @@
     "message": "Shift-O chun an t-eagarthóir deas html a oscailt."
   },
   "shortcut_911d6255": { "message": "Aicearra" },
+  "show_all_967a90f0": { "message": "Taispeáin gach rud" },
   "show_audio_options_b489926b": { "message": "Taispeáin roghanna fuaime" },
   "show_image_options_1e2ecc6b": { "message": "Taispeáin roghanna íomhá" },
   "show_link_options_545338fd": { "message": "Taispeáin roghanna naisc" },
@@ -969,6 +1023,7 @@
   },
   "styles_2aa721ef": { "message": "Stíleanna" },
   "submit_a3cc6859": { "message": "Cuir isteach" },
+  "submitting_b90fac62": { "message": "Á chur isteach..." },
   "subscript_59744f96": { "message": "Foscript" },
   "subset_19c1a92f": { "message": "Fothacar" },
   "subset_strict_8d8948d6": { "message": "Fothacar (dian)" },
@@ -1208,6 +1263,7 @@
   "view_word_and_character_counts_a743dd0c": {
     "message": "Féach ar líon na bhfocal agus na gcarachtar"
   },
+  "waiting_for_response_1efd0c50": { "message": "Ag feitheamh ar fhreagra" },
   "we_couldn_t_detect_a_working_microphone_connected__ceb71c40": {
     "message": "Níorbh fhéidir linn micreafón a bhí ag obair ceangailte le do ghléas a bhrath."
   },
@@ -1221,6 +1277,9 @@
   "webcam_fe91b20f": { "message": "Ceamara gréasáin" },
   "webpages_should_only_have_a_single_h1_which_is_aut_dc99189e": {
     "message": "Níor cheart ach H1 amháin a bheith ag leathanaigh ghréasáin, a úsáideann Teideal an leathanaigh go huathoibríoch. Ba cheart gur H2 an chéad cheannteideal i d’ábhar."
+  },
+  "what_would_you_like_to_do_6dc0d541": {
+    "message": "Céard ba mhaith leat a dhéanamh?"
   },
   "when_markup_is_used_that_visually_formats_items_as_f941fc1b": {
     "message": "Nuair a úsáidtear marcáil a dhéanann formáid amhairc ar mhíreanna mar liosta ach nach léiríonn an gaol liosta, d’fhéadfadh go mbeadh deacracht ag úsáideoirí an fhaisnéis a nascleanúint."
@@ -1236,6 +1295,7 @@
   "word_count_c77fe3a6": { "message": "Comhaireamh Focal" },
   "words_b448b7d5": { "message": "Focail" },
   "wreath_product_200b38ef": { "message": "Táirge Wreath" },
+  "writing_assistant_a30ac16a": { "message": "Cúntóir Scríbhneoireachta" },
   "xi_149681d0": { "message": "Xí" },
   "yes_dde87d5": { "message": "Tá" },
   "you_have_unsaved_changes_in_the_icon_maker_tray_do_e8cf5f1b": {

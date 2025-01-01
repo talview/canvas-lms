@@ -17,6 +17,8 @@
  */
 
 const {resolve, join} = require('path')
+const ReactRefreshRspackPlugin = require('@rspack/plugin-react-refresh')
+const {rspack} = require('@rspack/core')
 
 // determines which folder public assets are compiled to
 const webpackPublicPath = require('./webpackPublicPath')
@@ -26,11 +28,11 @@ const webpackPublicPath = require('./webpackPublicPath')
 const {canvasDir} = require('../params')
 
 const isProduction = process.env.NODE_ENV === 'production'
+const isDev = process.env.NODE_ENV === 'development'
 
 const {
   swc,
   css,
-  emberHandlebars,
   fonts,
   handlebars,
   images,
@@ -68,8 +70,17 @@ const skipSourcemaps = process.env.SKIP_SOURCEMAPS === '1'
 const shouldWriteCache =
   process.env.WRITE_BUILD_CACHE === '1' || process.env.NODE_ENV !== 'production'
 
+/**
+ * @type {import("@rspack/core").Configuration}
+ */
 module.exports = {
   mode: isProduction ? 'production' : 'development',
+
+  // enable native CSS support for Rspack using experimental feature
+  // https://rspack.dev/guide/tech/css
+  experiments: {
+    css: true,
+  },
 
   // infer platform and ES-features from @instructure/browserslist-config-canvas-lms
   target: ['browserslist'],
@@ -114,14 +125,33 @@ module.exports = {
   devtool: skipSourcemaps
     ? false
     : isProduction || process.env.COVERAGE === '1'
-    ? // "Recommended choice for production builds"
-      'source-map'
-    : // "Recommended choice for development builds"
-      'eval-source-map',
+      ? // "Recommended choice for production builds"
+        'source-map'
+      : // "Recommended choice for development builds"
+        'eval-source-map',
 
   entry: {main: resolve(canvasDir, 'ui/index.ts')},
 
   watchOptions: {ignored: ['**/node_modules/']},
+
+  devServer: {
+    allowedHosts: [
+      'localhost',
+      `.canvas-web.${process.env.INST_DOMAIN}`,
+      `.${process.env.INST_DOMAIN}`,
+      ...(process.env.RSPACK_DEV_SERVER_ADDITIONAL_ALLOWED_HOSTS?.trim().split(',') ?? []),
+    ],
+    client: {
+      webSocketURL:
+        process.env.RSPACK_WEBSOCKET_URL ??
+        `ws://canvas-web.${process.env.INST_DOMAIN || 'inst.test'}/ws`,
+    },
+    host: '0.0.0.0',
+    port: process.env.RSPACK_DEV_SERVER_PORT || 80,
+    // Static assets must be ignored, otherwise any changes to the manifest will force a full
+    // page reload, which is definitely not what we want.
+    static: false,
+  },
 
   externalsType: 'global',
   output: {
@@ -165,7 +195,6 @@ module.exports = {
       fonts,
       ...swc,
       handlebars,
-      emberHandlebars,
     ].filter(Boolean),
   },
 
@@ -183,5 +212,6 @@ module.exports = {
     // including the following prints this warning
     // "custom stage for process_assets is not supported yet, so Infinity is fallback to Compilation.PROCESS_ASSETS_STAGE_REPORT(5000)""
     webpackManifest,
+    isDev && new ReactRefreshRspackPlugin(),
   ].filter(Boolean),
 }

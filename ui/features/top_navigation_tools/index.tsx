@@ -16,7 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import React from 'react'
 import ReactDOM from 'react-dom'
 import ready from '@instructure/ready'
@@ -24,7 +24,7 @@ import ContentTypeExternalToolDrawer from '@canvas/trays/react/ContentTypeExtern
 import {TopNavigationTools, MobileTopNavigationTools} from './react/TopNavigationTools'
 import type {Tool} from '@canvas/global/env/EnvCommon'
 
-const I18n = useI18nScope('common')
+const I18n = createI18nScope('common')
 
 ready(() => {
   const drawerLayoutMountPoint = document.getElementById('drawer-layout-mount-point')
@@ -49,12 +49,15 @@ ready(() => {
   }
 
   function renderExternalToolDrawer(): void {
+     
     ReactDOM.render(
       <ContentTypeExternalToolDrawer
         tool={selectedTool}
+        // @ts-expect-error
         pageContent={canvasApplicationBody}
         pageContentTitle={I18n.t('Canvas LMS')}
         pageContentMinWidth="40rem"
+        // @ts-expect-error
         pageContentHeight={window.innerHeight}
         trayPlacement="end"
         onDismiss={handleDismissToolDrawer}
@@ -66,12 +69,14 @@ ready(() => {
   }
 
   function renderTopNavigationTools(): void {
+     
     ReactDOM.render(
       <TopNavigationTools tools={ENV.top_navigation_tools} handleToolLaunch={handleToolLaunch} />,
       topNavToolsMountPoint
     )
 
     if (mobileTopNavToolsMountPoint) {
+       
       ReactDOM.render(
         <MobileTopNavigationTools
           tools={ENV.top_navigation_tools}

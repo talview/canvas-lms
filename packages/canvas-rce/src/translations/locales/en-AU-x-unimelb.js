@@ -40,6 +40,8 @@ const locale = {
   "adjacent_links_with_the_same_url_should_be_a_singl_7a1f7f6c": {
     "message": "Adjacent links with the same URL should be a single link."
   },
+  "ai_response_9624e8e8": { "message": "AI Response" },
+  "ai_tools_fda01177": { "message": "AI Tools" },
   "aleph_f4ffd155": { "message": "Aleph" },
   "align_11050992": { "message": "Align" },
   "alignment_and_lists_5cebcb69": { "message": "Alignment and Lists" },
@@ -57,6 +59,9 @@ const locale = {
   },
   "an_error_occurred_making_a_network_request_d1bda348": {
     "message": "An error occurred making a network request"
+  },
+  "an_error_occurred_processing_your_request_a3a38d84": {
+    "message": "An error occurred processing your request"
   },
   "an_error_occurred_uploading_your_media_71f1444d": {
     "message": "An error occurred uploading your media."
@@ -95,6 +100,7 @@ const locale = {
     "message": "Auto-saved content exists. Would you like to load the auto-saved content instead?"
   },
   "available_folders_694d0436": { "message": "Available folders" },
+  "background_1bc88842": { "message": "Background" },
   "backslash_b2d5442d": { "message": "Backslash" },
   "bar_ec63ed6": { "message": "Bar" },
   "basic_554cdc0a": { "message": "Basic" },
@@ -105,6 +111,7 @@ const locale = {
   "binomial_coefficient_ea5b9bb7": { "message": "Binomial Coefficient" },
   "black_4cb01371": { "message": "Black" },
   "blue_daf8fea9": { "message": "Blue" },
+  "border_5b08b06d": { "message": "Border" },
   "bottom_15a2a9be": { "message": "Bottom" },
   "bottom_third_5f5fec1d": { "message": "Bottom Third" },
   "bowtie_5f9629e4": { "message": "Bowtie" },
@@ -172,13 +179,18 @@ const locale = {
   "collapse_to_hide_types_1ab46d2e": {
     "message": "Collapse to hide { types }"
   },
+  "color_a363e1b0": { "message": "Colour" },
+  "color_contrast_4c418add": { "message": "Colour Contrast" },
+  "color_contrast_ratio_687782f0": { "message": "Colour Contrast Ratio" },
   "color_picker_6b359edf": { "message": "Colour Picker" },
   "color_picker_colorname_selected_ad4cf400": {
     "message": "Colour Picker ({ colorName } selected)"
   },
+  "color_popup_af39810f": { "message": "Colour popup" },
   "column_e1ae5c64": { "message": "Column" },
   "column_group_1c062368": { "message": "Column group" },
   "complex_numbers_a543d004": { "message": "Complex Numbers" },
+  "compose_44c904f4": { "message": "Compose" },
   "computer_1d7dfa6f": { "message": "Computer" },
   "congruent_5a244acd": { "message": "Congruent" },
   "contains_311f37b7": { "message": "Contains" },
@@ -192,6 +204,7 @@ const locale = {
   "content_subtype_5ce35e88": { "message": "Content Subtype" },
   "content_type_2cf90d95": { "message": "Content Type" },
   "coproduct_e7838082": { "message": "Coproduct" },
+  "copy_9748f9f": { "message": "Copy" },
   "copyright_holder_66ee111": { "message": "Copyright Holder:" },
   "could_not_insert_content_itemtype_items_are_not_cu_638dfecd": {
     "message": "Could not insert content: \"{ itemType }\" items are not currently supported in Canvas."
@@ -262,6 +275,7 @@ const locale = {
   "discussions_a5f96392": { "message": "Discussions" },
   "discussions_index_6c36ced": { "message": "Discussions Index" },
   "disjoint_union_e74351a8": { "message": "Disjoint Union" },
+  "dislike_14befc48": { "message": "Dislike" },
   "display_options_315aba85": { "message": "Display Options" },
   "display_text_link_opens_in_a_new_tab_75e9afc9": {
     "message": "Display Text Link (Opens in a new tab)"
@@ -303,7 +317,7 @@ const locale = {
   },
   "edit_icon_2c6b0e91": { "message": "Edit Icon" },
   "edit_link_7f53bebb": { "message": "Edit Link" },
-  "editor_statusbar_26ac81fc": { "message": "Editor Statusbar" },
+  "editor_status_bar_653f44ee": { "message": "Editor Status Bar" },
   "element_starting_with_start_91bf4c3b": {
     "message": "Element starting with { start }"
   },
@@ -327,6 +341,7 @@ const locale = {
   },
   "enter_replacement_text_17631bbc": { "message": "enter replacement text" },
   "enter_search_text_26cb4459": { "message": "enter search text" },
+  "enter_text_8b35c65b": { "message": "Enter text" },
   "epsilon_54bb8afa": { "message": "Epsilon" },
   "epsilon_variant_d31f1e77": { "message": "Epsilon (Variant)" },
   "equals_sign_c51bdc58": { "message": "Equals Sign" },
@@ -349,9 +364,11 @@ const locale = {
   "extra_small_9ae33252": { "message": "Extra Small" },
   "extracurricular_icon_67c8ca42": { "message": "Extracurricular Icon" },
   "f_function_fe422d65": { "message": "F (function)" },
+  "fail_544e5dde": { "message": "FAIL" },
   "failed_getting_file_contents_e9ea19f4": {
     "message": "Failed getting file contents"
   },
+  "failed_to_copy_response_d3def551": { "message": "Failed to copy response" },
   "failed_to_retrieve_content_from_external_tool_5899c213": {
     "message": "Failed to retrieve content from external tool"
   },
@@ -401,6 +418,7 @@ const locale = {
     "message": "Go to the editor''s toolbar"
   },
   "grades_a61eba0a": { "message": "Grades" },
+  "graphics_text_bc9568bc": { "message": "Graphics text" },
   "greater_than_e98af662": { "message": "Greater Than" },
   "greater_than_or_equal_b911949a": { "message": "Greater Than Or Equal" },
   "greek_65c5b3f7": { "message": "Greek" },
@@ -435,6 +453,12 @@ const locale = {
   "health_icon_8d292eb5": { "message": "Health Icon" },
   "hearts_suit_e50e04ca": { "message": "Hearts (Suit)" },
   "height_69b03e15": { "message": "Height" },
+  "hello_please_describe_the_modifications_you_would__49b19837": {
+    "message": "Hello. Please describe the modifications you would like to make to your composition."
+  },
+  "hello_please_describe_the_modifications_you_would__600dbbf0": {
+    "message": "Hello. Please describe the modifications you would like to make to your selection."
+  },
   "hexagon_d8468e0d": { "message": "Hexagon" },
   "hide_description_bfb5502e": { "message": "Hide description" },
   "hide_title_description_caf092ef": {
@@ -450,6 +474,9 @@ const locale = {
     "message": "I have obtained permission to use this file."
   },
   "i_hold_the_copyright_71ee91b1": { "message": "I hold the copyright" },
+  "i_m_sorry_but_i_cannot_find_the_ai_s_answer_67569d19": {
+    "message": "I''m sorry, but I cannot find the AI''s answer"
+  },
   "icon_215a1dc6": { "message": "Icon" },
   "icon_8168b2f8": { "message": "icon" },
   "icon_color_b86dd6d6": { "message": "Icon Colour" },
@@ -493,6 +520,10 @@ const locale = {
   "indigo_2035fc55": { "message": "Indigo" },
   "inference_fed5c960": { "message": "Inference" },
   "infinity_7a10f206": { "message": "Infinity" },
+  "input_field_for_alpha_678265fd": { "message": "Input field for alpha" },
+  "input_field_for_blue_561e020a": { "message": "Input field for blue" },
+  "input_field_for_green_67f8b2b6": { "message": "Input field for green" },
+  "input_field_for_red_86a84615": { "message": "Input field for red" },
   "insert_593145ef": { "message": "Insert" },
   "insert_link_6dc23cae": { "message": "Insert Link" },
   "insert_math_equation_57c6e767": { "message": "Insert Maths Equation" },
@@ -514,6 +545,7 @@ const locale = {
   "language_arts_icon_a798b0f8": { "message": "Language Arts Icon" },
   "languages_icon_9d20539": { "message": "Languages Icon" },
   "large_9c5e80e7": { "message": "Large" },
+  "large_text_e7ba08cd": { "message": "Large text" },
   "learn_more_about_adjacent_links_2cb9762c": {
     "message": "Learn more about adjacent links"
   },
@@ -580,6 +612,7 @@ const locale = {
   "links_to_an_external_site_de74145d": {
     "message": "Links to an external site."
   },
+  "lists_cd1336fc": { "message": "Lists" },
   "lists_should_be_formatted_as_lists_f862de8d": {
     "message": "Lists should be formatted as lists."
   },
@@ -629,6 +662,7 @@ const locale = {
   "minus_plus_3461f637": { "message": "Minus/Plus" },
   "misc_3b692ea7": { "message": "Misc" },
   "miscellaneous_e9818229": { "message": "Miscellaneous" },
+  "modify_6b0b13e3": { "message": "Modify" },
   "module_90d9fd32": { "message": "Module" },
   "modules_c4325335": { "message": "Modules" },
   "moving_image_to_crop_directionword_6f66cde2": {
@@ -638,12 +672,6 @@ const locale = {
   "multi_color_image_63d7372f": { "message": "Multi Colour Image" },
   "multiplication_sign_15f95c22": { "message": "Multiplication Sign" },
   "music_icon_4db5c972": { "message": "Music Icon" },
-  "must_be_at_least_percentage_22e373b6": {
-    "message": "Must be at least { percentage }%"
-  },
-  "must_be_at_least_width_x_height_px_41dc825e": {
-    "message": "Must be at least { width } x { height }px"
-  },
   "my_files_2f621040": { "message": "My files" },
   "n_th_root_9991a6e4": { "message": "N-th Root" },
   "nabla_1e216d25": { "message": "Nabla" },
@@ -696,6 +724,7 @@ const locale = {
   "no_video_1ed00b26": { "message": "No Video" },
   "none_3b5e34d2": { "message": "None" },
   "none_selected_b93d56d2": { "message": "None Selected" },
+  "normal_text_7b03da48": { "message": "Normal text" },
   "not_equal_6e2980e6": { "message": "Not Equal" },
   "not_in_not_an_element_of_fb1ffb54": {
     "message": "Not In (Not An Element Of)"
@@ -733,9 +762,6 @@ const locale = {
   },
   "outline_color_3ef2cea7": { "message": "Outline Colour" },
   "outline_size_a6059a21": { "message": "Outline Size" },
-  "p_is_not_a_valid_protocol_which_must_be_ftp_http_h_adf13fc2": {
-    "message": "{ p } is not a valid protocol which must be ftp, http, https, mailto, skype, tel or may be omitted"
-  },
   "page_50c4823d": { "message": "Page" },
   "pages_e5414c2c": { "message": "Pages" },
   "paragraph_5e5ad8eb": { "message": "Paragraph" },
@@ -744,6 +770,7 @@ const locale = {
   },
   "parallel_d55d6e38": { "message": "Parallel" },
   "partial_derivative_4a9159df": { "message": "Partial (Derivative)" },
+  "pass_1c19a2b3": { "message": "PASS" },
   "paste_5963d1c1": { "message": "Paste" },
   "pause_12af3bb4": { "message": "Pause" },
   "pentagon_17d82ea3": { "message": "Pentagon" },
@@ -752,6 +779,9 @@ const locale = {
   "percentage_must_be_a_number_8033c341": {
     "message": "Percentage must be a number"
   },
+  "percentage_must_be_at_least_percentage_a98ca8fc": {
+    "message": "Percentage must be at least { percentage }%"
+  },
   "performing_arts_icon_f3497486": { "message": "Performing Arts Icon" },
   "perpendicular_7c48ede4": { "message": "Perpendicular" },
   "phi_4ac33b6d": { "message": "Phi" },
@@ -759,8 +789,12 @@ const locale = {
   "physical_education_icon_d7dffd3e": { "message": "Physical Education Icon" },
   "pi_dc4f0bd8": { "message": "Pi" },
   "pi_variant_10f5f520": { "message": "Pi (Variant)" },
+  "pick_a_color_557abfb0": { "message": "Pick a colour" },
   "pink_68ad45cb": { "message": "Pink" },
   "pixels_52ece7d1": { "message": "Pixels" },
+  "pixels_must_be_at_least_width_x_height_px_e965edd5": {
+    "message": "Pixels must be at least { width } x { height }px"
+  },
   "play_1a47eaa7": { "message": "Play" },
   "play_media_comment_35257210": { "message": "Play media comment." },
   "play_media_comment_by_name_from_createdat_c230123d": {
@@ -768,6 +802,9 @@ const locale = {
   },
   "please_allow_canvas_to_access_your_microphone_and__dc2c3079": {
     "message": "Please allow Canvas to access your microphone and webcam."
+  },
+  "please_decribe_what_you_would_like_to_compose_27a51be5": {
+    "message": "Please describe what you would like to compose."
   },
   "plus_d43cd4ec": { "message": "Plus" },
   "plus_minus_f8be2e83": { "message": "Plus/Minus" },
@@ -786,6 +823,9 @@ const locale = {
   "preview_inline_9787330": { "message": "Preview inline" },
   "previous_bd2ac015": { "message": "Previous" },
   "previous_findtext_8dfbfd30": { "message": "Previous { findText }" },
+  "previously_chosen_colors_f1338315": {
+    "message": "Previously chosen colours"
+  },
   "prime_917ea60e": { "message": "Prime" },
   "prime_numbers_13464f61": { "message": "Prime Numbers" },
   "product_39cf144f": { "message": "Product" },
@@ -831,8 +871,12 @@ const locale = {
   },
   "reset_95a81614": { "message": "Reset" },
   "resize_ec83d538": { "message": "Resize" },
+  "response_copied_to_clipboard_130d66cd": {
+    "message": "Response copied to clipboard"
+  },
   "restore_auto_save_deccd84b": { "message": "Restore auto-save?" },
   "result_index_of_max_7db5ad8b": { "message": "Result { index } of { max }." },
+  "retry_ebd5f8ba": { "message": "Retry" },
   "reverse_turnstile_does_not_yield_7558be06": {
     "message": "Reverse Turnstile (Does Not Yield)"
   },
@@ -909,6 +953,7 @@ const locale = {
     "message": "Shift-O to open the pretty html editor."
   },
   "shortcut_911d6255": { "message": "Shortcut" },
+  "show_all_967a90f0": { "message": "Show all." },
   "show_audio_options_b489926b": { "message": "Show audio options" },
   "show_image_options_1e2ecc6b": { "message": "Show image options" },
   "show_link_options_545338fd": { "message": "Show link options" },
@@ -970,6 +1015,7 @@ const locale = {
   },
   "styles_2aa721ef": { "message": "Styles" },
   "submit_a3cc6859": { "message": "Submit" },
+  "submitting_b90fac62": { "message": "Submitting..." },
   "subscript_59744f96": { "message": "Subscript" },
   "subset_19c1a92f": { "message": "Subset" },
   "subset_strict_8d8948d6": { "message": "Subset (Strict)" },
@@ -1203,6 +1249,7 @@ const locale = {
   "view_word_and_character_counts_a743dd0c": {
     "message": "View word and character counts"
   },
+  "waiting_for_response_1efd0c50": { "message": "Waiting for response" },
   "we_couldn_t_detect_a_working_microphone_connected__ceb71c40": {
     "message": "We couldn’t detect a working microphone connected to your device."
   },
@@ -1216,6 +1263,9 @@ const locale = {
   "webcam_fe91b20f": { "message": "Webcam" },
   "webpages_should_only_have_a_single_h1_which_is_aut_dc99189e": {
     "message": "Webpages should only have a single H1, which is automatically used by the page''s Title. The first heading in your content should be an H2."
+  },
+  "what_would_you_like_to_do_6dc0d541": {
+    "message": "What would you like to do?"
   },
   "when_markup_is_used_that_visually_formats_items_as_f941fc1b": {
     "message": "When markup is used that visually formats items as a list but does not indicate the list relationship, users may have difficulty in navigating the information."
@@ -1231,8 +1281,18 @@ const locale = {
   "word_count_c77fe3a6": { "message": "Word Count" },
   "words_b448b7d5": { "message": "Words" },
   "wreath_product_200b38ef": { "message": "Wreath Product" },
+  "writing_assistant_a30ac16a": { "message": "Writing Assistant" },
   "xi_149681d0": { "message": "Xi" },
   "yes_dde87d5": { "message": "Yes" },
+  "you_are_on_a_color_palette_to_navigate_on_the_pale_227fc3a6": {
+    "message": "You are on a colour palette. To navigate on the palette up, left, down or right, use the ''W'', ''A'', ''S'' and ''D'' buttons respectively"
+  },
+  "you_are_on_a_color_slider_to_navigate_the_slider_l_e800f68a": {
+    "message": "You are on a colour slider. To navigate the slider left or right, use the ''A'' and ''D'' buttons respectively"
+  },
+  "you_are_on_an_alpha_slider_to_navigate_the_slider__3a014dc5": {
+    "message": "You are on an alpha slider. To navigate the slider left or right, use the ''A'' and ''D'' buttons respectively"
+  },
   "you_have_unsaved_changes_in_the_icon_maker_tray_do_e8cf5f1b": {
     "message": "You have unsaved changes in the Icon Maker tray. Do you want to continue without saving these changes?"
   },

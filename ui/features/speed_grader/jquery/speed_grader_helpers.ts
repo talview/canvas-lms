@@ -19,7 +19,7 @@
 import type JQuery from 'jquery'
 import $ from 'jquery'
 import {each} from 'lodash'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import '@canvas/jquery/jquery.instructure_misc_helpers'
 import {datetimeString} from '@canvas/datetime/date-functions'
 import replaceTags from '@canvas/util/replaceTags'
@@ -30,7 +30,7 @@ import type {
   SubmissionState,
 } from './speed_grader.d'
 
-const I18n = useI18nScope('speed_grader_helpers')
+const I18n = createI18nScope('speed_grader_helpers')
 
 const speedGraderHelpers = {
   getHistory() {
@@ -106,6 +106,7 @@ const speedGraderHelpers = {
     }
     const select = '&version='
     // check if the version is valid, or matches the index
+    // @ts-expect-error
     const version = submission.submission_history[currentSelectedIndex].submission.version
     if (version == null || Number.isNaN(Number(version))) {
       return select + currentSelectedIndex
@@ -247,6 +248,7 @@ const speedGraderHelpers = {
     event.preventDefault()
 
     $(event.target).prop('disabled', true).text(I18n.t('turnitin.resubmitting', 'Resubmitting...'))
+    // @ts-expect-error
     $.ajaxJSON(resubmitUrl, 'POST', {}, () => {
       speedGraderHelpers.reloadPage()
     })

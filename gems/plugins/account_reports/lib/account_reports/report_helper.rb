@@ -55,9 +55,7 @@ module AccountReports::ReportHelper
   # This function will take a datetime string and parse into UTC from the
   # root_account's timezone
   def account_time_parse(datetime, account = root_account)
-    Time.use_zone(account.default_time_zone) do
-      Time.zone.parse datetime.to_s rescue nil
-    end
+    ActiveSupport::TimeZone[account.default_time_zone].parse(datetime.to_s)
   end
 
   def account
@@ -260,7 +258,7 @@ module AccountReports::ReportHelper
       @include_deleted = value_to_boolean(@account_report.parameters["include_deleted"])
 
       if @include_deleted
-        add_extra_text(I18n.t("Include Deleted Objects;"))
+        add_extra_text(I18n.t("Include Deleted/Concluded Objects;"))
       end
     end
   end
@@ -281,6 +279,20 @@ module AccountReports::ReportHelper
         add_extra_text("Include Enrollment States: #{@enrollment_states.to_sentence};")
       end
     end
+  end
+
+  #
+  # Returns a string suitable for substitution into a join clause that will ensure only the
+  # most relevant pseudonym is joined
+  #
+  # If the query is already using a DISTINCT ON, it's best to just use SisPseudonym.order
+  # on the final relation, instead of introducing a subquery
+  #
+  # @example
+  #   User.joins("INNER JOIN #{ordered_pseudonyms} p ON users.id = p.user_id")
+  #
+  def ordered_pseudonyms(relation = Pseudonym.all)
+    "(#{SisPseudonym.order(relation.select("DISTINCT ON (user_id) *").order(:user_id)).to_sql})"
   end
 
   def valid_enrollment_workflow_states

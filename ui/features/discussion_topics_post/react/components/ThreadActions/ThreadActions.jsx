@@ -16,20 +16,17 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import PropTypes from 'prop-types'
 import React, {useMemo} from 'react'
 
 import {Menu} from '@instructure/ui-menu'
 import {
   IconMoreLine,
-  IconNextUnreadLine,
   IconDiscussionLine,
   IconEditLine,
   IconTrashLine,
   IconSpeedGraderLine,
-  IconMarkAsReadSolid,
-  IconMarkAsReadLine,
   IconWarningBorderlessSolid,
   IconReplyAll2Line,
   IconCommentLine,
@@ -38,8 +35,10 @@ import {
 import {IconButton} from '@instructure/ui-buttons'
 import {Text} from '@instructure/ui-text'
 import {Flex} from '@instructure/ui-flex'
+import ReadIcon from '@canvas/read-icon'
+import UnreadIcon from '@canvas/unread-icon'
 
-const I18n = useI18nScope('discussion_posts')
+const I18n = createI18nScope('discussion_posts')
 
 // Reason: <Menu> in v6 of InstUI requires a ref to bind too or errors
 // are produced by the menu causing the page to scroll all over the place
@@ -63,32 +62,30 @@ export const ThreadActions = props => {
     }).map(config => renderMenuItem({...config}, props.id))
   }, [props])
 
+  if (props.isSearch) {
+    return null
+  }
+
   return (
-    <Flex justifyItems="end">
-      <Flex.Item>
-        {!props.isSearch && (
-          <Menu
-            placement="bottom"
-            key={`threadActionMenu-${props.id}`}
-            trigger={
-              <IconButton
-                size="medium"
-                screenReaderLabel={I18n.t('Manage Discussion by %{author}', {
-                  author: props.authorName,
-                })}
-                renderIcon={IconMoreLine}
-                withBackground={false}
-                withBorder={false}
-                data-testid="thread-actions-menu"
-              />
-            }
-            ref={props.moreOptionsButtonRef}
-          >
-            {menuItems}
-          </Menu>
-        )}
-      </Flex.Item>
-    </Flex>
+    <Menu
+      placement="bottom"
+      key={`threadActionMenu-${props.id}`}
+      trigger={
+        <IconButton
+          size="medium"
+          screenReaderLabel={I18n.t('Manage Discussion by %{author}', {
+            author: props.authorName,
+          })}
+          renderIcon={IconMoreLine}
+          withBackground={false}
+          withBorder={false}
+          data-testid="thread-actions-menu"
+        />
+      }
+      ref={props.moreOptionsButtonRef}
+    >
+      {menuItems}
+    </Menu>
   )
 }
 
@@ -97,7 +94,7 @@ const getMenuConfigs = props => {
   if (props.onMarkAllAsRead) {
     options.push({
       key: 'markAllAsRead',
-      icon: <IconNextUnreadLine />,
+      icon: <ReadIcon />,
       label: I18n.t('Mark All as Read'),
       selectionCallback: props.onMarkAllAsRead,
     })
@@ -105,7 +102,7 @@ const getMenuConfigs = props => {
   if (props.onMarkAllAsUnread) {
     options.push({
       key: 'markAllAsUnRead',
-      icon: <IconNextUnreadLine />,
+      icon: <UnreadIcon />,
       label: I18n.t('Mark All as Unread'),
       selectionCallback: props.onMarkAllAsUnread,
     })
@@ -113,14 +110,14 @@ const getMenuConfigs = props => {
   if (props.isUnread) {
     options.push({
       key: 'markAsRead',
-      icon: <IconNextUnreadLine />,
+      icon: <ReadIcon />,
       label: I18n.t('Mark as Read'),
       selectionCallback: props.onToggleUnread,
     })
   } else {
     options.push({
       key: 'markAsUnread',
-      icon: <IconNextUnreadLine />,
+      icon: <UnreadIcon />,
       label: I18n.t('Mark as Unread'),
       selectionCallback: props.onToggleUnread,
     })
@@ -128,7 +125,7 @@ const getMenuConfigs = props => {
   if (props.onMarkThreadAsRead) {
     options.push({
       key: 'markThreadAsRead',
-      icon: <IconMarkAsReadLine />,
+      icon: <ReadIcon />,
       label: I18n.t('Mark Thread as Read'),
       selectionCallback: () => {
         props.onMarkThreadAsRead(true)
@@ -138,7 +135,7 @@ const getMenuConfigs = props => {
   if (props.onMarkThreadAsRead) {
     options.push({
       key: 'markThreadAsUnRead',
-      icon: <IconMarkAsReadSolid />,
+      icon: <UnreadIcon />,
       label: I18n.t('Mark Thread as Unread'),
       selectionCallback: () => {
         props.onMarkThreadAsRead(false)

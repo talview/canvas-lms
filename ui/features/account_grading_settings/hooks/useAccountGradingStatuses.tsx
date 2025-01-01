@@ -17,9 +17,9 @@
  */
 
 import {useEffect, useState} from 'react'
-import {useMutation, useQuery} from 'react-apollo'
+import {useMutation, useQuery} from '@apollo/client'
 import type {GradeStatus, StandardStatusAllowedName} from '@canvas/grading/accountGradingStatus'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {
   DELETE_CUSTOM_GRADING_STATUS_MUTATION,
   UPSERT_CUSTOM_GRADING_STATUS_MUTATION,
@@ -38,7 +38,7 @@ import {
   statusesTitleMap,
 } from '../utils/accountStatusUtils'
 
-const I18n = useI18nScope('account_grading_status')
+const I18n = createI18nScope('account_grading_status')
 
 export const useAccountGradingStatuses = (accountId: string, isExtendedStatusEnabled?: boolean) => {
   const [standardStatuses, setStandardStatuses] = useState<GradeStatus[]>([])
@@ -75,15 +75,14 @@ export const useAccountGradingStatuses = (accountId: string, isExtendedStatusEna
       return
     }
 
-    if (!fetchStatusesData?.account) {
-      return
-    }
-
-    const {account} = fetchStatusesData
-    const {customGradeStatusesConnection, standardGradeStatusesConnection} = account
-    setCustomStatuses(mapCustomStatusQueryResults(customGradeStatusesConnection.nodes))
+    const {account} = fetchStatusesData ?? {}
+    const {customGradeStatusesConnection, standardGradeStatusesConnection} = account ?? {}
+    setCustomStatuses(mapCustomStatusQueryResults(customGradeStatusesConnection?.nodes ?? []))
     setStandardStatuses(
-      mapStandardStatusQueryResults(standardGradeStatusesConnection.nodes, isExtendedStatusEnabled)
+      mapStandardStatusQueryResults(
+        standardGradeStatusesConnection?.nodes ?? [],
+        isExtendedStatusEnabled
+      )
     )
   }, [fetchStatusesData, fetchStatusesError, isExtendedStatusEnabled])
 

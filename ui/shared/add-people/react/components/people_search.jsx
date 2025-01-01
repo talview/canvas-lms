@@ -16,7 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import React from 'react'
 import {Text} from '@instructure/ui-text'
 import {Checkbox} from '@instructure/ui-checkbox'
@@ -27,8 +27,9 @@ import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import {IconUserSolid} from '@instructure/ui-icons'
 import {courseParamsShape, inputParamsShape} from './shapes'
 import {parseNameList, findEmailInEntry, emailValidator} from '../helpers'
+import {Flex} from '@instructure/ui-flex'
 
-const I18n = useI18nScope('PeopleSearch')
+const I18n = createI18nScope('PeopleSearch')
 
 class PeopleSearch extends React.Component {
   static propTypes = {...inputParamsShape, ...courseParamsShape}
@@ -182,8 +183,13 @@ class PeopleSearch extends React.Component {
           />
         </fieldset>
         <fieldset className="peoplesearch__selections">
-          <div>
-            <div className="peoplesearch__selection">
+          <Flex
+            wrap="wrap"
+            gap="large"
+            justifyItems="center"
+            data-testid="people-search-role-section-container"
+          >
+            <Flex.Item>
               <CanvasSelect
                 label={I18n.t('Role')}
                 id="peoplesearch_select_role"
@@ -196,8 +202,8 @@ class PeopleSearch extends React.Component {
                   </CanvasSelect.Option>
                 ))}
               </CanvasSelect>
-            </div>
-            <div className="peoplesearch__selection">
+            </Flex.Item>
+            <Flex.Item>
               <CanvasSelect
                 label={I18n.t('Section')}
                 id="peoplesearch_select_section"
@@ -213,8 +219,8 @@ class PeopleSearch extends React.Component {
                   </CanvasSelect.Option>
                 ))}
               </CanvasSelect>
-            </div>
-          </div>
+            </Flex.Item>
+          </Flex>
           <div style={{marginTop: '1em'}}>
             <Checkbox
               key="limit_privileges_to_course_section"

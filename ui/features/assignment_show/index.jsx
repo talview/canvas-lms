@@ -16,7 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import '@canvas/jquery/jquery.ajaxJSON'
 import React from 'react'
@@ -38,19 +38,33 @@ import DirectShareUserModal from '@canvas/direct-sharing/react/components/Direct
 import DirectShareCourseTray from '@canvas/direct-sharing/react/components/DirectShareCourseTray'
 import {setupSubmitHandler} from '@canvas/assignments/jquery/reuploadSubmissionsHelper'
 import ready from '@instructure/ready'
-import {monitorLtiMessages} from '@canvas/lti/jquery/messages'
-import ItemAssignToTray from '@canvas/context-modules/differentiated-modules/react/Item/ItemAssignToTray'
+import ItemAssignToManager from '@canvas/context-modules/differentiated-modules/react/Item/ItemAssignToManager'
 import {captureException} from '@sentry/browser'
+import {RubricAssignmentContainer} from '@canvas/rubrics/react/RubricAssignment'
+import {
+  mapRubricUnderscoredKeysToCamelCase,
+  mapRubricAssociationUnderscoredKeysToCamelCase,
+} from '@canvas/rubrics/react/utils'
+import sanitizeHtml from 'sanitize-html-with-tinymce'
+import {containsHtmlTags, formatMessage} from '@canvas/util/TextHelper'
 
 if (!('INST' in window)) window.INST = {}
 
-const I18n = useI18nScope('assignment')
+const I18n = createI18nScope('assignment')
 
 ready(() => {
+  const comments = document.getElementsByClassName('comment_content')
+  Array.from(comments).forEach(comment => {
+    const content = comment.dataset.content
+    const formattedComment = containsHtmlTags(content)
+      ? sanitizeHtml(content)
+      : formatMessage(content)
+    comment.innerHTML = formattedComment
+  })
+
   const lockManager = new LockManager()
   lockManager.init({itemType: 'assignment', page: 'show'})
   renderCoursePacingNotice()
-  monitorLtiMessages()
 })
 
 let studentGroupSelectionRequestTrackers = []
@@ -91,6 +105,7 @@ function renderSpeedGraderLink() {
   const $mountPoint = document.getElementById('speed_grader_link_mount_point')
 
   if ($mountPoint) {
+     
     ReactDOM.render(
       <SpeedGraderLink
         disabled={disabled}
@@ -106,6 +121,7 @@ function renderStudentGroupFilter() {
   const $mountPoint = document.getElementById('student_group_filter_mount_point')
 
   if ($mountPoint) {
+     
     ReactDOM.render(
       <StudentGroupFilter
         categories={ENV.group_categories}
@@ -128,7 +144,7 @@ function renderCoursePacingNotice() {
         renderNotice($mountPoint, ENV.COURSE_ID)
       })
       .catch(ex => {
-        // eslint-disable-next-line no-console
+         
         console.error('Falied loading CoursePacingNotice', ex)
         captureException(ex)
       })
@@ -159,7 +175,7 @@ ready(() => {
         }
       })
       .catch(e => {
-        console.log('Error loading immersive readers.', e) // eslint-disable-line no-console
+        console.log('Error loading immersive readers.', e)  
       })
   }
 })
@@ -204,8 +220,9 @@ $(() => {
 })
 
 function renderItemAssignToTray(open, returnFocusTo, itemProps) {
+   
   ReactDOM.render(
-    <ItemAssignToTray
+    <ItemAssignToManager
       open={open}
       onClose={() => {
         ReactDOM.unmountComponentAtNode(document.getElementById('assign-to-mount-point'))
@@ -249,6 +266,7 @@ $(() =>
 
 function openSendTo(event, open = true) {
   if (event) event.preventDefault()
+   
   ReactDOM.render(
     <DirectShareUserModal
       open={open}
@@ -265,6 +283,7 @@ function openSendTo(event, open = true) {
 
 function openCopyTo(event, open = true) {
   if (event) event.preventDefault()
+   
   ReactDOM.render(
     <DirectShareCourseTray
       open={open}
@@ -292,6 +311,40 @@ $(() => {
     }
 
     renderSpeedGraderLink()
+  }
+})
+
+$(() => {
+  const $mountPoint = document.getElementById('enhanced-rubric-assignment-edit')
+
+  if ($mountPoint) {
+    const envRubric = ENV.assigned_rubric
+    const envRubricAssociation = ENV.rubric_association
+    const assignmentRubric = envRubric
+      ? {
+          ...mapRubricUnderscoredKeysToCamelCase(ENV.assigned_rubric),
+          can_update: ENV.assigned_rubric?.can_update,
+        }
+      : undefined
+    const assignmentRubricAssociation = envRubricAssociation
+      ? mapRubricAssociationUnderscoredKeysToCamelCase(ENV.rubric_association)
+      : undefined
+     
+    ReactDOM.render(
+      <RubricAssignmentContainer
+        accountMasterScalesEnabled={ENV.ACCOUNT_LEVEL_MASTERY_SCALES}
+        assignmentId={ENV.ASSIGNMENT_ID}
+        assignmentRubric={assignmentRubric}
+        assignmentRubricAssociation={assignmentRubricAssociation}
+        canManageRubrics={ENV.PERMISSIONS.manage_rubrics}
+        canUpdateSelfAssessment={ENV.can_update_rubric_self_assessment}
+        contextAssetString={ENV.context_asset_string}
+        courseId={ENV.COURSE_ID}
+        rubricSelfAssessmentEnabled={ENV.rubric_self_assessment_enabled}
+        rubricSelfAssessmentFFEnabled={ENV.rubric_self_assessment_ff_enabled}
+      />,
+      $mountPoint
+    )
   }
 })
 

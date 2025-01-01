@@ -16,7 +16,7 @@
 // with this program. If not, see <http://www.gnu.org/licenses/>.
 //
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import OutcomeGroup from '../models/OutcomeGroup'
 import Progress from '@canvas/progress/backbone/models/Progress'
@@ -28,7 +28,7 @@ import instructionsTemplate from '../../jst/findInstructions.handlebars'
 import '@canvas/rails-flash-notifications'
 import '@canvas/jquery/jquery.disableWhileLoading'
 
-const I18n = useI18nScope('outcomesFindDialog')
+const I18n = createI18nScope('outcomesFindDialog')
 
 // Creates a popup dialog similar to the main outcomes browser minus the toolbar.
 export default class FindDialog extends DialogBaseView {
@@ -53,7 +53,7 @@ export default class FindDialog extends DialogBaseView {
         },
       ],
       modal: true,
-      zIndex: 1000,
+      zIndex: this.zIndex ?? 1000,
     }
   }
 
@@ -65,6 +65,7 @@ export default class FindDialog extends DialogBaseView {
     this.title = opts.title
     this.shouldImport = opts.shouldImport !== false
     this.disableGroupImport = opts.disableGroupImport
+    this.zIndex = opts.zIndex ?? 1000
 
     super.initialize(...arguments)
     this.render()

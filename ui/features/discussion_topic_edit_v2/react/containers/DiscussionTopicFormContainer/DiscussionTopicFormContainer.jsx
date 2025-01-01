@@ -16,27 +16,29 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {useContext, useState} from 'react'
+import React, {useCallback, useContext, useEffect, useState} from 'react'
 
-import {useQuery, useMutation} from 'react-apollo'
-import {DISCUSSION_TOPIC_QUERY} from '../../../graphql/Queries'
-import {CREATE_DISCUSSION_TOPIC, UPDATE_DISCUSSION_TOPIC} from '../../../graphql/Mutations'
-import LoadingIndicator from '@canvas/loading-indicator'
+import {useMutation, useQuery} from '@apollo/client'
 import {AlertManagerContext} from '@canvas/alerts/react/AlertManager'
-import {useScope as useI18nScope} from '@canvas/i18n'
-import DiscussionTopicForm from '../../components/DiscussionTopicForm/DiscussionTopicForm'
-import {setUsageRights} from '../../util/setUsageRights'
-import {getContextQuery} from '../../util/utils'
+import {useScope as createI18nScope} from '@canvas/i18n'
+import LoadingIndicator from '@canvas/loading-indicator'
+import TopNavPortalWithDefaults from '@canvas/top-navigation/react/TopNavPortalWithDefaults'
+import {assignLocation} from '@canvas/util/globalUtils'
+import WithBreakpoints from '@canvas/with-breakpoints'
+import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import {Flex} from '@instructure/ui-flex'
 import {Heading} from '@instructure/ui-heading'
-import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import {IconCompleteSolid, IconUnpublishedLine} from '@instructure/ui-icons'
 import {Pill} from '@instructure/ui-pill'
-import {Tabs} from '@instructure/ui-tabs'
+import {flushSync} from 'react-dom'
+import {CREATE_DISCUSSION_TOPIC, UPDATE_DISCUSSION_TOPIC} from '../../../graphql/Mutations'
+import {DISCUSSION_TOPIC_QUERY} from '../../../graphql/Queries'
+import DiscussionTopicForm from '../../components/DiscussionTopicForm/DiscussionTopicForm'
 import {SavingDiscussionTopicOverlay} from '../../components/SavingDiscussionTopicOverlay/SavingDiscussionTopicOverlay'
-import WithBreakpoints from '@canvas/with-breakpoints'
+import {setUsageRights} from '../../util/setUsageRights'
+import {getContextQuery} from '../../util/utils'
 
-const I18n = useI18nScope('discussion_create')
+const I18n = createI18nScope('discussion_create')
 const instUINavEnabled = () => window.ENV?.FEATURES?.instui_nav
 
 function DiscussionTopicFormContainer({apolloClient, breakpoints}) {
@@ -45,12 +47,26 @@ function DiscussionTopicFormContainer({apolloClient, breakpoints}) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const contextType = ENV.context_is_not_group ? 'Course' : 'Group'
   const {contextQueryToUse, contextQueryVariables} = getContextQuery(contextType)
-  const [selectedTabIndex, setSelectedTabIndex] = useState(0)
-  const handleTabChange = (event, {index}) => {
-    setSelectedTabIndex(index)
-  }
+
+  const [latestDiscussionContextType, setLatestDiscussionContextType] = useState(null)
+  const [latestDiscussionTopicId, setLatestDiscussionTopicId] = useState(null)
+
+  const navigateToDiscussionTopicEvent = useCallback(() => {
+    navigateToDiscussionTopic(latestDiscussionContextType, latestDiscussionTopicId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestDiscussionContextType, latestDiscussionTopicId])
+
+  useEffect(() => {
+    window.addEventListener('navigateToDiscussionTopic', navigateToDiscussionTopicEvent)
+
+    return () => {
+      window.removeEventListener('navigateToDiscussionTopic', navigateToDiscussionTopicEvent)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestDiscussionContextType, latestDiscussionTopicId])
 
   const isAnnouncement = ENV?.DISCUSSION_TOPIC?.ATTRIBUTES?.is_announcement ?? false
+  const shouldSaveMasteryPaths = ENV.CONDITIONAL_RELEASE_SERVICE_ENABLED && !isAnnouncement
 
   const {data: contextData, loading: courseIsLoading} = useQuery(contextQueryToUse, {
     variables: contextQueryVariables,
@@ -88,9 +104,9 @@ function DiscussionTopicFormContainer({apolloClient, breakpoints}) {
 
   function navigateToDiscussionTopic(context_type, discussion_topic_id) {
     if (context_type === 'Course') {
-      window.location.assign(`/courses/${ENV.context_id}/discussion_topics/${discussion_topic_id}`)
+      assignLocation(`/courses/${ENV.context_id}/discussion_topics/${discussion_topic_id}`)
     } else if (context_type === 'Group') {
-      window.location.assign(`/groups/${ENV.context_id}/discussion_topics/${discussion_topic_id}`)
+      assignLocation(`/groups/${ENV.context_id}/discussion_topics/${discussion_topic_id}`)
     } else {
       setOnFailure(I18n.t('Invalid context type'))
     }
@@ -99,7 +115,6 @@ function DiscussionTopicFormContainer({apolloClient, breakpoints}) {
   const handleFormSubmit = (formData, notifyUsers) => {
     const {usageRightsData, ...formDataWithoutUsageRights} = formData
     setUsageRightData(usageRightsData)
-
     if (isEditing) {
       updateDiscussionTopic({variables: {...formDataWithoutUsageRights, notifyUsers}})
     } else {
@@ -111,16 +126,44 @@ function DiscussionTopicFormContainer({apolloClient, breakpoints}) {
     const {_id: discussionTopicId, contextType: discussionContextType, attachment} = discussionTopic
 
     if (discussionTopicId && discussionContextType) {
+      let shouldNavigateToDiscussionTopic = true
+
       try {
         if (ENV?.USAGE_RIGHTS_REQUIRED) {
           await saveUsageRights(usageRightData, attachment)
+        }
+
+        if (shouldSaveMasteryPaths && discussionTopic.assignment) {
+          const {assignment} = discussionTopic
+
+          const assignmentInfo = {
+            id: assignment._id,
+            grading_standard_id: assignment?.gradingStandard?.id,
+            grading_type: assignment.gradingType,
+            points_possible: assignment.pointsPossible,
+            submission_types: 'discussion_topic',
+          }
+
+          shouldNavigateToDiscussionTopic = false
+          flushSync(() => {
+            setLatestDiscussionContextType(discussionContextType)
+            setLatestDiscussionTopicId(discussionTopicId)
+          })
+
+          window.dispatchEvent(
+            new CustomEvent('triggerMasteryPathsUpdateAssignment', {detail: {assignmentInfo}}),
+          )
+          window.dispatchEvent(new CustomEvent('triggerMasteryPathsSave'))
         }
       } catch (error) {
         // Handle error on saving usage rights
         setOnFailure(error)
       } finally {
         // Always navigate to the discussion topic on a successful mutation
-        navigateToDiscussionTopic(discussionContextType, discussionTopicId)
+        // In some scenarios, like when saving mastery paths, we don't want to navigate unless it happens via event
+        if (shouldNavigateToDiscussionTopic) {
+          navigateToDiscussionTopic(discussionContextType, discussionTopicId)
+        }
       }
     } else {
       setIsSubmitting(false)
@@ -135,7 +178,7 @@ function DiscussionTopicFormContainer({apolloClient, breakpoints}) {
     }
 
     return (
-      <Pill margin="small 0 0 0" variant="primary" {...pillProps}>
+      <Pill data-testid="publish-status-pill" margin="small 0 0 0" variant="primary" {...pillProps}>
         {published ? I18n.t('Published') : I18n.t('Unpublished')}
       </Pill>
     )
@@ -144,13 +187,17 @@ function DiscussionTopicFormContainer({apolloClient, breakpoints}) {
   const renderHeading = () => {
     const headerText = isAnnouncement ? I18n.t('Create Announcement') : I18n.t('Create Discussion')
     const titleContent = currentDiscussionTopic?.title ?? headerText
-
     const headerMargin = breakpoints.desktop ? '0 0 large 0' : '0 0 medium 0'
-
     return instUINavEnabled() ? (
       <Flex margin={headerMargin} direction="column" as="div">
         <Flex.Item margin="0" overflow="hidden">
-          <Heading level="h1">{titleContent}</Heading>
+          <Heading
+            as="h1"
+            level={breakpoints.ICEDesktop ? 'h1' : 'h2'}
+            themeOverride={{h2FontWeight: 700}}
+          >
+            {titleContent}
+          </Heading>
         </Flex.Item>
         {!isAnnouncement && (
           <Flex.Item margin="0" shouldShrink={true} overflowX="visible" overflowY="visible">
@@ -180,9 +227,10 @@ function DiscussionTopicFormContainer({apolloClient, breakpoints}) {
         setOnFailure(I18n.t('Error updating file usage rights'))
       })
     },
-    onError: () => {
+    onError: err => {
+      const errMsg = (err?.graphQLErrors || []).map(error => error?.message).join(', ')
       setIsSubmitting(false)
-      setOnFailure(I18n.t('Error creating discussion topic'))
+      setOnFailure(errMsg || I18n.t('Error creating discussion topic'))
     },
   })
 
@@ -222,36 +270,48 @@ function DiscussionTopicFormContainer({apolloClient, breakpoints}) {
         isEditing={isEditing}
         currentDiscussionTopic={currentDiscussionTopic}
         isStudent={ENV.current_user_is_student}
-        assignmentGroups={currentContext?.assignmentGroupsConnection?.nodes}
+        assignmentGroups={currentContext?.assignmentGroups}
         sections={ENV.SECTION_LIST}
-        groupCategories={currentContext?.groupSetsConnection?.nodes}
+        groupCategories={currentContext?.groupSets || []}
         studentEnrollments={currentContext?.usersConnection?.nodes}
         apolloClient={apolloClient}
         onSubmit={handleFormSubmit}
         isSubmitting={isSubmitting}
         setIsSubmitting={setIsSubmitting}
+        breakpoints={breakpoints}
       />
     )
   }
 
+  const handleBreadCrumbSetter = ({getCrumbs, setCrumbs}) => {
+    const discussionOrAnnouncement = isAnnouncement
+      ? I18n.t('Announcements')
+      : I18n.t('Discussions')
+    const brUrlPart = isAnnouncement ? 'announcements' : 'discussion_topics'
+    const crumbs = getCrumbs()
+    const baseUrl = `${crumbs[0].url}/${brUrlPart}`
+
+    crumbs.push({name: discussionOrAnnouncement, url: baseUrl})
+
+    if (isEditing && currentDiscussionTopic) {
+      crumbs.push({
+        name: currentDiscussionTopic.title,
+        url: `${baseUrl}/${currentDiscussionTopicId}`,
+      })
+    }
+
+    crumbs.push({name: isEditing ? I18n.t('Edit') : I18n.t('Create new'), url: ''})
+    setCrumbs(crumbs)
+  }
+
   return (
     <>
-      {renderHeading()}
-      {instUINavEnabled() ? (
-        <>
-          <Tabs onRequestTabChange={handleTabChange}>
-            <Tabs.Panel
-              isSelected={selectedTabIndex === 0}
-              renderTitle={I18n.t('Details')}
-              textAlign="center"
-            />
-          </Tabs>
-          {selectedTabIndex === 0 && renderForm()}
-        </>
-      ) : (
-        renderForm()
-      )}
-      <SavingDiscussionTopicOverlay open={isSubmitting} />
+      <TopNavPortalWithDefaults getBreadCrumbSetter={handleBreadCrumbSetter} />
+      <Flex direction="column">
+        <Flex.Item>{renderHeading()}</Flex.Item>
+        {renderForm()}
+        <SavingDiscussionTopicOverlay open={isSubmitting} />
+      </Flex>
     </>
   )
 }

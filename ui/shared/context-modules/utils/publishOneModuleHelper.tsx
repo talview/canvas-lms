@@ -18,7 +18,7 @@
 
 import $ from 'jquery'
 import React from 'react'
-import ReactDOM from 'react-dom'
+import ReactDOM from 'react-dom/client'
 import doFetchApi from '@canvas/do-fetch-api-effect'
 import {showFlashAlert} from '@canvas/alerts/react/FlashAlert'
 import ContextModulesPublishIcon from '../react/ContextModulesPublishIcon'
@@ -32,9 +32,9 @@ import type {
   ModuleItem,
   ModuleItemStateData,
 } from '../react/types'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
-const I18n = useI18nScope('context_modules_utils_publishmoduleitemhelper')
+const I18n = createI18nScope('context_modules_utils_publishmoduleitemhelper')
 
 export function publishModule(courseId: CanvasId, moduleId: CanvasId, skipItems: boolean) {
   const loadingMessage = skipItems
@@ -87,87 +87,94 @@ export function batchUpdateOneModuleApiCall(
   exportFuncs.disableContextModulesPublishMenu(true)
   const relockModulesDialog = new RelockModulesDialog()
   let published_result: boolean
-  return doFetchApi({
-    path,
-    method: 'PUT',
-    body: {
-      module: {
-        published: newPublishedState,
-        skip_content_tags: skipContentTags,
+  return (
+    doFetchApi({
+      path,
+      method: 'PUT',
+      body: {
+        module: {
+          published: newPublishedState,
+          skip_content_tags: skipContentTags,
+        },
       },
-    },
-  })
-    .then((result: DoFetchModuleResponse) => {
-      if (result.json.publish_warning) {
-        showFlashAlert({
-          message: I18n.t('Some module items could not be published'),
-          type: 'warning',
-          err: null,
-        })
-      }
-      relockModulesDialog.renderIfNeeded(result.json)
-
-      return exportFuncs
-        .fetchModuleItemPublishedState(courseId, moduleId)
-        .then(() => {
-          published_result = result.json.published
-
+    })
+      // @ts-expect-error
+      .then((result: DoFetchModuleResponse) => {
+        if (result.json.publish_warning) {
           showFlashAlert({
-            message: successMessage,
-            type: 'success',
+            message: I18n.t('Some module items could not be published'),
+            type: 'warning',
             err: null,
-            srOnly: true,
           })
-        })
-        .finally(() => {
-          exportFuncs.disableContextModulesPublishMenu(false)
-          exportFuncs.renderContextModulesPublishIcon(
-            courseId,
-            moduleId,
-            published_result,
-            false,
-            loadingMessage
-          )
-        })
-    })
-    .catch((error: Error) => {
-      showFlashAlert({
-        message: I18n.t('There was an error while saving your changes'),
-        err: error,
-        type: 'error',
+        }
+        relockModulesDialog.renderIfNeeded(result.json)
+
+        return exportFuncs
+          .fetchModuleItemPublishedState(courseId, moduleId)
+          .then(() => {
+            published_result = result.json.published
+
+            showFlashAlert({
+              message: successMessage,
+              type: 'success',
+              err: null,
+              srOnly: true,
+            })
+          })
+          .finally(() => {
+            exportFuncs.disableContextModulesPublishMenu(false)
+            exportFuncs.renderContextModulesPublishIcon(
+              courseId,
+              moduleId,
+              published_result,
+              false,
+              loadingMessage
+            )
+          })
       })
-      exportFuncs.updateModuleItemsPublishedStates(moduleId, undefined, false)
-    })
+      .catch((error: Error) => {
+        showFlashAlert({
+          message: I18n.t('There was an error while saving your changes'),
+          err: error,
+          type: 'error',
+        })
+        exportFuncs.updateModuleItemsPublishedStates(moduleId, undefined, false)
+      })
+  )
 }
 
+// @ts-expect-error
 export const fetchModuleItemPublishedState = (
   courseId: CanvasId,
   moduleId: CanvasId,
   nextLink?: string
 ) => {
-  return doFetchApi({
-    path: nextLink || `/api/v1/courses/${courseId}/modules/${moduleId}/items`,
-    method: 'GET',
-  })
-    .then((response: DoFetchModuleItemsResponse) => {
-      const {json, link} = response
-      const moduleItems = exportFuncs.getAllModuleItems()
-      json.forEach((item: any) => {
-        exportFuncs.updateModuleItemPublishedState(item.id, item.published, false, moduleItems)
-      })
-      if (link?.next) {
-        return exportFuncs.fetchModuleItemPublishedState(courseId, moduleId, link.next.url)
-      } else {
-        return response
-      }
+  return (
+    doFetchApi({
+      path: nextLink || `/api/v1/courses/${courseId}/modules/${moduleId}/items`,
+      method: 'GET',
     })
-    .catch((error: Error) =>
-      showFlashAlert({
-        message: I18n.t('There was an error while saving your changes'),
-        type: 'error',
-        err: error,
+      // @ts-expect-error
+      .then((response: DoFetchModuleItemsResponse) => {
+        const {json, link} = response
+        const moduleItems = exportFuncs.getAllModuleItems()
+        json.forEach((item: any) => {
+          exportFuncs.updateModuleItemPublishedState(item.id, item.published, false, moduleItems)
+        })
+        if (link?.next) {
+          return exportFuncs.fetchModuleItemPublishedState(courseId, moduleId, link.next.url)
+        } else {
+          return response
+        }
       })
-    )
+      .catch((error: Error) =>
+        showFlashAlert({
+          message: I18n.t('There was an error while saving your changes'),
+          type: 'error',
+          err: error,
+        })
+      )
+  )
 }
 
 // collect all the module items, indexed by their key
@@ -264,10 +271,21 @@ export function renderContextModulesPublishIcon(
 ) {
   const publishIcon = findModulePublishIcon(moduleId)
   if (publishIcon) {
+    const moduleElement = $(publishIcon).parents('.context_module')[0]
+    if (moduleElement) {
+      moduleElement.setAttribute('data-workflow-state', published ? 'active' : 'unpublished')
+    }
     const moduleName =
       publishIcon?.closest('.context_module')?.querySelector('.ig-header-title')?.textContent ||
       `module${moduleId}`
-    ReactDOM.render(
+    // @ts-expect-error
+    let root = publishIcon.reactRoot
+    if (root === undefined) {
+      root = ReactDOM.createRoot(publishIcon)
+      // @ts-expect-error
+      publishIcon.reactRoot = root
+    }
+    root?.render(
       <ContextModulesPublishIcon
         courseId={courseId}
         moduleId={moduleId}
@@ -275,8 +293,7 @@ export function renderContextModulesPublishIcon(
         isPublishing={isPublishing}
         published={published}
         loadingMessage={loadingMessage}
-      />,
-      publishIcon
+      />
     )
   }
 }

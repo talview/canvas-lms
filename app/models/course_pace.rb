@@ -25,7 +25,7 @@ class CoursePace < ActiveRecord::Base
   include MasterCourses::Restrictor
   restrict_columns :content, [:duration]
   restrict_columns :state, [:workflow_state]
-  restrict_columns :settings, %i[exclude_weekends hard_end_dates]
+  restrict_columns :settings, %i[exclude_weekends selected_days_to_skip hard_end_dates]
 
   extend RootAccountResolver
   resolves_root_account through: :course
@@ -137,7 +137,7 @@ class CoursePace < ActiveRecord::Base
     progress
   end
 
-  def run_publish_progress(progress, run_at: Time.now, enrollment_ids: nil)
+  def run_publish_progress(progress, run_at: Time.zone.now, enrollment_ids: nil)
     progress.process_job(self,
                          :publish,
                          {
@@ -171,7 +171,7 @@ class CoursePace < ActiveRecord::Base
               assignment = content_tag.assignment
               next unless assignment
 
-              due_at = CanvasTime.fancy_midnight(dates[course_pace_module_item.id].in_time_zone).in_time_zone("UTC")
+              due_at = CanvasTime.fancy_midnight(dates[course_pace_module_item.id].in_time_zone).utc
               user_id = enrollment.user_id
 
               # Check for an old override
@@ -233,7 +233,7 @@ class CoursePace < ActiveRecord::Base
 
       # Mark as published
       log_module_items_count
-      update(workflow_state: "active", published_at: DateTime.current)
+      update(workflow_state: "active", published_at: Time.zone.now)
     end
   end
 
@@ -391,7 +391,8 @@ class CoursePace < ActiveRecord::Base
   end
 
   def logging_for_weekends_required?
-    saved_change_to_exclude_weekends? || (saved_change_to_id? && exclude_weekends)
+    saved_change_to_exclude_weekends? || saved_change_to_selected_days_to_skip? ||
+      (saved_change_to_id? && weekends_excluded)
   end
 
   def log_pace_counts
@@ -405,7 +406,7 @@ class CoursePace < ActiveRecord::Base
   end
 
   def log_exclude_weekends_counts
-    if exclude_weekends
+    if weekends_excluded
       InstStatsd::Statsd.increment("course_pacing.weekends_excluded")
     else
       # Only decrementing during an update (not initial create)
@@ -416,7 +417,7 @@ class CoursePace < ActiveRecord::Base
   def log_average_item_duration
     return if course_pace_module_items.empty?
 
-    average_duration = course_pace_module_items.pluck(:duration).sum / course_pace_module_items.length
+    average_duration = course_pace_module_items.pluck(:duration).sum / course_pace_module_items.size
     InstStatsd::Statsd.count("course_pacing.average_assignment_duration", average_duration)
   end
 
@@ -441,5 +442,19 @@ class CoursePace < ActiveRecord::Base
     InstStatsd::Statsd.count("course_pacing.course_blackout_dates.count", CalendarEvent.with_blackout_date.active.where(context: course).size)
     account_blackout_dates = Account.multi_account_chain_ids([course.account.id]).sum { |id| CalendarEvent.with_blackout_date.active.where(context: Account.find(id)).size }
     InstStatsd::Statsd.count("course_pacing.account_blackout_dates.count", account_blackout_dates)
+  end
+
+  def weekends_excluded
+    if skip_selected_days_enabled?
+      (%w[sun sat].all? { |weekend_day| selected_days_to_skip.include?(weekend_day) })
+    else
+      exclude_weekends
+    end
+  end
+
+  def skip_selected_days_enabled?
+    return root_account.feature_enabled?(:course_paces_skip_selected_days) if root_account
+
+    course.root_account.feature_enabled?(:course_paces_skip_selected_days)
   end
 end

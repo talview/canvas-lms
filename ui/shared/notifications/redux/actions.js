@@ -100,7 +100,10 @@ export function subscribeFlashNotifications(store, key = 'notifications') {
   store.subscribe(() => {
     const notifications = store.getState()[key]
     notifications.forEach(notification => {
-      showFlashAlert(notification)
+      if (document) {
+        // as a courtesy to Jest
+        showFlashAlert(notification)
+      }
       store.dispatch(notificationActions.clearNotification(notification.id))
     })
   })

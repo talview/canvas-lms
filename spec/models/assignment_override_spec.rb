@@ -169,28 +169,28 @@ describe AssignmentOverride do
     end
 
     it "does not notify of change for deleted assignment override due to enrollment removal" do
-      due_date_timestamp = DateTime.now.iso8601
+      due_date_timestamp = Time.zone.now.iso8601
       assignment = assignment_model(course: @course)
       override = assignment.assignment_overrides.create!(
         due_at: due_date_timestamp,
         due_at_overridden: true
       )
       override.assignment_override_students.create!(user: @student)
-      assignment.update(due_at: nil, only_visible_to_overrides: true, created_at: Time.now - 4.hours)
+      assignment.update(due_at: nil, only_visible_to_overrides: true, created_at: 4.hours.ago)
       expect(override.notify_change?).to be true
       @student.destroy
       expect(override.reload.notify_change?).to be false
     end
 
     it "does not notify of change for course that has concluded" do
-      due_date_timestamp = DateTime.now.iso8601
+      due_date_timestamp = Time.zone.now.iso8601
       assignment = assignment_model(course: @course)
       override = assignment.assignment_overrides.create!(
         due_at: due_date_timestamp,
         due_at_overridden: true
       )
       override.assignment_override_students.create!(user: @student)
-      assignment.update(due_at: nil, only_visible_to_overrides: true, created_at: Time.now - 4.hours)
+      assignment.update(due_at: nil, only_visible_to_overrides: true, created_at: 4.hours.ago)
       expect(override.notify_change?).to be true
 
       expect do
@@ -222,7 +222,7 @@ describe AssignmentOverride do
     end
   end
 
-  context "#mastery_paths?" do
+  describe "#mastery_paths?" do
     let(:override) do
       described_class.new({
                             set_type: AssignmentOverride::SET_TYPE_NOOP,
@@ -473,6 +473,72 @@ describe AssignmentOverride do
       @override.assignment = assignment_model
       @override.wiki_page = wiki_page_model
       expect(@override).not_to be_valid
+    end
+
+    it "rejects a context module override with dates" do
+      @override = AssignmentOverride.new
+      @override.due_at = 5.days.from_now
+      @override.context_module = @course.context_modules.create!(name: "some module")
+      @override.save
+
+      expect(@override).not_to be_valid
+      expect(@override.errors[:base].first).to eq "cannot set dates for context module overrides"
+    end
+
+    context "sub-assignments" do
+      let(:parent_assignment) { @course.assignments.create! }
+      let(:sub_assignment) { parent_assignment.sub_assignments.create!(context: @course, sub_assignment_tag: CheckpointLabels::REPLY_TO_TOPIC) }
+      let(:parent_override) { parent_assignment.assignment_overrides.create! }
+
+      it "requires a parent_override for new overrides" do
+        override = AssignmentOverride.new(assignment: sub_assignment)
+        expect(override).not_to be_valid
+        expect(override.errors[:parent_override_id]).to include("must be present for sub-assignment overrides")
+      end
+
+      it "is valid with a parent_override" do
+        override = AssignmentOverride.new(assignment: sub_assignment, parent_override:)
+        expect(override).to be_valid
+      end
+
+      it "does not allow removing parent_override from existing overrides" do
+        override = AssignmentOverride.create!(assignment: sub_assignment, parent_override:)
+        override.parent_override = nil
+        expect(override).not_to be_valid
+        expect(override.errors[:parent_override_id]).to include("must be present for sub-assignment overrides")
+      end
+
+      it "marks the child_override as deleted when the parent_override is destroyed" do
+        child_override = AssignmentOverride.create!(assignment: sub_assignment, parent_override:)
+        expect(child_override.workflow_state).not_to eq "deleted"
+        parent_override.destroy
+        expect(child_override.reload.workflow_state).to eq "deleted"
+        expect(parent_override.reload.workflow_state).to eq "deleted"
+      end
+
+      describe "#sub_assignment_due_dates" do
+        before :once do
+          @parent_assignment = @course.assignments.create!
+          @parent_override = AssignmentOverride.create!(title: "Parent Override", set_type: "ADHOC", assignment: @parent_assignment)
+          @child_assignment1 = parent_assignment.sub_assignments.create!(context: @course, sub_assignment_tag: CheckpointLabels::REPLY_TO_TOPIC)
+          @child_assignment2 = parent_assignment.sub_assignments.create!(context: @course, sub_assignment_tag: CheckpointLabels::REPLY_TO_ENTRY)
+          @child_override1 = AssignmentOverride.create!(title: "Child Override 1", set_type: "ADHOC", assignment: @child_assignment1, due_at: 1.day.from_now, parent_override: @parent_override)
+          @child_override2 = AssignmentOverride.create!(title: "Child Override 2", set_type: "ADHOC", assignment: @child_assignment2, due_at: 2.days.from_now, parent_override: @parent_override)
+        end
+
+        it "returns the correct sub_assignment_due_dates" do
+          expected_result = [
+            { sub_assignment_tag: CheckpointLabels::REPLY_TO_TOPIC, due_at: @child_override1.due_at },
+            { sub_assignment_tag: CheckpointLabels::REPLY_TO_ENTRY, due_at: @child_override2.due_at }
+          ]
+          expect(@parent_override.sub_assignment_due_dates).to eq(expected_result)
+        end
+
+        it "returns an empty array when there are no child overrides" do
+          @parent_override.child_overrides.destroy_all
+          expect(@parent_override.sub_assignment_due_dates).to eq([])
+        end
+      end
     end
   end
 
@@ -1243,7 +1309,7 @@ describe AssignmentOverride do
       topic.update!(group_category: category)
       topic.create_checkpoints(reply_to_topic_points: 4, reply_to_entry_points: 2)
       checkpoint = topic.reply_to_topic_checkpoint
-      override = assignment_override_model(assignment: checkpoint, course: @course, set: group)
+      override = create_group_override_for_assignment(checkpoint, { group: })
       expect(checkpoint.assignment_overrides).to include override
     end
   end

@@ -172,7 +172,8 @@ describe DiscussionTopicsApiController do
   context "summary" do
     before do
       course_with_teacher(active_course: true)
-      @teacher.update!(locale: "en")
+      @course.account.update!(default_locale: "hu")
+
       @topic = @course.discussion_topics.create!(title: "discussion", summary_enabled: true)
       user_session(@teacher)
 
@@ -203,19 +204,23 @@ describe DiscussionTopicsApiController do
           @raw_summary = @topic.summaries.create!(
             summary: "raw_summary",
             dynamic_content_hash: Digest::SHA256.hexdigest({
-              CONTENT: DiscussionTopic::PromptPresenter.new(@topic).content_for_summary
+              CONTENT: DiscussionTopic::PromptPresenter.new(@topic).content_for_summary,
+              FOCUS: DiscussionTopic::PromptPresenter.focus_for_summary(user_input: nil),
             }.to_json),
-            llm_config_version: "raw-V1_A"
+            llm_config_version: "raw-V1_A",
+            user: @teacher
           )
           @refined_summary = @topic.summaries.create!(
             summary: "refined_summary",
             dynamic_content_hash: Digest::SHA256.hexdigest({
-              CONTENT: @raw_summary.summary,
-              LOCALE: "English (United States)"
+              CONTENT: DiscussionTopic::PromptPresenter.raw_summary_for_refinement(raw_summary: @raw_summary.summary),
+              FOCUS: DiscussionTopic::PromptPresenter.focus_for_summary(user_input: ""),
+              LOCALE: "Magyar"
             }.to_json),
             llm_config_version: "refined-V1_A",
             parent: @raw_summary,
-            locale: "en"
+            locale: "hu",
+            user: @teacher
           )
         end
 
@@ -230,42 +235,9 @@ describe DiscussionTopicsApiController do
           expect(response.parsed_body["id"]).to eq(@refined_summary.id)
         end
 
-        it "returns a new summary if forced" do
+        it "returns a new summary if locale is different" do
           expect_any_instance_of(DiscussionTopic).to receive(:user_can_summarize?).and_return(true)
-
-          expect(@inst_llm).to receive(:chat).and_return(
-            InstLLM::Response::ChatResponse.new(
-              model: "model",
-              message: { role: :assistant, content: "raw_summary" },
-              stop_reason: "stop_reason",
-              usage: {
-                input_tokens: 10,
-                output_tokens: 20,
-              }
-            )
-          )
-          expect(@inst_llm).to receive(:chat).and_return(
-            InstLLM::Response::ChatResponse.new(
-              model: "model",
-              message: { role: :assistant, content: "refined_summary" },
-              stop_reason: "stop_reason",
-              usage: {
-                input_tokens: 10,
-                output_tokens: 20,
-              }
-            )
-          )
-
-          get "summary", params: { topic_id: @topic.id, course_id: @course.id, user_id: @teacher.id, force: true }, format: "json"
-
-          expect(response).to be_successful
-          expect(@topic.reload.summary_enabled).to be_truthy
-          expect(response.parsed_body["id"]).not_to eq(@refined_summary.id)
-        end
-
-        it "returns a new summary if locale has changed" do
-          expect_any_instance_of(DiscussionTopic).to receive(:user_can_summarize?).and_return(true)
-          @teacher.update!(locale: "es")
+          @teacher.update!(locale: "en")
 
           expect(@inst_llm).to receive(:chat).and_return(
             InstLLM::Response::ChatResponse.new(
@@ -282,7 +254,6 @@ describe DiscussionTopicsApiController do
           get "summary", params: { topic_id: @topic.id, course_id: @course.id, user_id: @teacher.id }, format: "json"
 
           expect(response).to be_successful
-          expect(@topic.reload.summary_enabled).to be_truthy
           expect(response.parsed_body["id"]).not_to eq(@refined_summary.id)
         end
       end
@@ -352,12 +323,39 @@ describe DiscussionTopicsApiController do
       end
     end
 
+    it "returns rate limit exceeded error if the user has reached the max number of summaries for the day" do
+      cache_key = ["inst_llm_helper", "rate_limit", @teacher.uuid, "raw-V1_A", Time.now.utc.strftime("%Y%m%d")].cache_key
+      Canvas.redis.incr(cache_key)
+
+      allow_any_instance_of(DiscussionTopic).to receive(:user_can_summarize?).and_return(true)
+      expect(LLMConfigs).to receive(:config_for).and_return(
+        LLMConfig.new(
+          name: "raw-V1_A",
+          model_id: "model",
+          rate_limit: { limit: 1, period: "day" },
+          template: "<CONTENT_PLACEHOLDER>"
+        )
+      )
+      expect(LLMConfigs).to receive(:config_for).and_return(
+        LLMConfig.new(
+          name: "refined-V1_A",
+          model_id: "model",
+          template: "<CONTENT_PLACEHOLDER>"
+        )
+      )
+
+      get "summary", params: { topic_id: @topic.id, course_id: @course.id, user_id: @teacher.id, userInput: "rejected by rate limit" }, format: "json"
+
+      expect(response.status).to eq(429)
+      expect(response.parsed_body["error"]).to include("1")
+    end
+
     it "returns an error if the user can't summarize" do
       expect_any_instance_of(DiscussionTopic).to receive(:user_can_summarize?).and_return(false)
 
       get "summary", params: { topic_id: @topic.id, course_id: @course.id, user_id: @teacher.id }, format: "json"
 
-      expect(response).to be_unauthorized
+      expect(response).to be_forbidden
     end
 
     it "returns an error if there is no llm config" do
@@ -378,19 +376,23 @@ describe DiscussionTopicsApiController do
       @raw_summary = @topic.summaries.create!(
         summary: "summary",
         dynamic_content_hash: Digest::SHA256.hexdigest({
-          CONTENT: DiscussionTopic::PromptPresenter.new(@topic).content_for_summary
+          CONTENT: DiscussionTopic::PromptPresenter.new(@topic).content_for_summary,
+          FOCUS: DiscussionTopic::PromptPresenter.focus_for_summary(user_input: "student feedback"),
         }.to_json),
-        llm_config_version: "raw-V1_A"
+        llm_config_version: "raw-V1_A",
+        user: @teacher
       )
       @refined_summary = @topic.summaries.create!(
         summary: "summary",
         dynamic_content_hash: Digest::SHA256.hexdigest({
-          CONTENT: @raw_summary.summary,
+          CONTENT: DiscussionTopic::PromptPresenter.raw_summary_for_refinement(raw_summary: @raw_summary.summary),
+          FOCUS: DiscussionTopic::PromptPresenter.focus_for_summary(user_input: "student feedback"),
           LOCALE: "English (United States)"
         }.to_json),
         llm_config_version: "refined-V1_A",
         parent: @raw_summary,
-        locale: "en"
+        locale: "en",
+        user: @teacher
       )
 
       user_session(@teacher)
@@ -401,7 +403,7 @@ describe DiscussionTopicsApiController do
 
       post "summary_feedback", params: { topic_id: @topic.id, course_id: @course.id, user_id: @teacher.id, summary_id: @refined_summary.id, _action: "like" }, format: "json"
 
-      expect(response).to be_unauthorized
+      expect(response).to be_forbidden
     end
 
     it "returns an error if the summary is not found" do
@@ -452,7 +454,7 @@ describe DiscussionTopicsApiController do
 
       put "disable_summary", params: { topic_id: @topic.id, course_id: @course.id, user_id: @teacher.id }, format: "json"
 
-      expect(response).to be_unauthorized
+      expect(response).to be_forbidden
     end
 
     it "disables the summary" do
@@ -526,6 +528,38 @@ describe DiscussionTopicsApiController do
 
       expect(response).to be_successful
       expect(topic.reload.read_state(@teacher)).to eq("unread")
+    end
+  end
+
+  context "migrate_disallow" do
+    before do
+      course_with_teacher(active_all: true)
+      @topic = @course.discussion_topics.create!(title: "discussion", discussion_type: "side_comment")
+      user_session(@teacher)
+    end
+
+    it "should return 404 if feature flag is not turned on" do
+      put "migrate_disallow", params: { course_id: @course.id }
+      expect(response).to be_not_found
+    end
+
+    it "should update the discussion type to 'threaded' if the feature flag is turned on" do
+      allow(Account.site_admin).to receive(:feature_enabled?).and_return(true)
+
+      put "migrate_disallow", params: { course_id: @course.id }
+
+      expect(response).to be_successful
+      expect(@topic.reload.discussion_type).to eq("threaded")
+    end
+
+    it "should not update the discussion type for announcements" do
+      allow(Account.site_admin).to receive(:feature_enabled?).and_return(true)
+      announcement = @course.announcements.create!(title: "announcement", message: "test", discussion_type: "side_comment")
+
+      put "migrate_disallow", params: { course_id: @course.id }
+
+      expect(response).to be_successful
+      expect(announcement.reload.discussion_type).to eq("side_comment")
     end
   end
 end

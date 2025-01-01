@@ -17,12 +17,12 @@
  */
 
 import React from 'react'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {View} from '@instructure/ui-view'
 import {Text} from '@instructure/ui-text'
 import {escapeNewLineText} from './utils/rubricUtils'
 
-const I18n = useI18nScope('rubrics-assessment-tray')
+const I18n = createI18nScope('rubrics-assessment-tray')
 
 type CriteriaReadonlyCommentProps = {
   commentText?: string
@@ -37,6 +37,7 @@ export const CriteriaReadonlyComment = ({commentText}: CriteriaReadonlyCommentPr
       )}
       <Text
         data-testid="comment-preview-text-area"
+        themeOverride={{paragraphMargin: 0}}
         dangerouslySetInnerHTML={escapeNewLineText(commentText ?? '')}
       />
     </View>

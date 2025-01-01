@@ -53,8 +53,10 @@ const locale = {
   },
   "close_d634289d": { "message": "Κλείσιμο" },
   "collaborations_5c56c15f": { "message": "Συνεργασίες" },
+  "color_a363e1b0": { "message": "Χρώμα" },
   "content_1440204b": { "message": "Περιεχόμενο" },
   "content_type_2cf90d95": { "message": "Τύπος Περιεχομένου" },
+  "copy_9748f9f": { "message": "Αντιγραφή" },
   "copyright_holder_66ee111": { "message": "Κάτοχος Πνευματικών Δικαιωμάτων:" },
   "count_plural_one_item_loaded_other_items_loaded_857023b7": {
     "message": "{ count, plural,\n    one {}\n  other {}\n}"
@@ -165,6 +167,7 @@ const locale = {
   "relationships_6602af70": { "message": "Σχέσεις" },
   "replace_e61834a7": { "message": "Αντικατάσταση" },
   "reset_95a81614": { "message": "Επαναφορά" },
+  "retry_ebd5f8ba": { "message": "Δοκιμάστε ξανά" },
   "rich_content_editor_2708ef21": {
     "message": "Επεξεργαστής Πλούσιου Περιεχομένου-rich content"
   },
@@ -175,6 +178,7 @@ const locale = {
   "star_8d156e09": { "message": " " },
   "start_over_f7552aa9": { "message": "Ξεκινήστε Ξανά" },
   "submit_a3cc6859": { "message": "Υποβολή" },
+  "submitting_b90fac62": { "message": "Υποβολή σε εξέλιξη..." },
   "syllabus_f191f65b": { "message": "Αναλυτικό Πρόγραμμα" },
   "teal_f729a294": { "message": "Γαλαζοπράσινο" },
   "the_document_preview_is_currently_being_processed__7d9ea135": {

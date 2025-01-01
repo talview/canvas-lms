@@ -76,6 +76,7 @@ module Lti::IMS
       :verify_line_item_in_context,
       :verify_user_in_context,
       :verify_required_params,
+      :verify_assignment_published,
       :verify_valid_timestamp,
       :verify_valid_score_maximum,
       :verify_valid_score_given,
@@ -405,6 +406,12 @@ module Lti::IMS
       render_error("The maximum number of allowed attempts has been reached for this submission", :unprocessable_entity)
     end
 
+    def verify_assignment_published
+      return if line_item.assignment.published?
+
+      render_error("This assignment is still unpublished", :unprocessable_entity)
+    end
+
     def prioritize_non_tool_grade?
       ActiveRecord::Type::Boolean.new.cast(scores_params.dig(:extensions, Lti::Result::AGS_EXT_SUBMISSION, :prioritize_non_tool_grade))
     end
@@ -619,8 +626,12 @@ module Lti::IMS
     def parse_timestamp(t)
       return nil unless t.present?
 
-      parsed = Time.zone.iso8601(t) rescue nil
-      parsed ||= (Time.zone.parse(t) rescue nil) if Setting.get("enforce_iso8601_for_lti_scores", "false") == "false"
+      begin
+        parsed = Time.zone.iso8601(t)
+      rescue ArgumentError
+        # ignore
+      end
+      parsed ||= Time.zone.parse(t) if Setting.get("enforce_iso8601_for_lti_scores", "false") == "false"
       parsed
     end
 

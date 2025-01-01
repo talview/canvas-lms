@@ -22,17 +22,22 @@ import {HeroSection} from '../components/user/sections/HeroSection'
 import {NavigationSection} from '../components/user/sections/NavigationSection'
 import {AboutSection} from '../components/user/sections/AboutSection'
 import {FooterSection} from '../components/user/sections/FooterSection'
-import {QuizSection} from '../components/user/sections/QuizSection'
+import {KnowledgeCheckSection} from '../components/user/sections/KnowledgeCheckSection'
+import {AnnouncementSection} from '../components/user/sections/AnnouncementSection'
+import {ColumnsSection} from '../components/user/sections/ColumnsSection'
 
-import {type PageSection} from '../components/editor/NewPageStepper/types'
+// import {type PageSection} from '../components/editor/NewPageStepper/types'
 
 export const buildPageContent = (
   actions: any,
   query: any,
-  selectedSections: PageSection[],
+  selectedSections: any[],
   _paletteName: string,
   _fontName: string
 ) => {
+  if (selectedSections.length === 0) {
+    selectedSections.push('blank')
+  }
   selectedSections.forEach(section => {
     let nodeTree
     switch (section) {
@@ -51,9 +56,15 @@ export const buildPageContent = (
       case 'footer':
         nodeTree = query.parseReactElement(<FooterSection />).toNodeTree()
         break
-      case 'question':
-        nodeTree = query.parseReactElement(<QuizSection />).toNodeTree()
+      case 'knowledgeCheck':
+        // @ts-expect-error
+        nodeTree = query.parseReactElement(<KnowledgeCheckSection />).toNodeTree()
         break
+      case 'announcement':
+        nodeTree = query.parseReactElement(<AnnouncementSection />).toNodeTree()
+        break
+      case 'blank':
+        nodeTree = query.parseReactElement(<ColumnsSection columns={1} />).toNodeTree()
     }
     if (nodeTree) {
       actions.addNodeTree(nodeTree, 'ROOT')

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /*
  * Copyright (C) 2022 - present Instructure, Inc.
  *
@@ -18,12 +17,12 @@
  */
 
 import axios from '@canvas/axios'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import type {ProgressCamelized} from '../default_gradebook/gradebook.d'
 
 import GradebookApi from '../default_gradebook/apis/GradebookApi'
 
-const I18n = useI18nScope('gradebookSharedScoreToUngradedManager')
+const I18n = createI18nScope('gradebookSharedScoreToUngradedManager')
 
 class ScoreToUngradedManager {
   static DEFAULT_POLLING_INTERVAL = 2000
@@ -76,6 +75,7 @@ class ScoreToUngradedManager {
     }
   }
 
+  // @ts-expect-error
   monitorProcess(resolve, reject) {
     if (!this.monitoringUrl()) {
       this.process = undefined

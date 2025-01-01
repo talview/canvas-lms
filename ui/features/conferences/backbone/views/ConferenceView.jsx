@@ -16,10 +16,10 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* eslint-disable no-void */
+ 
 
 import {extend} from '@canvas/backbone/utils'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import {View} from '@canvas/backbone'
 import template from '../../jst/newConference.handlebars'
@@ -29,9 +29,10 @@ import {Spinner} from '@instructure/ui-spinner'
 import {Text} from '@instructure/ui-text'
 import ReactDOM from 'react-dom'
 import React from 'react'
-import '@canvas/jquery/jquery.instructure_forms' // formSubmit
+import '@canvas/jquery/jquery.instructure_forms'
+import {initializeTopNavPortalWithDefaults} from '@canvas/top-navigation/react/TopNavPortalWithDefaults'
 
-const I18n = useI18nScope('conferences')
+const I18n = createI18nScope('conferences')
 
 extend(ConferenceView, View)
 
@@ -59,6 +60,17 @@ ConferenceView.prototype.events = {
 
 ConferenceView.prototype.initialize = function () {
   ConferenceView.__super__.initialize.apply(this, arguments)
+
+  const handleBreadCrumbSetter = ({getCrumbs, setCrumbs}) => {
+    const currentCrumbs = getCrumbs()
+    currentCrumbs.at(-1).url = ''
+    setCrumbs(currentCrumbs)
+  }
+
+  initializeTopNavPortalWithDefaults({
+    getBreadCrumbSetter: handleBreadCrumbSetter,
+  })
+
   return this.model.on('change', this.render)
 }
 
@@ -85,6 +97,7 @@ ConferenceView.prototype.syncAttendees = function (e) {
     I18n.t(' Attendee sync in progress... ')
   )
   const spinnerDomEl = this.el.querySelector('.conference-loading-indicator')
+   
   ReactDOM.render([spinner, spinnerText], spinnerDomEl)
   this.el.querySelector('.conference-loading-indicator').style.display = 'block'
   this.$(form).formSubmit({
@@ -139,7 +152,7 @@ ConferenceView.prototype.delete = function (e) {
   let allCogs, curIndex, currentCog
   e.preventDefault()
   if (
-    // eslint-disable-next-line no-alert
+     
     !window.confirm(I18n.t('confirm.delete', 'Are you sure you want to delete this conference?'))
   ) {
     return $(e.currentTarget).parents('.inline-block').find('.al-trigger').focus()
@@ -165,7 +178,7 @@ ConferenceView.prototype.delete = function (e) {
 ConferenceView.prototype.close = function (e) {
   e.preventDefault()
   if (
-    // eslint-disable-next-line no-alert
+     
     !window.confirm(
       I18n.t(
         'confirm.close',
@@ -279,7 +292,7 @@ ConferenceView.prototype.external = function (e) {
 ConferenceView.prototype.deleteRecording = function (e) {
   let $button
   e.preventDefault()
-  // eslint-disable-next-line no-alert
+   
   if (window.confirm(I18n.t('Are you sure you want to delete this recording?'))) {
     $button = $(e.currentTarget).parents('div.ig-button')
     return $.ajaxJSON($button.data('url') + '/recording', 'DELETE', {

@@ -47,13 +47,20 @@ const HeroTextHalf = ({
   return (
     <Container className="hero-section__text" id={id}>
       <Element id={`${id}__no-section`} is={NoSections} canvas={true} className="text-half__inner">
-        <ImageBlock src="/images/block_editor/canvas_logo_black.svg" width={113} height={28} />
+        <ImageBlock
+          src="/images/block_editor/canvas_logo_black.svg"
+          width={113}
+          height={28}
+          // @ts-expect-error
+          sizeVariant="fixed"
+        />
         <Element
           id={`${id}__title`}
           is={HeadingBlock}
           text={title}
           level="h2"
           custom={{
+            displayName: 'Headline',
             themeOverride: {
               h2FontFamily:
                 'Georgia, LatoWeb, Lato, "Helvetica Neue", Helvetica, Arial, sans-serif',
@@ -63,7 +70,14 @@ const HeroTextHalf = ({
             },
           }}
         />
-        <Element id={`${id}__text`} is={TextBlock} text={text} textAlign="start" color={color} />
+        <Element
+          id={`${id}__text`}
+          is={TextBlock}
+          text={text}
+          textAlign="start"
+          color={color}
+          custom={{displayName: 'Details'}}
+        />
         <Element
           id={`${id}__link`}
           is={ButtonBlock}

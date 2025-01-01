@@ -16,10 +16,10 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {generateActionTemplates} from '../generateActionTemplates'
 
-const I18n = useI18nScope('permissions_templates_57')
+const I18n = createI18nScope('permissions_templates_57')
 
 export const template = generateActionTemplates(
   [
@@ -34,7 +34,9 @@ export const template = generateActionTemplates(
       description: I18n.t('Allows user to view the Discussions link in Course Navigation.'),
     },
     {
-      description: I18n.t('Allows user to view course discussions.'),
+      description: I18n.t(
+        'Allows user to view course discussions and all replies within the discussion topics.'
+      ),
     },
   ],
   [
@@ -70,7 +72,9 @@ export const template = generateActionTemplates(
       description: I18n.t('Allows user to view the Discussions link in Course Navigation.'),
     },
     {
-      description: I18n.t('Allows user to view course discussions.'),
+      description: I18n.t(
+        'Allows user to view course discussions and all replies within the discussion topics.'
+      ),
     },
   ],
   [

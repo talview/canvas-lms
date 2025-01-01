@@ -22,6 +22,8 @@ import {ZLtiImsRegistration} from '../model/lti_ims_registration/LtiImsRegistrat
 import {type AccountId} from '../model/AccountId'
 import type {DynamicRegistrationTokenUUID} from '../model/DynamicRegistrationTokenUUID'
 import type {LtiImsRegistrationId} from '../model/lti_ims_registration/LtiImsRegistrationId'
+import {defaultFetchOptions} from '@canvas/util/xhr'
+import type {UnifiedToolId} from '../model/UnifiedToolId'
 
 /**
  * Fetch a newly generated registration token which will
@@ -30,11 +32,21 @@ import type {LtiImsRegistrationId} from '../model/lti_ims_registration/LtiImsReg
  * after it's created by the tool.
  *
  * @param accountId
+ * @param unifiedToolId included in token. optional.
  * @returns
  */
-export const fetchRegistrationToken = (accountId: AccountId) =>
+export const fetchRegistrationToken = (
+  accountId: AccountId,
+  registrationUrl: string,
+  unifiedToolId?: UnifiedToolId
+) =>
   parseFetchResult(ZDynamicRegistrationToken)(
-    fetch(`/api/lti/accounts/${accountId}/registration_token`)
+    fetch(
+      `/api/lti/accounts/${accountId}/registration_token?unified_tool_id=${
+        unifiedToolId || ''
+      }&registration_url=${registrationUrl}`,
+      defaultFetchOptions()
+    )
   )
 
 /**
@@ -53,7 +65,26 @@ export const getRegistrationByUUID = (
   registrationUuid: DynamicRegistrationTokenUUID
 ) =>
   parseFetchResult(ZLtiImsRegistration)(
-    fetch(`/api/lti/accounts/${accountId}/registrations/uuid/${registrationUuid}`)
+    fetch(
+      `/api/lti/accounts/${accountId}/registrations/uuid/${registrationUuid}`,
+      defaultFetchOptions()
+    )
+  )
+
+/**
+ * Retrieve a registration by its ID. Useful for managing a registration
+ * after it's been created.
+ *
+ * @param accountId
+ * @param registrationId ID of the registration
+ * @returns
+ */
+export const getLtiImsRegistrationById = (
+  accountId: AccountId,
+  registrationId: LtiImsRegistrationId
+) =>
+  parseFetchResult(ZLtiImsRegistration)(
+    fetch(`/api/lti/accounts/${accountId}/registrations/${registrationId}`, defaultFetchOptions())
   )
 
 /**
@@ -70,7 +101,12 @@ export const updateRegistrationOverlay = (
 ) =>
   parseFetchResult(ZLtiImsRegistration)(
     fetch(`/api/lti/accounts/${accountId}/registrations/${registrationId}/overlay`, {
+      ...defaultFetchOptions(),
       method: 'PUT',
+      headers: {
+        ...defaultFetchOptions().headers,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify(overlay),
     })
   )

@@ -18,35 +18,29 @@
 
 import React, {useCallback, useEffect, useRef, useState} from 'react'
 import {useEditor, useNode} from '@craftjs/core'
+import {uid} from '@instructure/uid'
 import CanvasRce from '@canvas/rce/react/CanvasRce'
-import {useClassNames, black} from '../../../../utils'
+import {useClassNames} from '../../../../utils'
+import {type RCEBlockProps} from './types'
 
-type RCEBlockProps = {
-  text?: string
-  fontSize?: number
-  textAlign?: string
-  color?: string
-}
+import {useScope as createI18nScope} from '@canvas/i18n'
 
-export const RCEBlock = ({
-  text = '',
-  fontSize,
-  textAlign = 'start',
-  color = black,
-}: RCEBlockProps) => {
-  const {actions, enabled, query} = useEditor(state => ({
+const I18n = createI18nScope('block-editor')
+
+export const RCEBlock = ({id, text, onContentChange}: RCEBlockProps) => {
+  const {actions, enabled} = useEditor(state => ({
     enabled: state.options.enabled,
   }))
   const {
     connectors: {connect, drag},
     actions: {setProp},
-    id,
+    nodeid,
     selected,
   } = useNode(state => ({
-    id: state.id,
+    nodeid: state.id,
     selected: state.events.selected,
   }))
-  const clazz = useClassNames(enabled, {empty: !text}, 'text-block')
+  const clazz = useClassNames(enabled, {empty: !text}, ['block', 'rce-text-block'])
   const focusableElem = useRef<HTMLDivElement | null>(null)
 
   const [editable, setEditable] = useState(true)
@@ -57,44 +51,64 @@ export const RCEBlock = ({
       focusableElem.current?.focus()
     }
     setEditable(selected)
-  }, [editable, focusableElem, selected])
+  }, [editable, focusableElem, selected, text])
 
   const handleRCEFocus = useCallback(() => {
-    actions.selectNode(id)
-  }, [actions, id])
+    actions.selectNode(nodeid)
+  }, [actions, nodeid])
 
   const handleChange = useCallback(
     (content: string) => {
-      setProp(props => {
-        props.text = content
+      setProp((prps: RCEBlockProps) => {
+        prps.text = content
       })
+      onContentChange?.(content)
     },
-    [setProp]
+    [onContentChange, setProp]
   )
 
-  if (enabled) {
+  const handleKey = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (editable) {
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          e.stopPropagation()
+          setEditable(false)
+        } else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+          e.stopPropagation()
+        }
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        setEditable(true)
+      }
+    },
+    [editable]
+  )
+
+  if (enabled && selected) {
     return (
-      // eslint-disable-next-line jsx-a11y/interactive-supports-focus, jsx-a11y/click-events-have-key-events
       <div
+        id={id}
+        role="treeitem"
+        aria-label={RCEBlock.craft.displayName}
+        tabIndex={-1}
         ref={el => {
           if (el) {
             connect(drag(el))
           }
         }}
-        role="textbox"
+        className={clazz}
+        style={{minWidth: '50%'}}
         onClick={e => setEditable(true)}
+        onKeyDown={handleKey}
       >
         <CanvasRce
           ref={rceRef}
           autosave={false}
           defaultContent={text}
-          editorOptions={{
-            focus: false,
-          }}
           height={300}
-          textareaId="rceblock_text"
+          textareaId={`rceblock_text-${id}`}
           onFocus={handleRCEFocus}
-          onBlur={() => {}}
           onContentChange={handleChange}
         />
       </div>
@@ -102,14 +116,27 @@ export const RCEBlock = ({
   } else {
     return (
       <div
+        id={id}
+        role="treeitem"
+        aria-label={RCEBlock.craft.displayName}
+        tabIndex={-1}
+        ref={el => {
+          if (el) {
+            connect(drag(el))
+          }
+        }}
         className={clazz}
-        style={{fontSize: `${fontSize}px`, textAlign, color}}
-        dangerouslySetInnerHTML={{__html: text}}
+        data-placeholder={I18n.t('Click to enter rich text')}
+        dangerouslySetInnerHTML={{__html: text || ''}}
       />
     )
   }
 }
 
 RCEBlock.craft = {
-  displayName: 'Text',
+  displayName: I18n.t('RCE'),
+  defaultProps: {
+    id: uid('rce-block', 2),
+    text: '',
+  },
 }

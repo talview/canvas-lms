@@ -16,8 +16,8 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {useCallback, useEffect, useLayoutEffect, useReducer, useState} from 'react'
-import {Navigation as SideNavBar} from '@instructure/ui-navigation'
+import React, {useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useState} from 'react'
+import {SideNavBar} from '@instructure/ui-side-nav-bar'
 import {Badge} from '@instructure/ui-badge'
 import {CloseButton} from '@instructure/ui-buttons'
 import {Spinner} from '@instructure/ui-spinner'
@@ -32,6 +32,7 @@ import {
   IconClockLine,
   IconCoursesLine,
   IconDashboardLine,
+  IconExternalLinkLine,
   IconFolderLine,
   IconHomeLine,
   IconInboxLine,
@@ -41,16 +42,22 @@ import {
   IconSettingsLine,
 } from '@instructure/ui-icons'
 import {AccessibleContent, ScreenReaderContent} from '@instructure/ui-a11y-content'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {useQuery} from '@canvas/query'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
 import {getUnreadCount} from './queries/unreadCountQuery'
-import {getActiveItem, getTrayLabel, getTrayPortal, sideNavReducer} from './utils'
 import type {ExternalTool} from './utils'
+import {
+  filterAndProcessTools,
+  getActiveItem,
+  getTrayLabel,
+  getTrayPortal,
+  sideNavReducer,
+} from './utils'
 import {getSettingAsync, setSetting} from '@canvas/settings-query/react/settingsQuery'
 import {SVGIcon} from '@instructure/ui-svg-images'
 
-const I18n = useI18nScope('sidenav')
+const I18n = createI18nScope('sidenav')
 
 const CoursesTray = React.lazy(() => import('./trays/CoursesTray'))
 const GroupsTray = React.lazy(() => import('./trays/GroupsTray'))
@@ -82,6 +89,7 @@ const SideNav: React.FC<ISideNav> = ({externalTools = []}) => {
   const [collapseSideNav, setCollapseSideNav] = useState(window.ENV.SETTINGS.collapse_global_nav)
   const [state, dispatch] = useReducer(sideNavReducer, initialState)
   const {isTrayOpen, activeTray, selectedNavItem, previousSelectedNavItem} = state
+  const processedTools = useMemo(() => filterAndProcessTools(externalTools), [externalTools])
 
   const {mutate: setCollapseGlobalNav} = useMutation({
     mutationFn: setSetting,
@@ -99,6 +107,7 @@ const SideNav: React.FC<ISideNav> = ({externalTools = []}) => {
     })
   }
 
+  // @ts-expect-error
   const handleActiveTray = useCallback((tray, showActiveTray = false) => {
     if (showActiveTray) {
       dispatch({type: 'SET_ACTIVE_TRAY', payload: tray})
@@ -156,7 +165,9 @@ const SideNav: React.FC<ISideNav> = ({externalTools = []}) => {
     queryKey: ['settings', 'release_notes_badge_disabled'],
     queryFn: getSettingAsync,
     enabled: countsEnabled && ENV.FEATURES.embedded_release_notes,
-    fetchAtLeastOnce: true,
+    meta: {
+      fetchAtLeastOnce: true,
+    },
   })
 
   const {data: unreadContentSharesCount} = useQuery({
@@ -172,7 +183,9 @@ const SideNav: React.FC<ISideNav> = ({externalTools = []}) => {
     queryFn: getUnreadCount,
     staleTime: 2 * 60 * 1000, // two minutes
     enabled: countsEnabled && !ENV.current_user_disabled_inbox,
-    broadcast: true,
+    meta: {
+      broadcast: true,
+    },
     refetchOnWindowFocus: true,
   })
 
@@ -399,33 +412,31 @@ const SideNav: React.FC<ISideNav> = ({externalTools = []}) => {
           minimized={collapseSideNav}
         />
 
-        {Array.isArray(externalTools) &&
-          [...externalTools].map(tool => {
-            const toolId = tool.label.toLowerCase().replaceAll(' ', '-')
-            const toolImg = tool.imgSrc ? tool.imgSrc : ''
-            return (
-              <SideNavBar.Item
-                key={toolId}
-                id={`${toolId}-external-tool-tray`}
-                icon={
-                  'svgPath' in tool ? (
-                    <SVGIcon viewBox="0 0 64 64" src={tool.svgPath} title="svg-external-tool" />
-                  ) : (
-                    <Img width="26px" height="26px" src={toolImg} alt="" />
-                  )
-                }
-                label={tool.label}
-                href={`${tool.href?.toString()}&toolId=${toolId}`}
-                onClick={() => handleActiveTray(toolId)}
-                selected={selectedNavItem === toolId}
-                data-selected={selectedNavItem === toolId}
-                themeOverride={{
-                  fontWeight: 400,
-                }}
-                minimized={collapseSideNav}
-              />
-            )
-          })}
+        {processedTools.map(tool => (
+          <SideNavBar.Item
+            key={tool.toolId}
+            id={`${tool.toolId}-external-tool-tray`}
+            icon={
+              tool.svgPath ? (
+                <SVGIcon viewBox="0 0 64 64" src={tool.svgPath} title="svg-external-tool" />
+              ) : tool.toolImg ? (
+                <Img width="26px" height="26px" src={tool.toolImg} alt="" />
+              ) : (
+                <IconExternalLinkLine data-testid="IconExternalLinkLine" size="small" />
+              )
+            }
+            label={tool.label}
+            href={`${tool.href?.toString() || '#'}&toolId=${tool.toolId}`}
+            onClick={() => handleActiveTray(tool.toolId)}
+            selected={selectedNavItem === tool.toolId}
+            data-selected={selectedNavItem === tool.toolId}
+            themeOverride={{
+              fontWeight: 400,
+            }}
+            minimized={collapseSideNav}
+          />
+        ))}
+
         <SideNavBar.Item
           id="help-tray"
           icon={

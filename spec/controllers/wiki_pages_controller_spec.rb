@@ -38,6 +38,13 @@ describe WikiPagesController do
       expect(response).to be_successful
       expect(assigns[:js_env][:DISPLAY_SHOW_ALL_LINK]).to be(true)
     end
+
+    it "sets up js_env for the block editor" do
+      @course.account.enable_feature!(:block_editor)
+      get "index", params: { course_id: @course.id }
+      expect(response).to be_successful
+      expect(assigns[:js_env][:FEATURES][:BLOCK_EDITOR]).to be(true)
+    end
   end
 
   context "with page" do
@@ -71,6 +78,27 @@ describe WikiPagesController do
           it "allows access if only_visible_to_overrides=true but the user has an override" do
             override = @page.assignment_overrides.create!
             override.assignment_override_students.create!(user: @student)
+            expect(response).to have_http_status :ok
+          end
+
+          it "does not allow access if page has only_visible_to_overrides=false but user does not have module override" do
+            @page.update!(only_visible_to_overrides: false)
+            module1 = @course.context_modules.create!(name: "module1")
+            module1.add_item(id: @page.id, type: "wiki_page")
+            module1.assignment_overrides.create!(set_type: "ADHOC")
+
+            expect(response).to be_redirect
+            expect(response.location).to eq course_wiki_pages_url(@course)
+          end
+
+          it "allows access if page has only_visible_to_overrides=false and user does have module override" do
+            @page.update!(only_visible_to_overrides: false)
+            module1 = @course.context_modules.create!(name: "module1")
+            module1.add_item(id: @page.id, type: "wiki_page")
+
+            adhoc_override = module1.assignment_overrides.create!(set_type: "ADHOC")
+            adhoc_override.assignment_override_students.create!(user: @student)
+
             expect(response).to have_http_status :ok
           end
         end
@@ -206,6 +234,15 @@ describe WikiPagesController do
         end
 
         it_behaves_like "pages enforcing differentiation"
+      end
+    end
+
+    describe "PUT 'create_block_editor'" do
+      it "calls the block editor creator with the proper blank page body" do
+        allow(BlockEditor).to receive(:create!).and_call_original
+        page = @course.wiki_pages.create! title: "A Page", root_account_id: @course.root_account_id
+        expect(BlockEditor).to receive(:create!).with(root_account_id: @course.root_account_id, context: page, editor_version: BlockEditor::LATEST_VERSION, blocks: BlockEditor.blank_page)
+        put :create_block_editor, params: { course_id: @course.id, wiki_page_id: page.url }
       end
     end
 

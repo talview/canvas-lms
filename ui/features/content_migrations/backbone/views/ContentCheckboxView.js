@@ -16,17 +16,17 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* eslint-disable no-void */
+ 
 
 import {extend} from '@canvas/backbone/utils'
 import Backbone from '@canvas/backbone'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import template from '../../jst/ContentCheckbox.handlebars'
 import checkboxCollectionTemplate from '../../jst/ContentCheckboxCollection.handlebars'
 import CheckboxCollection from '../collections/ContentCheckboxCollection'
 import CollectionView from '@canvas/backbone-collection-view'
 
-const I18n = useI18nScope('content_migrations')
+const I18n = createI18nScope('content_migrations')
 
 extend(ContentCheckboxView, Backbone.View)
 
@@ -113,7 +113,7 @@ ContentCheckboxView.prototype.iconClasses = {
   calendar_events: 'icon-calendar-days',
   rubrics: 'icon-rubric',
   groups: 'icon-group',
-  learning_outcomes: ENV.SHOW_SELECTABLE_OUTCOMES_IN_IMPORT ? 'icon-outcomes' : 'icon-standards',
+  learning_outcomes: 'icon-outcomes',
   learning_outcome_groups: 'icon-folder',
   attachments: 'icon-document',
   assignment_groups: 'icon-folder',

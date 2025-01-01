@@ -42,9 +42,9 @@ class AuthenticationProvider::Microsoft < AuthenticationProvider::OpenIDConnect
   alias_method :application_secret=, :client_secret=
   alias_method :login_attribute_for_pseudonyms, :login_attribute
 
-  validates :tenants, presence: true
-  validate :tenants, :validate_tenants
-  validate :login_attribute, :validate_secure_login_attribute
+  validates :tenants, presence: true, if: :active?
+  validate :tenants, :validate_tenants, if: :active?
+  validate :login_attribute, :validate_secure_login_attribute, if: :active?
 
   def client_id
     application_id
@@ -79,14 +79,20 @@ class AuthenticationProvider::Microsoft < AuthenticationProvider::OpenIDConnect
     false
   end
 
+  def self.always_validate?
+    true
+  end
+
+  def self.validate_issuer?
+    false
+  end
+
   def login_attribute
     raw_login_attribute || "tid+oid"
   end
 
   def unique_id(token)
     id_token = claims(token)
-    settings["known_tenants"] ||= []
-    (settings["known_tenants"] << id_token["tid"]).uniq!
     allowed_tenants = mapped_allowed_tenants
     if allowed_tenants.empty? || allowed_tenants.include?("common") || settings["skip_tenant_verification"]
       # allow anyone
@@ -98,11 +104,6 @@ class AuthenticationProvider::Microsoft < AuthenticationProvider::OpenIDConnect
     elsif !allowed_tenants.include?(id_token["tid"])
       raise OAuthValidationError, t("User is from unacceptable tenant %{tenant}.", tenant: id_token["tid"].inspect)
     end
-
-    settings["known_idps"] ||= []
-    idp = id_token["idp"] || id_token["iss"]
-    (settings["known_idps"] << idp).uniq!
-    save! if changed?
 
     ids = id_token.as_json
     ids["tid+oid"] = "#{ids["tid"]}##{ids["oid"]}" if ids["tid"] && ids["oid"]
@@ -125,6 +126,12 @@ class AuthenticationProvider::Microsoft < AuthenticationProvider::OpenIDConnect
 
   def tenants
     [tenant.presence].compact + (settings["allowed_tenants"] || [])
+  end
+
+  def validate_signature(_token)
+    # The token is retrieved over TLS, so trust that, rather than the
+    # signature in the token, which might be signed by a various keys
+    # due to claims mapping
   end
 
   protected

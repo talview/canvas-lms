@@ -1,4 +1,3 @@
-// @ts-nocheck
 /*
  * Copyright (C) 2017 - present Instructure, Inc.
  *
@@ -27,10 +26,10 @@ import GradebookExportManager from '../../shared/GradebookExportManager'
 import PostGradesApp from '../../SISGradePassback/PostGradesApp'
 import * as tz from '@instructure/moment-utils'
 import DateHelper from '@canvas/datetime/dateHelper'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import '@canvas/rails-flash-notifications'
 
-const I18n = useI18nScope('gradebookActionMenu')
+const I18n = createI18nScope('gradebookActionMenu')
 
 const {Item: MenuItem, Separator: MenuItemSeparator} = Menu as any
 
@@ -88,12 +87,14 @@ class ActionMenu extends React.Component<ActionMenuProps, ActionMenuState> {
     },
   }
 
+  // @ts-expect-error
   static gotoUrl(url) {
     window.location.href = url
   }
 
   exportManager?: GradebookExportManager
 
+  // @ts-expect-error
   constructor(props) {
     super(props)
 
@@ -144,10 +145,12 @@ class ActionMenu extends React.Component<ActionMenuProps, ActionMenuState> {
     }
   }
 
+  // @ts-expect-error
   setExportInProgress(status) {
     this.setState({exportInProgress: !!status})
   }
 
+  // @ts-expect-error
   handleExport(currentView) {
     this.setExportInProgress(true)
     $.flashMessage(I18n.t('Gradebook export has started. This may take a few minutes.'))
@@ -180,6 +183,7 @@ class ActionMenu extends React.Component<ActionMenuProps, ActionMenuState> {
     }, 3500)
   }
 
+  // @ts-expect-error
   handleExportSuccess(resolution) {
     this.setExportInProgress(false)
 
@@ -205,6 +209,7 @@ class ActionMenu extends React.Component<ActionMenuProps, ActionMenuState> {
     $.flashMessage(I18n.t('Gradebook export has completed'))
   }
 
+  // @ts-expect-error
   handleExportError(error) {
     this.setExportInProgress(false)
 

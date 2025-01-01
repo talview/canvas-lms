@@ -86,7 +86,6 @@
           {{/unless}}
         </div>
       </div>
-      {{#if ENV.FEATURES.usage_rights_discussion_topics }}
       {{#if ENV.USAGE_RIGHTS_REQUIRED }}
       {{#if ENV.PERMISSIONS.manage_files }}
       <div class="control-group" style="margin-left: -75px">
@@ -98,7 +97,6 @@
           <div id="usage_rights_modal"></div>
         </div>
       </div>
-      {{/if}}
       {{/if}}
       {{/if}}
       {{/if}}
@@ -367,7 +365,7 @@
     {{#t "buttons.save_and_publish"}}Save & Publish{{/t}}
   </button>
   {{/if}}
-  {{#ifAll isAnnouncement willPublish}}
+  {{#ifAll isAnnouncement willPublish isCreate}}
   <button type="submit" data-text-while-loading="{{#t " publishing"}}Publishing...{{/t}}" class="btn btn-primary submit_button">{{#t
     "publish"}}Publish{{/t}}</button>
   {{else}}

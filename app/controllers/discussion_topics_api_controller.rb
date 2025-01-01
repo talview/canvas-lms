@@ -28,11 +28,12 @@ class DiscussionTopicsApiController < ApplicationController
   include LocaleSelection
 
   before_action :require_context_and_read_access
-  before_action :require_topic, except: %i[mark_all_topic_read]
+  before_action :require_topic, except: %i[mark_all_topic_read migrate_disallow]
   before_action :require_initial_post, except: %i[add_entry
                                                   mark_topic_read
                                                   mark_topic_unread
                                                   mark_all_topic_read
+                                                  migrate_disallow
                                                   show
                                                   unsubscribe_topic]
   before_action only: %i[replies
@@ -86,9 +87,8 @@ class DiscussionTopicsApiController < ApplicationController
   #
   # Generates a summary for a discussion topic.
   #
-  # @argument force [Boolean]
-  #   If set to true, forces the generation of a summary,
-  #   even if a previous one for the given input params exists.
+  # @argument userInput [String]
+  #   Areas or topics for the summary to focus on.
   #
   # @example_request
   #
@@ -112,34 +112,41 @@ class DiscussionTopicsApiController < ApplicationController
       return render(json: { error: t("Sorry, we are unable to summarize this discussion at this time. Please try again later.") }, status: :unprocessable_entity)
     end
 
-    raw_dynamic_content = { CONTENT: DiscussionTopic::PromptPresenter.new(@topic).content_for_summary }
+    user_input = params[:userInput]
+    focus = DiscussionTopic::PromptPresenter.focus_for_summary(user_input:)
+
+    raw_dynamic_content = {
+      CONTENT: DiscussionTopic::PromptPresenter.new(@topic).content_for_summary,
+      FOCUS: focus
+    }
     raw_dynamic_content_hash = Digest::SHA256.hexdigest(raw_dynamic_content.to_json)
-
-    forced = params[:force] == "true"
-    unless @topic.summary_enabled
-      @topic.update!(summary_enabled: true)
-      forced = true
-    end
-
     raw_summary = fetch_or_create_summary(
       llm_config: llm_config_raw,
       dynamic_content: raw_dynamic_content,
       dynamic_content_hash: raw_dynamic_content_hash,
-      forced:
+      user_input:
     )
 
-    locale = @current_user.locale || I18n.default_locale.to_s
+    locale = I18n.locale.to_s || I18n.default_locale.to_s || "en"
     pretty_locale = available_locales[locale] || "English"
-    refined_dynamic_content = { CONTENT: raw_summary.summary, LOCALE: pretty_locale }
+    refined_dynamic_content = {
+      CONTENT: DiscussionTopic::PromptPresenter.raw_summary_for_refinement(raw_summary: raw_summary.summary),
+      FOCUS: focus,
+      LOCALE: pretty_locale
+    }
     refined_dynamic_content_hash = Digest::SHA256.hexdigest(refined_dynamic_content.to_json)
     refined_summary = fetch_or_create_summary(
       llm_config: llm_config_refined,
       dynamic_content: refined_dynamic_content,
       dynamic_content_hash: refined_dynamic_content_hash,
-      forced:,
+      user_input:,
       parent_summary: raw_summary,
       locale:
     )
+
+    unless @topic.summary_enabled
+      @topic.update!(summary_enabled: true)
+    end
 
     render(json: { id: refined_summary.id, text: refined_summary.summary })
   rescue => e
@@ -154,7 +161,10 @@ class DiscussionTopicsApiController < ApplicationController
       render(json: { error: t("Sorry, we are unable to summarize this discussion as it is too long.") }, status: :unprocessable_entity)
     when InstLLM::ValidationError
       render(json: { error: t("Oops! There was an error validating the service request. Please try again later.") }, status: :unprocessable_entity)
+    when InstLLMHelper::RateLimitExceededError
+      render(json: { error: t("Sorry, you have reached the maximum number of summary generations allowed (%{limit}) for now. Please try again later.", limit: e.limit) }, status: :too_many_requests)
     else
+      Canvas::Errors.capture_exception(:discussion_summary, e, :error)
       render(json: { error: t("Sorry, we are unable to summarize this discussion at this time. Please try again later.") }, status: :unprocessable_entity)
     end
   end
@@ -227,8 +237,6 @@ class DiscussionTopicsApiController < ApplicationController
       feedback.dislike
     when :reset_like
       feedback.reset_like
-    when :regenerate
-      feedback.regenerate
     when :disable_summary
       feedback.disable_summary
     else
@@ -723,7 +731,7 @@ class DiscussionTopicsApiController < ApplicationController
             end
 
     scope = scope.unread_for(@current_user)
-                 .where.not("unlock_at > ?", Time.now)
+                 .where.not("unlock_at > ?", Time.zone.now)
                  .or(scope.where(unlock_at: nil))
 
     scope.each do |announcement|
@@ -883,6 +891,26 @@ class DiscussionTopicsApiController < ApplicationController
     render_state_change_result @topic.unsubscribe(@current_user)
   end
 
+  # This is a temp endpoint for disallow_threaded_replies_fix_alert
+  # TODO remove it after the alert is no longer needed
+  def migrate_disallow
+    raise ActiveRecord::RecordNotFound unless Account.site_admin.feature_enabled?(:disallow_threaded_replies_fix_alert)
+    return render_unauthorized_action unless @context.grants_right?(@current_user, session, :moderate_forum)
+
+    update_count = @context.active_discussion_topics
+                           .only_discussion_topics
+                           .where(discussion_type: DiscussionTopic::DiscussionTypes::SIDE_COMMENT)
+                           .in_batches
+                           .update_all(discussion_type: DiscussionTopic::DiscussionTypes::THREADED, updated_at: Time.now.utc)
+
+    tags = { institution: @domain_root_account&.name || "unknown" }
+
+    InstStatsd::Statsd.increment("discussion_topic.migrate_disallow.count", tags:)
+    InstStatsd::Statsd.gauge("discussion_topic.migrate_disallow.discussions_updated", update_count, tags:)
+
+    render json: { update_count: }
+  end
+
   protected
 
   def require_topic
@@ -912,7 +940,7 @@ class DiscussionTopicsApiController < ApplicationController
   def save_entry
     has_attachment = params[:attachment].present? && !params[:attachment].empty? &&
                      @entry.grants_right?(@current_user, session, :attach)
-    return if has_attachment && !@topic.for_assignment? && params[:attachment].size > 1.kilobytes &&
+    return if has_attachment && !@topic.for_assignment? && params[:attachment].size > 1.kilobyte &&
               quota_exceeded(@current_user, named_context_url(@context, :context_discussion_topic_url, @topic.id))
 
     if @entry.save
@@ -1026,13 +1054,11 @@ class DiscussionTopicsApiController < ApplicationController
     true
   end
 
-  def fetch_or_create_summary(llm_config:, dynamic_content:, dynamic_content_hash:, forced:, parent_summary: nil, locale: nil)
-    unless forced
-      summary = @topic.summaries.where(llm_config_version: llm_config.name, dynamic_content_hash:, parent: parent_summary, locale:)
-                      .order(created_at: :desc)
-                      .first
-      return summary if summary
-    end
+  def fetch_or_create_summary(llm_config:, dynamic_content:, dynamic_content_hash:, user_input:, parent_summary: nil, locale: nil)
+    summary = @topic.summaries.where(llm_config_version: llm_config.name, dynamic_content_hash:, parent: parent_summary)
+                    .order(created_at: :desc)
+                    .first
+    return summary if summary
 
     prompt, options = llm_config.generate_prompt_and_options(substitutions: dynamic_content)
     content, input_tokens, output_tokens, generation_time = generate_llm_response(llm_config, prompt, options)
@@ -1040,6 +1066,8 @@ class DiscussionTopicsApiController < ApplicationController
     @topic.summaries.create!(
       llm_config_version: llm_config.name,
       dynamic_content_hash:,
+      user: @current_user,
+      user_input:,
       summary: content,
       input_tokens:,
       output_tokens:,
@@ -1052,10 +1080,12 @@ class DiscussionTopicsApiController < ApplicationController
   def generate_llm_response(llm_config, prompt, options)
     response = nil
     time = Benchmark.measure do
-      response = InstLLMHelper.client(llm_config.model_id).chat(
-        [{ role: "user", content: prompt }],
-        **options.symbolize_keys
-      )
+      InstLLMHelper.with_rate_limit(user: @current_user, llm_config:) do
+        response = InstLLMHelper.client(llm_config.model_id).chat(
+          [{ role: "user", content: prompt }],
+          **options.symbolize_keys
+        )
+      end
     end
 
     [

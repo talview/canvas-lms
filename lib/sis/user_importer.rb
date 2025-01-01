@@ -20,10 +20,12 @@
 
 module SIS
   class UserImporter < BaseImporter
+    attr_accessor :importer
+
     BATCH_SIZE = 100
 
     def process(messages, login_only: false)
-      importer = Work.new(@batch, @root_account, @logger, messages)
+      self.importer = Work.new(@batch, @root_account, @logger, messages)
       User.skip_updating_account_associations do
         User.process_as_sis(@sis_options) do
           Pseudonym.process_as_sis(@sis_options) do
@@ -48,6 +50,7 @@ module SIS
                     :pseudos_to_set_sis_batch_ids,
                     :users_to_add_account_associations,
                     :users_to_update_account_associations,
+                    :users_to_sync,
                     :roll_back_data
 
       def initialize(batch, root_account, logger, messages)
@@ -63,6 +66,7 @@ module SIS
         @pseudos_to_set_sis_batch_ids = []
         @users_to_add_account_associations = []
         @users_to_update_account_associations = []
+        @users_to_sync = Set.new
         @authentication_providers = {}
       end
 
@@ -237,7 +241,7 @@ module SIS
           should_add_account_associations = false
           should_update_account_associations = false
 
-          if user_row.pronouns.present? && !user.stuck_sis_fields.include?(:pronouns)
+          if user_row.pronouns.present? && !user.stuck_sis_fields.include?(:pronouns) && @root_account.can_add_pronouns?
             user.pronouns = (user_row.pronouns == "<delete>") ? nil : user_row.pronouns
           end
 
@@ -335,7 +339,10 @@ module SIS
             @messages << SisBatch.build_error(user_row.csv, message, sis_batch: @batch, row: user_row.lineno, backtrace: e.backtrace, row_info: user_row.row)
             next
           end
-
+          # Assume the user, pseudo, or communication changed (or will change below). This allows us
+          # to decouple the logic of a sis import from the logic of a user sync. The assumption is that
+          # a user sync is cheap and we follow "sync the at least once" paradigm.
+          @users_to_sync << user.id
           @users_to_add_account_associations << user.id if should_add_account_associations
           @users_to_update_account_associations << user.id if should_update_account_associations
 
@@ -421,7 +428,7 @@ module SIS
             next
           end
 
-          if pseudo.changed? || (Pseudonym.sis_stickiness_options[:clear_sis_stickiness] && pseudo.read_attribute("stuck_sis_fields").present?)
+          if pseudo.changed? || (Pseudonym.sis_stickiness_options[:clear_sis_stickiness] && pseudo["stuck_sis_fields"].present?)
             pseudo.sis_batch_id = user_row.sis_batch_id if user_row.sis_batch_id
             pseudo.sis_batch_id = @batch.id if @batch
             if pseudo.valid?

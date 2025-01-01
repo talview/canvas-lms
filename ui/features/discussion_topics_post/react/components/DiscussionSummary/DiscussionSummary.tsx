@@ -19,32 +19,38 @@
 import React, {useContext, useState, useEffect, useCallback} from 'react'
 import {Flex} from '@instructure/ui-flex'
 import {Text} from '@instructure/ui-text'
+import {TextInput} from '@instructure/ui-text-input'
 import {Spinner} from '@instructure/ui-spinner'
 import {DiscussionSummaryRatings} from './DiscussionSummaryRatings'
-import {DiscussionSummaryRegenerateButton} from './DiscussionSummaryRegenerateButton'
+import {DiscussionSummaryGenerateButton} from './DiscussionSummaryGenerateButton'
 import {DiscussionSummaryDisableButton} from './DiscussionSummaryDisableButton'
 import doFetchApi from '@canvas/do-fetch-api-effect'
 import {AlertManagerContext} from '@canvas/alerts/react/AlertManager'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
 interface DiscussionSummaryProps {
   onDisableSummaryClick: () => void
-  showButtonText: boolean
+  isMobile: boolean
 }
 
-const I18n = useI18nScope('discussion_posts')
+const I18n = createI18nScope('discussion_posts')
 
 export const DiscussionSummary: React.FC<DiscussionSummaryProps> = props => {
   const {setOnFailure} = useContext(AlertManagerContext)
+  const [previousUserInput, setPreviousUserInput] = useState('')
+  const [userInput, setUserInput] = useState('')
   const [summary, setSummary] = useState<{id: number; text: string} | null>(null)
   const [summaryError, setSummaryError] = useState<string | null>(null)
-  const [shouldForceRegenerate, setShouldForceRegenerate] = useState<boolean | null>(false)
+  const [isSummaryLoading, setIsSummaryLoading] = useState<boolean>(true)
   const [liked, setLiked] = useState<boolean>(false)
   const [disliked, setDisliked] = useState<boolean>(false)
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(false)
 
+  // @ts-expect-error
   const contextType = ENV.context_type.toLowerCase()
+  // @ts-expect-error
   const contextId = ENV.context_id
+  // @ts-expect-error
   const apiUrlPrefix = `/api/v1/${contextType}s/${contextId}/discussion_topics/${ENV.discussion_topic_id}`
 
   const likeAction = liked ? 'reset_like' : 'like'
@@ -62,7 +68,9 @@ export const DiscussionSummary: React.FC<DiscussionSummaryProps> = props => {
             _action: action,
           },
         })
+        // @ts-expect-error
         setLiked(json.liked)
+        // @ts-expect-error
         setDisliked(json.disliked)
       } catch (error) {
         setOnFailure(
@@ -82,12 +90,8 @@ export const DiscussionSummary: React.FC<DiscussionSummaryProps> = props => {
     setDisliked(false)
   }
 
-  const regenerateSummary = async () => {
-    if (summary) {
-      await postDiscussionSummaryFeedback('regenerate')
-    }
-
-    setShouldForceRegenerate(true)
+  const generateSummary = async () => {
+    setIsSummaryLoading(true)
   }
 
   const disableSummary = async () => {
@@ -112,14 +116,16 @@ export const DiscussionSummary: React.FC<DiscussionSummaryProps> = props => {
     const {json} = await doFetchApi({
       method: 'GET',
       path: `${apiUrlPrefix}/summaries`,
-      params: shouldForceRegenerate ? {force: true} : undefined,
+      params: {userInput},
     })
     return json
-  }, [shouldForceRegenerate]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isSummaryLoading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchSummary = useCallback(async () => {
     try {
+      // @ts-expect-error
       setSummary(await getDiscussionSummary())
+      setPreviousUserInput(userInput)
     } catch (error: any) {
       let errorMessage = 'An unexpected error occurred while loading the discussion summary.'
 
@@ -129,19 +135,20 @@ export const DiscussionSummary: React.FC<DiscussionSummaryProps> = props => {
       } catch {} // eslint-disable-line no-empty
 
       setSummaryError(errorMessage)
+      setPreviousUserInput('')
     }
 
-    setShouldForceRegenerate(null)
-  }, [shouldForceRegenerate]) // eslint-disable-line react-hooks/exhaustive-deps
+    setIsSummaryLoading(false)
+  }, [isSummaryLoading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (shouldForceRegenerate === null) {
+    if (!isSummaryLoading) {
       return
     }
 
     resetState()
     fetchSummary()
-  }, [shouldForceRegenerate]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isSummaryLoading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (summary === null) {
@@ -151,34 +158,19 @@ export const DiscussionSummary: React.FC<DiscussionSummaryProps> = props => {
     postDiscussionSummaryFeedback('seen')
   }, [summary]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  let content = null
+
   if (summaryError) {
-    return (
-      <Flex direction="column">
+    content = (
+      <Flex.Item margin={props.isMobile ? '0 0 medium 0' : '0 0 small 0'}>
         <Text color="danger" data-testid="summary-error">
           {summaryError}
         </Text>
-        <Flex margin="small 0">
-          <Flex.Item margin="0 small 0 0">
-            <DiscussionSummaryRegenerateButton
-              onClick={regenerateSummary}
-              isEnabled={!isFeedbackLoading}
-              buttonText={I18n.t('Retry')}
-              showText={props.showButtonText}
-            />
-          </Flex.Item>
-          <Flex.Item margin="0 small 0 0">
-            <DiscussionSummaryDisableButton
-              onClick={disableSummary}
-              isEnabled={!isFeedbackLoading}
-              showText={props.showButtonText}
-            />
-          </Flex.Item>
-        </Flex>
-      </Flex>
+      </Flex.Item>
     )
   } else if (summary === null) {
-    return (
-      <Flex justifyItems="start">
+    content = (
+      <Flex justifyItems="start" margin="small 0">
         <Flex.Item>
           <Spinner renderTitle={I18n.t('Loading discussion summary')} size="x-small" />
         </Flex.Item>
@@ -188,15 +180,12 @@ export const DiscussionSummary: React.FC<DiscussionSummaryProps> = props => {
       </Flex>
     )
   } else {
-    /* eslint-disable react/no-array-index-key */
-    return (
-      <Flex direction="column" justifyItems="start">
-        <Flex.Item>
-          <Text weight="bold">{I18n.t('Discussion summary')}</Text>
-        </Flex.Item>
-        <Flex.Item>
-          <Text fontStyle="italic" data-testid="summary-text">
-            {summary.text.split('\n').map((line, index) => (
+     
+    content = (
+      <>
+        <Flex.Item margin={props.isMobile ? '0 0 mediumSmall 0' : '0 0 small 0'}>
+          <Text fontStyle="italic" size="medium" weight="normal" data-testid="summary-text">
+            {summary.text?.split('\n').map((line, index) => (
               <React.Fragment key={index}>
                 {line}
                 <br />
@@ -204,41 +193,65 @@ export const DiscussionSummary: React.FC<DiscussionSummaryProps> = props => {
             ))}
           </Text>
         </Flex.Item>
-        <Flex.Item>
-          <Text size="x-small" color="secondary">
-            {I18n.t(
-              'This summary is generated by AI, and is up-to-date with the latest contributions to the discussion. Summaries are only visible to instructors.'
-            )}
-          </Text>
+        <Flex.Item margin="0 0 medium 0">
+          <DiscussionSummaryRatings
+            liked={liked}
+            disliked={disliked}
+            onLikeClick={() => postDiscussionSummaryFeedback(likeAction)}
+            onDislikeClick={() => postDiscussionSummaryFeedback(dislikeAction)}
+            isEnabled={!isFeedbackLoading}
+          />
         </Flex.Item>
-        <Flex margin="small 0">
-          <Flex.Item>
-            <DiscussionSummaryRatings
-              liked={liked}
-              disliked={disliked}
-              onLikeClick={() => postDiscussionSummaryFeedback(likeAction)}
-              onDislikeClick={() => postDiscussionSummaryFeedback(dislikeAction)}
-              isEnabled={!isFeedbackLoading}
-            />
-          </Flex.Item>
-          <Flex.Item margin="0 0 0 small">
-            <DiscussionSummaryRegenerateButton
-              onClick={regenerateSummary}
-              isEnabled={!isFeedbackLoading}
-              buttonText={I18n.t('Try Another Summary')}
-              showText={props.showButtonText}
-            />
-          </Flex.Item>
-          <Flex.Item margin="0 0 0 small">
-            <DiscussionSummaryDisableButton
-              onClick={disableSummary}
-              isEnabled={!isFeedbackLoading}
-              showText={props.showButtonText}
-            />
-          </Flex.Item>
-        </Flex>
-      </Flex>
+      </>
     )
-    /* eslint-enable react/no-array-index-key */
+     
   }
+
+  return (
+    <Flex direction="column">
+      <Flex.Item margin={props.isMobile ? '0 0 x-small 0' : 'medium 0 x-small 0'}>
+        <Text size="large" weight="bold">
+          {I18n.t('Discussion Summary')}
+        </Text>
+      </Flex.Item>
+      <Flex.Item margin="0 0 medium 0">
+        <Text size="small" weight="normal" color="secondary">
+          {I18n.t(
+            'This summary is generated by AI and reflects the latest contributions to the discussion. Please note that the output may not always be accurate. Summaries are only visible to instructors.'
+          )}
+        </Text>
+      </Flex.Item>
+      <TextInput
+        renderLabel={I18n.t('Enter the areas or topics you want the summary to focus on')}
+        placeholder={I18n.t('e.g. most problematic areas to clarify for my students')}
+        onChange={(event, value) => {
+          setUserInput(value)
+        }}
+        maxLength={255}
+        data-testid="summary-user-input"
+      />
+      <Flex gap="small" wrap="wrap" margin="medium 0">
+        <Flex.Item width={props.isMobile ? '100%' : 'auto'}>
+          <DiscussionSummaryGenerateButton
+            onClick={generateSummary}
+            isEnabled={!isSummaryLoading && !isFeedbackLoading && userInput !== previousUserInput}
+            isMobile={props.isMobile}
+          />
+        </Flex.Item>
+        <Flex.Item width={props.isMobile ? '100%' : 'auto'}>
+          <DiscussionSummaryDisableButton
+            isMobile={props.isMobile}
+            onClick={disableSummary}
+            isEnabled={!isFeedbackLoading}
+          />
+        </Flex.Item>
+      </Flex>
+      <Flex.Item margin="0 0 x-small 0">
+        <Text size="small" weight="normal" color="secondary">
+          {I18n.t('Generated Summary')}
+        </Text>
+      </Flex.Item>
+      {content}
+    </Flex>
+  )
 }

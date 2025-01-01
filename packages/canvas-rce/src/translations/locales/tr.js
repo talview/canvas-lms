@@ -92,10 +92,12 @@ const locale = {
   "collapse_to_hide_types_1ab46d2e": {
     "message": "{ types } gizlemek için daraltın"
   },
+  "color_a363e1b0": { "message": "Renk" },
   "computer_1d7dfa6f": { "message": "Bilgisayar" },
   "content_1440204b": { "message": "İçerik" },
   "content_subtype_5ce35e88": { "message": "İçerik Alt Türü" },
   "content_type_2cf90d95": { "message": "İçerik Tipi" },
+  "copy_9748f9f": { "message": "Kopyala" },
   "copyright_holder_66ee111": { "message": "Telif Sahibi:" },
   "count_plural_one_item_loaded_other_items_loaded_857023b7": {
     "message": "{ count, plural,\n    one {}\n  other {}\n}"
@@ -116,6 +118,7 @@ const locale = {
   "date_added_ed5ad465": { "message": "Eklendiği Tarih" },
   "decrease_indent_d9cf469d": { "message": "İçerden başlatma sınırını azalt" },
   "deep_purple_bb3e2907": { "message": "Koyu Mor" },
+  "default_9db103d": { "message": "Varsayılan" },
   "delimiters_4db4840d": { "message": "Ayıraçlar" },
   "description_436c48d7": { "message": "Açıklama" },
   "details_98a31b68": { "message": "Ayrıntılar" },
@@ -230,6 +233,7 @@ const locale = {
   "relationships_6602af70": { "message": "İlişkiler" },
   "replace_e61834a7": { "message": "Değiştir" },
   "reset_95a81614": { "message": "Sıfırla" },
+  "retry_ebd5f8ba": { "message": "Tekrar" },
   "rich_content_editor_2708ef21": { "message": "Zengin İçerik Editörü" },
   "save_11a80ec3": { "message": "Kaydet" },
   "search_280d00bd": { "message": "Ara" },
@@ -239,6 +243,7 @@ const locale = {
   "star_8d156e09": { "message": "Yıldız" },
   "start_over_f7552aa9": { "message": "Baştan Başla" },
   "submit_a3cc6859": { "message": "Gönder" },
+  "submitting_b90fac62": { "message": "Gönderiliyor..." },
   "syllabus_f191f65b": { "message": "Ders Programı" },
   "the_document_preview_is_currently_being_processed__7d9ea135": {
     "message": "Döküman ön izlemesi hala işleniyor. Lütfen daha sonra tekrar deneyin."

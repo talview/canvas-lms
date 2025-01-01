@@ -1,4 +1,3 @@
-// @ts-nocheck
 /*
  * Copyright (C) 2022 - present Instructure, Inc.
  *
@@ -18,12 +17,12 @@
  */
 
 import {chunk} from 'lodash'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {showFlashAlert} from '@canvas/alerts/react/FlashAlert'
 import type {RequestDispatch} from '@canvas/network'
 import type {Student, UserSubmissionGroup} from '../../../../../api.d'
 
-const I18n = useI18nScope('gradebook')
+const I18n = createI18nScope('gradebook')
 
 export function flashStudentLoadError(): void {
   showFlashAlert({
@@ -41,8 +40,9 @@ export function flashSubmissionLoadError(): void {
   })
 }
 
+// @ts-expect-error
 export function reportCatch(error) {
-  // eslint-disable-next-line no-console
+   
   console.warn(error)
 }
 
@@ -73,6 +73,7 @@ export const submissionsParams = {
     'redo_request',
     'score',
     'seconds_late',
+    'sticker',
     'submission_type',
     'submitted_at',
     'user_id',
@@ -99,6 +100,7 @@ export function getSubmissionsForStudents(
   submissionsPerPage: number,
   courseId: string,
   studentIds: string[],
+  // @ts-expect-error
   allEnqueued,
   dispatch: RequestDispatch
 ) {
@@ -125,6 +127,7 @@ export function getContentForStudentIdChunk(
   gotChunkOfStudents: (students: Student[]) => void,
   gotSubmissionsChunk: (student_submission_groups: UserSubmissionGroup[]) => void
 ) {
+  // @ts-expect-error
   let resolveEnqueued
   const allEnqueued = new Promise(resolve => {
     resolveEnqueued = resolve
@@ -136,12 +139,14 @@ export function getContentForStudentIdChunk(
   const submissionRequests: Promise<void>[] = []
 
   submissionRequestChunks.forEach(submissionRequestChunkIds => {
+    // @ts-expect-error
     let submissions
 
     const submissionRequest = getSubmissionsForStudents(
       submissionsPerPage,
       courseId,
       submissionRequestChunkIds,
+      // @ts-expect-error
       resolveEnqueued,
       dispatch
     )
@@ -152,6 +157,7 @@ export function getContentForStudentIdChunk(
       .then(() => {
         // if the student request fails, this callback will not be called
         // the failure will be caught and otherwise ignored
+        // @ts-expect-error
         return gotSubmissionsChunk(submissions)
       })
       .catch(reportCatch)

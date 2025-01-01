@@ -28,6 +28,8 @@ import {enableFetchMocks} from 'jest-fetch-mock'
 
 enableFetchMocks()
 
+const responseOpts = {headers: {'Content-Type': 'application/json'}}
+
 // grab this before fake timers replace it
 const realSetTimeout = setTimeout
 async function flushPromises() {
@@ -94,7 +96,7 @@ function tooManyDatesResponse() {
 }
 
 function mockAssignmentsResponse(assignments) {
-  fetch.mockResponse(JSON.stringify(assignments))
+  fetch.mockResponse(JSON.stringify(assignments), responseOpts)
   return assignments
 }
 
@@ -114,7 +116,7 @@ function renderBulkEdit(overrides = {}) {
 }
 
 async function renderBulkEditAndWait(overrides = {}, assignments = standardAssignmentResponse()) {
-  fetch.mockResponseOnce(JSON.stringify(assignments))
+  fetch.mockResponseOnce(JSON.stringify(assignments), responseOpts)
   const result = renderBulkEdit(overrides)
   await flushPromises()
   result.assignments = assignments
@@ -494,6 +496,15 @@ describe('Assignment Bulk Edit Dates', () => {
       expect(dueAtInput.value).toMatch('Thu, Feb 20, 2020, 11:59 PM')
     })
 
+    it('does not apply fancy midnight when reiterating a due date in bulk if time is specified', async () => {
+      const assignments = standardAssignmentResponse()
+      assignments[0].all_dates[0].due_at = '2020-02-20T02:59:59Z'
+      const {getAllByLabelText} = await renderBulkEditAndWait({}, assignments)
+      const dueAtInput = getAllByLabelText('Due At')[0]
+      changeAndBlurInput(dueAtInput, '2020-02-20 11:11')
+      expect(dueAtInput.value).toMatch('Thu, Feb 20, 2020, 11:11 AM')
+    })
+
     it('invokes beginning of day on new dates for unlock_at', async () => {
       const {getByText, getAllByLabelText} = await renderBulkEditAndWait()
       const unlockAtInput = getAllByLabelText('Available From')[2]
@@ -567,6 +578,33 @@ describe('Assignment Bulk Edit Dates', () => {
             {
               base: true,
               due_at: '2020-04-01T07:00:00.000Z', // 16:00 in Tokyo is 07:00 UTC
+              unlock_at: null,
+            },
+          ],
+        },
+      ])
+    })
+
+    it('does not maintain defaultDueTime on new dates for due_at on blur if time is specified', async () => {
+      const {getByText, getAllByLabelText} = await renderBulkEditAndWait({
+        defaultDueTime: '16:00:00',
+      })
+      const dueAtInput = getAllByLabelText('Due At')[2]
+      const dueAtDate = '2020-04-01 11:11'
+
+      changeAndBlurInput(dueAtInput, dueAtDate)
+      fireEvent.blur(dueAtInput) // Force blur to trigger handleSelectedDateChange
+      expect(dueAtInput.value).toMatch('Wed, Apr 1, 2020, 11:11 AM')
+      fireEvent.click(getByText('Save'))
+      await flushPromises()
+      const body = JSON.parse(fetch.mock.calls[1][1].body)
+      expect(body).toMatchObject([
+        {
+          id: 'assignment_2',
+          all_dates: [
+            {
+              base: true,
+              due_at: '2020-04-01T02:11:00.000Z', // 11:11 in Tokyo is 07:00 UTC
               unlock_at: null,
             },
           ],
@@ -717,8 +755,11 @@ describe('Assignment Bulk Edit Dates', () => {
       const fns = await renderBulkEditAndWait()
       changeAndBlurInput(fns.getAllByLabelText('Due At')[0], '2020-04-01')
       fetch.mockResponses(
-        [JSON.stringify({url: 'progress url'})],
-        [JSON.stringify({url: 'progress url', workflow_state: 'queued', completion: 0})]
+        [JSON.stringify({url: 'progress url'}), responseOpts],
+        [
+          JSON.stringify({url: 'progress url', workflow_state: 'queued', completion: 0}),
+          responseOpts,
+        ]
       )
       fireEvent.click(fns.getByText('Save'))
       await flushPromises()
@@ -731,8 +772,14 @@ describe('Assignment Bulk Edit Dates', () => {
       expect(getByText('0%')).toBeInTheDocument()
 
       fetch.mockResponses(
-        [JSON.stringify({url: 'progress url', workflow_state: 'running', completion: 42})],
-        [JSON.stringify({url: 'progress url', workflow_state: 'complete', completion: 100})]
+        [
+          JSON.stringify({url: 'progress url', workflow_state: 'running', completion: 42}),
+          responseOpts,
+        ],
+        [
+          JSON.stringify({url: 'progress url', workflow_state: 'complete', completion: 100}),
+          responseOpts,
+        ]
       )
 
       act(jest.runOnlyPendingTimers)
@@ -771,7 +818,8 @@ describe('Assignment Bulk Edit Dates', () => {
           results: [
             {assignment_id: 'assignment_1', errors: {due_at: [{message: 'some bad dates'}]}},
           ],
-        })
+        }),
+        responseOpts
       )
       act(jest.runAllTimers)
       await flushPromises()
@@ -786,7 +834,8 @@ describe('Assignment Bulk Edit Dates', () => {
     it('can start a second save operation', async () => {
       const {getByText, queryByText, getAllByLabelText} = await renderBulkEditAndSave()
       fetch.mockResponseOnce(
-        JSON.stringify({url: 'progress url', workflow_state: 'complete', completion: 100})
+        JSON.stringify({url: 'progress url', workflow_state: 'complete', completion: 100}),
+        responseOpts
       )
       act(jest.runAllTimers)
       await flushPromises()
@@ -797,8 +846,11 @@ describe('Assignment Bulk Edit Dates', () => {
       expect(queryByText(/saved successfully/)).toBe(null)
 
       fetch.mockResponses(
-        [JSON.stringify({url: 'progress url'})],
-        [JSON.stringify({url: 'progress url', workflow_state: 'complete', completion: 100})]
+        [JSON.stringify({url: 'progress url'}), responseOpts],
+        [
+          JSON.stringify({url: 'progress url', workflow_state: 'complete', completion: 100}),
+          responseOpts,
+        ]
       )
       fireEvent.click(getByText('Save'))
       await flushPromises()

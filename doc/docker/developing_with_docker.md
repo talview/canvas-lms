@@ -242,13 +242,6 @@ docker-compose run --rm js-tests yarn test:jest:watch ui/features/speed_grader/r
 
 To enable Selenium: Add `docker-compose/selenium.override.yml` to your `COMPOSE_FILE` var in `.env`.
 
-For M1 Mac users using Chrome, the official selenium images are not ARM compatible so a standalone chromium image must be used.
-In the selenium.override.yml file, replace the image with the following below.
-
-```sh
-image: seleniarm/standalone-chromium:latest
-```
-
 The container used to run the selenium browser is only started when spinning up
 all docker-compose containers, or when specified explicitly. The selenium
 container needs to be started before running any specs that require selenium.
@@ -261,11 +254,7 @@ docker-compose up -d selenium-hub
 
 With the container running, you should be able to open a VNC session:
 
-```sh
-open vnc://secret:secret@seleniumff.docker          (firefox)
-open vnc://secret:secret@seleniumch.docker:5901     (chrome)
-open vnc://secret:secret@seleniumedge.docker:5902   (edge)
-```
+<http://127.0.0.1:7900/?autoconnect=1&resize=scale&password=secret>
 
 Now just run your choice of selenium specs:
 
@@ -306,13 +295,11 @@ colorized rails log and a browser screenshot taken at the time of the failure.
 ## Extra Services
 
 ### Mail Catcher
+Mail Catcher is used to both send and view email in a development environment.
 
-To enable Mail Catcher: Add `docker-compose/mailcatcher.override.yml` to your `COMPOSE_FILE` var in `.env`.
+To enable Mail Catcher: Add `docker-compose/mailcatcher.override.yml` to your `COMPOSE_FILE` var in `.env`. Then you can `docker compose up mailcatcher`.
 
-Email is often sent through background jobs if you spin up the `jobs` container.
-If you would like to test or preview any notifications, simply trigger the email
-through its normal actions, and it should immediately show up in the emulated
-webmail inbox available here: http://mail.canvas.docker/
+Email is often sent through background jobs in the jobs container. If you would like to test or preview any notifications, simply trigger the email through its normal actions, and it should immediately show up in the emulated webmail inbox available here: <http://mail.canvas.docker>
 
 ### Canvas RCE API
 

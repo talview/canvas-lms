@@ -201,6 +201,15 @@ describe WikiPage do
     expect(p2.url).to eq("apples-2")
   end
 
+  it "rescues a RecordNotUnique error and throws a 409 if create_lookup tries to create a duplicate lookup" do
+    course_factory(active_all: true)
+    p1 = @course.wiki_pages.create!(title: "bananas")
+    p2 = @course.wiki_pages.create!(title: "bananas")
+    p1.save!
+    p2.update_column(:url, "bananas")
+    expect { p2.create_lookup }.to raise_error("wiki page with that url already exists")
+  end
+
   it "lets you reuse the title/url of a deleted page when permanent_page_links is disabled" do
     Account.site_admin.disable_feature! :permanent_page_links
     course_with_teacher(active_all: true)
@@ -1368,6 +1377,75 @@ describe WikiPage do
         assignment = course2.assignments.create!(title: "assignment")
         page4.update!(assignment_id: assignment.id)
         assert_visible(@student1, [@page1])
+      end
+    end
+  end
+
+  describe "show_in_search_for_user?" do
+    shared_examples_for "expected_values_for_teacher_student" do |teacher_expected, student_expected|
+      it "returns #{teacher_expected} for teacher" do
+        expect(@page.show_in_search_for_user?(@teacher)).to eq(teacher_expected)
+      end
+
+      it "returns #{student_expected} for student" do
+        expect(@page.show_in_search_for_user?(@student)).to eq(student_expected)
+      end
+    end
+
+    before(:once) do
+      course_with_teacher(active_all: true)
+      student_in_course(course: @course, active_all: true)
+      @page = @course.wiki_pages.create!(title: "page")
+    end
+
+    include_examples "expected_values_for_teacher_student", true, true
+
+    context "when pages tab is disabled" do
+      before do
+        @old_tab_config = @course.tab_configuration.deep_dup
+        @course.tab_configuration = [{ id: Course::TAB_PAGES, hidden: true }]
+        @course.save!
+      end
+
+      after do
+        @course.tab_configuration = @old_tab_config
+        @course.save!
+      end
+
+      include_examples "expected_values_for_teacher_student", true, false
+
+      context "and the page is in a module" do
+        before do
+          # We want to make sure that we check for _all_ modules, not just
+          # the first so we will also add the page to a locked module.
+          locked_context_module = @course.context_modules.create!(name: "module1", unlock_at: 1.day.from_now)
+          locked_context_module.add_item({ id: @page.id, type: "wiki_page" })
+
+          @context_module = @course.context_modules.create!(name: "module2")
+          @context_module.add_item({ id: @page.id, type: "wiki_page" })
+        end
+
+        after do
+          @course.context_modules.destroy_all
+        end
+
+        include_examples "expected_values_for_teacher_student", true, true
+
+        context "and the module is unpublished" do
+          before do
+            @context_module.unpublish!
+          end
+
+          include_examples "expected_values_for_teacher_student", true, false
+        end
+
+        context "and the module is locked" do
+          before do
+            @context_module.update!(unlock_at: 1.day.from_now)
+          end
+
+          include_examples "expected_values_for_teacher_student", true, false
+        end
       end
     end
   end

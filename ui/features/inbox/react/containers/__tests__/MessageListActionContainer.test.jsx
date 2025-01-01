@@ -17,7 +17,7 @@
  */
 
 import {AlertManagerContext} from '@canvas/alerts/react/AlertManager'
-import {ApolloProvider} from 'react-apollo'
+import {ApolloProvider} from '@apollo/client'
 import {handlers} from '../../../graphql/mswHandlers'
 import MessageListActionContainer from '../MessageListActionContainer'
 import {mswClient} from '../../../../../shared/msw/mswClient'
@@ -180,6 +180,14 @@ describe('MessageListActionContainer', () => {
 
       const mailboxDropdown = await component.findByDisplayValue('Sent')
       expect(mailboxDropdown).toBeTruthy()
+    })
+  })
+
+  describe('AddressBook', () => {
+    it('should render AddressBook', async () => {
+      const {findByTestId} = setup()
+      const addressBook = await findByTestId('message-list-actions-address-book-input')
+      expect(addressBook).toBeTruthy()
     })
   })
 

@@ -18,10 +18,10 @@
 
 import axios from '@canvas/axios'
 import qs from 'qs'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import resolveProgress from '@canvas/progress/resolve_progress'
 
-const I18n = useI18nScope('upload_file')
+const I18n = createI18nScope('upload_file')
 
 // error interpretations. specifically avoid reporting an unhelpful "Network
 // Error". TODO: more introspection of the errors for more detailed/specific
@@ -215,8 +215,8 @@ export function completeUpload(preflightResponse, file, options = {}) {
  * @returns an array of attachment objects. The attachment objects contain ids
  * that a submissions comment can link to
  */
-export function submissionCommentAttachmentsUpload(files, courseId, assignmentId) {
-  const preflightFileUploadUrl = `/api/v1/courses/${courseId}/assignments/${assignmentId}/submissions/self/comments/files`
+export function submissionCommentAttachmentsUpload(files, courseId, assignmentId, userId = 'self') {
+  const preflightFileUploadUrl = `/api/v1/courses/${courseId}/assignments/${assignmentId}/submissions/${userId}/comments/files`
   const uploadPromises = files.map(currentFile => {
     const preflightFileData = {
       name: currentFile.name,

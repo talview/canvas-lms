@@ -19,7 +19,7 @@
 
 module DifferentiableAssignment
   def differentiated_assignments_applies?
-    differentiable.only_visible_to_overrides
+    !differentiable.visible_to_everyone
   end
 
   def visible_to_user?(user)
@@ -53,12 +53,6 @@ module DifferentiableAssignment
     case differentiable.class_name
     when "Assignment"
       AssignmentStudentVisibility
-    when "ContextModule"
-      ModuleStudentVisibility
-    when "WikiPage"
-      WikiPageStudentVisibility
-    when "DiscussionTopic"
-      UngradedDiscussionStudentVisibility
     else
       Quizzes::QuizStudentVisibility
     end
@@ -67,15 +61,15 @@ module DifferentiableAssignment
   def visible(conditions)
     case differentiable.class_name
     when "Assignment"
-      AssignmentVisibility::AssignmentVisibilityService.assignment_visible_to_students(user_ids: conditions[:user_id], assignment_id: conditions[:assignment_id])
+      AssignmentVisibility::AssignmentVisibilityService.assignments_visible_to_students(user_ids: conditions[:user_id], assignment_ids: conditions[:assignment_id])
     when "ContextModule"
-      ModuleVisibility::ModuleVisibilityService.module_visible_to_students(user_ids: conditions[:user_id], context_module_id: conditions[:context_module_id])
+      ModuleVisibility::ModuleVisibilityService.modules_visible_to_students(user_ids: conditions[:user_id], context_module_ids: conditions[:context_module_id])
     when "WikiPage"
-      WikiPageVisibility::WikiPageVisibilityService.wiki_page_visible_to_students(user_ids: conditions[:user_id], wiki_page_id: conditions[:wiki_page_id])
-    when "DiscussionTopic"
-      UngradedDiscussionVisibility::UngradedDiscussionVisibilityService.discussion_topic_visible_to_students(user_ids: conditions[:user_id], discussion_topic_id: conditions[:discussion_topic_id])
+      WikiPageVisibility::WikiPageVisibilityService.wiki_pages_visible_to_students(user_ids: conditions[:user_id], wiki_page_ids: conditions[:wiki_page_id])
+    when "DiscussionTopic", "Announcement"
+      UngradedDiscussionVisibility::UngradedDiscussionVisibilityService.discussion_topics_visible(user_ids: conditions[:user_id], discussion_topic_ids: conditions[:discussion_topic_id])
     else
-      QuizVisibility::QuizVisibilityService.quiz_visible_to_students(quiz_id: conditions[:quiz_id], user_ids: conditions[:user_id])
+      QuizVisibility::QuizVisibilityService.quizzes_visible_to_students(quiz_ids: conditions[:quiz_id], user_ids: conditions[:user_id])
     end
   end
 
@@ -87,7 +81,7 @@ module DifferentiableAssignment
       :context_module_id
     when "WikiPage"
       :wiki_page_id
-    when "DiscussionTopic"
+    when "DiscussionTopic", "Announcement"
       :discussion_topic_id
     else
       :quiz_id

@@ -17,10 +17,10 @@
  */
 
 import getCookie from '@instructure/get-cookie'
-import introspectionQueryResultData from '@canvas/apollo/fragmentTypes.json'
-import {ApolloClient, InMemoryCache, HttpLink, ApolloLink} from '@apollo/client'
-import {IntrospectionFragmentMatcher} from 'apollo-cache-inmemory'
-import {persistCache} from 'apollo-cache-persist'
+import possibleTypes from '@canvas/apollo-v3/possibleTypes.json'
+import {ApolloClient, ApolloProvider, InMemoryCache, HttpLink, ApolloLink, gql} from '@apollo/client'
+import {Query} from '@apollo/client/react/components'
+import {persistCache} from 'apollo3-cache-persist'
 import {onError} from '@apollo/client/link/error'
 
 import EncryptedForage from '../encrypted-forage'
@@ -68,6 +68,10 @@ function createCache() {
 
       if (object.id) {
         cacheKey = object.id
+      } else if (object._id && object.__typename === 'RubricAssessmentRating') {
+        cacheKey = object.__typename + object._id + object.rubricAssessmentId
+      } else if (object.__typename === 'RubricRating') {
+        cacheKey = object.__typename + object._id + object.rubricId
       } else if (object._id && object.__typename) {
         cacheKey = object.__typename + object._id
       } else {
@@ -86,9 +90,7 @@ function createCache() {
       }
       return cacheKey
     },
-    fragmentMatcher: new IntrospectionFragmentMatcher({
-      introspectionQueryResultData,
-    }),
+    possibleTypes: possibleTypes,
   })
 }
 
@@ -102,7 +104,7 @@ async function createPersistentCache(passphrase = null) {
 }
 
 function createClient(opts = {}) {
-  const cache = opts.cache || new InMemoryCache()
+  const cache = opts.cache || createCache()
 
   // there are some cases where we need to override these options.
   //  If we're using an API gateway instead of talking to canvas directly,
@@ -114,7 +116,10 @@ function createClient(opts = {}) {
   // https://github.com/apollographql/apollo-client/blob/main/src/link/core/ApolloLink.ts
   const httpLinkOptions = opts.httpLinkOptions || {}
 
-  const links = [createConsoleErrorReportLink(), setHeadersLink(), createHttpLink(httpLinkOptions)]
+  const links =
+    createClient.mockLink == null
+      ? [createConsoleErrorReportLink(), setHeadersLink(), createHttpLink(httpLinkOptions)]
+      : [createConsoleErrorReportLink(), createClient.mockLink]
 
   const client = new ApolloClient({
     link: ApolloLink.from(links),
@@ -124,4 +129,4 @@ function createClient(opts = {}) {
   return client
 }
 
-export {createClient, createCache, createPersistentCache}
+export {ApolloProvider, createClient, createCache, createPersistentCache, Query, gql}

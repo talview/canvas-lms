@@ -22,7 +22,7 @@ import {Discussion} from '../../../../graphql/Discussion'
 import {DiscussionEntry} from '../../../../graphql/DiscussionEntry'
 import {fireEvent, render, waitFor} from '@testing-library/react'
 import {SplitScreenThreadsContainer} from '../SplitScreenThreadsContainer'
-import {MockedProvider} from '@apollo/react-testing'
+import {MockedProvider} from '@apollo/client/testing'
 import {PageInfo} from '../../../../graphql/PageInfo'
 import React from 'react'
 import {updateDiscussionEntryParticipantMock} from '../../../../graphql/Mocks'
@@ -332,6 +332,14 @@ describe('SplitScreenThreadsContainer', () => {
       const props = defaultProps()
       props.discussionEntry.discussionSubentriesConnection.nodes[0].entryParticipant.read = false
       props.discussionEntry.discussionSubentriesConnection.nodes[0].entryParticipant.forcedReadState = true
+      const container = setup(props)
+      expect(container).toBeTruthy()
+      expect(window.IntersectionObserver).toHaveBeenCalledTimes(0)
+    })
+
+    it('observer is not created when entry is deleted', () => {
+      const props = defaultProps()
+      props.discussionEntry.discussionSubentriesConnection.nodes[0].deleted = true
       const container = setup(props)
       expect(container).toBeTruthy()
       expect(window.IntersectionObserver).toHaveBeenCalledTimes(0)

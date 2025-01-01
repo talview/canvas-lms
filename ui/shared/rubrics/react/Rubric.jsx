@@ -17,7 +17,7 @@
  */
 import {Flex} from '@instructure/ui-flex'
 import {Table} from '@instructure/ui-table'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {get, isUndefined, keyBy, max, sum} from 'lodash'
 import PropTypes from 'prop-types'
 import React, {useEffect, useRef, useState} from 'react'
@@ -26,7 +26,7 @@ import {getSavedComments} from './helpers'
 import {roundIfWhole} from './Points'
 import {rubricAssessmentShape, rubricAssociationShape, rubricShape} from './types'
 
-const I18n = useI18nScope('edit_rubricRubric')
+const I18n = createI18nScope('edit_rubricRubric')
 
 // be a little responsive about minimum widths of columns in the rubric table
 const MIN_WIDTH_PERCENT = 20
@@ -90,6 +90,9 @@ const Rubric = props => {
 
   // we show the last column for points or comments button
   const showPointsColumn = () => {
+    if (ENV.restrict_quantitative_data) {
+      return false
+    }
     if (isSummary) {
       return false
     }
@@ -145,7 +148,12 @@ const Rubric = props => {
       {I18n.t('Ratings')}
     </Table.ColHeader>,
     showPointsColumn() ? (
-      <Table.ColHeader id="table-heading-points" key="TableHeadingPoints" width={narrowColWidths}>
+      <Table.ColHeader
+        id="table-heading-points"
+        key="TableHeadingPoints"
+        data-testid="table-heading-points"
+        width={narrowColWidths}
+      >
         {I18n.t('Pts')}
       </Table.ColHeader>
     ) : null,
@@ -194,11 +202,11 @@ const Rubric = props => {
         </Table.Head>
         <Table.Body data-testid="criterions">
           {criteria}
-          {showTotalPoints && (
+          {showTotalPoints && !ENV.restrict_quantitative_data && (
             <Table.Row>
               <Table.Cell colSpan={numColumns}>
                 <Flex justifyItems="end">
-                  <Flex.Item data-selenium="rubric_total">
+                  <Flex.Item data-selenium="rubric_total" data-testid="rubric-total">
                     {hideScoreTotal || noScore ? null : total}
                   </Flex.Item>
                 </Flex>

@@ -618,6 +618,12 @@ module CustomSeleniumActions
   end
 
   ##
+  ## drags the source element by dx to the right and dy down
+  def drag_and_drop_element_by(source, dx, dy)
+    driver.action.drag_and_drop_by(source, dx, dy).perform
+  end
+
+  ##
   # returns true if a form validation error message is visible, false otherwise
   def error_displayed?
     # after it fades out, it's still visible, just off the screen
@@ -725,5 +731,14 @@ module CustomSeleniumActions
     element.click
   rescue
     click_repeat(element)
+  end
+
+  # If you want to simulate a user's internet connection turning offline, use these methods.
+  def turn_off_network
+    driver.network_conditions = { offline: true, latency: 0, throughput: 0 }
+  end
+
+  def turn_on_network
+    driver.network_conditions = { offline: false, latency: 0, throughput: -1 }
   end
 end

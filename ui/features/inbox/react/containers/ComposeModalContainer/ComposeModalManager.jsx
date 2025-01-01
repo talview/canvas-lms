@@ -32,14 +32,14 @@ import {
   SUBMISSION_COMMENTS_QUERY,
   VIEWABLE_SUBMISSIONS_QUERY,
 } from '../../../graphql/Queries'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import ModalSpinner from './ModalSpinner'
 import PropTypes from 'prop-types'
 import React, {useContext, useState, useEffect} from 'react'
-import {useMutation, useQuery} from 'react-apollo'
+import {useMutation, useQuery} from '@apollo/client'
 import {ConversationContext} from '../../../util/constants'
 
-const I18n = useI18nScope('conversations_2')
+const I18n = createI18nScope('conversations_2')
 
 const ComposeModalManager = props => {
   const {setOnFailure, setOnSuccess} = useContext(AlertManagerContext)
@@ -89,17 +89,13 @@ const ComposeModalManager = props => {
   })
 
   const updateConversationsCache = (cache, result) => {
-    let legacyNode
-    try {
-      const queryResult = JSON.parse(
-        JSON.stringify(cache.readQuery(props.conversationsQueryOption))
-      )
-      legacyNode = queryResult.legacyNode
-    } catch (e) {
-      // readQuery throws an exception if the query isn't already in the cache
-      // If its not in the cache we don't want to do anything
+    const queryResult = JSON.parse(JSON.stringify(cache.readQuery(props.conversationsQueryOption)))
+
+    if (!queryResult) {
       return
     }
+
+    const legacyNode = queryResult.legacyNode
 
     if (props.isReply || props.isReplyAll || props.isForward) {
       const conversation = legacyNode.conversationsConnection.nodes.find(
@@ -138,6 +134,11 @@ const ComposeModalManager = props => {
           })
         )
       )
+
+      if (!replyQueryResult) {
+        return
+      }
+
       replyQueryResult.legacyNode.conversationMessagesConnection.nodes.unshift(
         result.data.addConversationMessage.conversationMessage
       )
@@ -164,10 +165,11 @@ const ComposeModalManager = props => {
       }
       const data = JSON.parse(JSON.stringify(cache.readQuery(queryToUpdate)))
 
-      data.legacyNode.conversationMessagesConnection.nodes = [
-        result.data.addConversationMessage.conversationMessage,
-        ...data.legacyNode.conversationMessagesConnection.nodes,
-      ]
+      if (result.data?.addConversationMessage.conversationMessage)
+        data.legacyNode.conversationMessagesConnection.nodes = [
+          result.data.addConversationMessage.conversationMessage,
+          ...data.legacyNode.conversationMessagesConnection.nodes,
+        ]
 
       cache.writeQuery({...queryToUpdate, data})
     }
@@ -197,7 +199,13 @@ const ComposeModalManager = props => {
         sort: 'desc',
       },
     }
+
     const data = JSON.parse(JSON.stringify(cache.readQuery(queryToUpdate)))
+
+    if (!data) {
+      return
+    }
+
     const submissionToUpdate = data.legacyNode.viewableSubmissionsConnection.nodes.find(
       c => c._id === props.conversation._id
     )
@@ -209,6 +217,12 @@ const ComposeModalManager = props => {
   }
 
   const updateCache = (cache, result) => {
+    if (result?.data?.addConversationMessage?.conversationMessage._id === '0') {
+      // if the user sends another delayed message right now, we will have 2 0 id message in our stack, which will cause duplication
+      // result.data.addConversationMessage.conversationMessage.id = Date.now().toString()
+      window.location.reload()
+      return
+    }
     const submissionFail = result?.data?.createSubmissionComment?.errors
     const addConversationFail = result?.data?.addConversationMessage?.errors
     const createConversationFail = result?.data?.createConversation?.errors
@@ -231,7 +245,6 @@ const ComposeModalManager = props => {
     // success is true if there is no error message or if data === true
     const errorMessage = data?.errors
     const success = errorMessage ? false : !!data
-
     if (success) {
       props.onDismiss()
       setOnSuccess(I18n.t('Message sent!'), false)
@@ -307,7 +320,13 @@ const ComposeModalManager = props => {
   }
 
   const filteredCourses = () => {
-    const courses = coursesQuery?.data?.legacyNode
+    const legacyNode = coursesQuery?.data?.legacyNode
+
+    if (!legacyNode) {
+      return null
+    }
+
+    const courses = JSON.parse(JSON.stringify(legacyNode))
     if (courses) {
       courses.enrollments = courses?.enrollments.filter(enrollment => !enrollment?.concluded)
       courses.favoriteGroupsConnection.nodes = courses?.favoriteGroupsConnection?.nodes.filter(
@@ -356,7 +375,8 @@ const ComposeModalManager = props => {
       submissionCommentsHeader={isSubmissionCommentsType ? props?.conversation?.subject : null}
       modalError={modalError}
       isPrivateConversation={!!props?.conversation?.isPrivate}
-      currentCourseFilter={props.currentCourseFilter}
+      activeCourseFilterID={props.activeCourseFilterID}
+      setModalError={setModalError}
     />
   )
 }
@@ -374,7 +394,7 @@ ComposeModalManager.propTypes = {
   selectedIds: PropTypes.array,
   contextIdFromUrl: PropTypes.string,
   maxGroupRecipientsMet: PropTypes.bool,
-  currentCourseFilter: PropTypes.string,
+  activeCourseFilterID: PropTypes.string,
   inboxSignatureBlock: PropTypes.bool,
 }
 

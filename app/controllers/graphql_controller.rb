@@ -22,21 +22,21 @@ class GraphQLController < ApplicationController
   include Api::V1
 
   before_action :require_user, if: :require_auth?
-  before_action :require_inst_access_token_auth, only: :subgraph_execute, unless: :sdl_query?
   # This makes sure that the liveEvents context is set up for graphql requests
   before_action :get_context
-
-  # This action is for use only with the federated API Gateway. See
-  # `app/graphql/README.md` for details.
-  def subgraph_execute
-    result = execute_on(CanvasSchema.for_federation)
-    render json: result
-  end
 
   def execute
     result = execute_on(CanvasSchema)
     prep_page_view_for_submit
     prep_page_view_for_create_discussion_entry
+
+    errors_is_blank = result["errors"].blank?
+    RequestContext::Generator.add_meta_header("ge", errors_is_blank ? "f" : "t")
+
+    unless errors_is_blank
+      Rails.logger.info "There are GraphQL errors: #{result["errors"].to_json}"
+    end
+
     render json: result
   end
 
@@ -92,15 +92,6 @@ class GraphQLController < ApplicationController
     query = query[/{.*/] # slice off leading "query" keyword and/or query name, if any
     query.gsub!(/\s+/, "") # strip all whitespace
     query == "{_service{sdl}}"
-  end
-
-  def require_inst_access_token_auth
-    unless @authenticated_with_inst_access_token
-      render(
-        json: { errors: [{ message: "InstAccess token auth required" }] },
-        status: :unauthorized
-      )
-    end
   end
 
   def prep_page_view_for_submit

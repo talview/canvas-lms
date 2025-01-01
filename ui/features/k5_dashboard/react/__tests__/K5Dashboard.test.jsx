@@ -15,27 +15,40 @@
  * You should have received a copy of the GNU Affero General Public License along
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-import React from 'react'
-import moxios from 'moxios'
-import {act, render, screen, waitFor} from '@testing-library/react'
+
 import {resetCardCache} from '@canvas/dashboard-card'
+import {
+  MOCK_ACCOUNT_CALENDAR_EVENT,
+  MOCK_ASSIGNMENTS,
+  MOCK_CARDS,
+  MOCK_EVENTS,
+  MOCK_QUERY_CARDS_RESPONSE,
+} from '@canvas/k5/react/__tests__/fixtures'
 import {resetPlanner} from '@canvas/planner'
+import {act, screen, render as testingLibraryRender, waitFor} from '@testing-library/react'
 import fetchMock from 'fetch-mock'
+import moxios from 'moxios'
+import React from 'react'
 import {
   MOCK_TODOS,
   createPlannerMocks,
   defaultEnv,
   defaultK5DashboardProps as defaultProps,
 } from './mocks'
-import {
-  MOCK_ASSIGNMENTS,
-  MOCK_CARDS,
-  MOCK_EVENTS,
-  MOCK_ACCOUNT_CALENDAR_EVENT,
-} from '@canvas/k5/react/__tests__/fixtures'
 
-import K5Dashboard from '../K5Dashboard'
 import {destroyContainer} from '@canvas/alerts/react/FlashAlert'
+import K5Dashboard from '../K5Dashboard'
+
+import {queryClient} from '@canvas/query'
+import {MockedQueryProvider} from '@canvas/test-utils/query'
+import * as ReactQuery from '@tanstack/react-query'
+
+jest.mock('@canvas/util/globalUtils', () => ({
+  reloadWindow: jest.fn(),
+}))
+
+const render = children =>
+  testingLibraryRender(<MockedQueryProvider>{children}</MockedQueryProvider>)
 
 const ASSIGNMENTS_URL = /\/api\/v1\/calendar_events\?type=assignment&important_dates=true&.*/
 const EVENTS_URL = /\/api\/v1\/calendar_events\?type=event&important_dates=true&.*/
@@ -137,18 +150,18 @@ beforeEach(() => {
   moxios.install()
   createPlannerMocks()
   fetchMock.get(/\/api\/v1\/announcements.*/, announcements)
-  fetchMock.get(/\/api\/v1\/users\/self\/courses.*/, JSON.stringify(gradeCourses))
-  fetchMock.get(encodeURI('api/v1/courses/2?include[]=syllabus_body'), JSON.stringify(syllabus))
-  fetchMock.get(/\/api\/v1\/external_tools\/visible_course_nav_tools.*/, JSON.stringify(apps))
-  fetchMock.get(/\/api\/v1\/courses\/2\/users.*/, JSON.stringify(staff))
+  fetchMock.get(/\/api\/v1\/users\/self\/courses.*/, gradeCourses)
+  fetchMock.get(encodeURI('api/v1/courses/2?include[]=syllabus_body'), syllabus)
+  fetchMock.get(/\/api\/v1\/external_tools\/visible_course_nav_tools.*/, apps)
+  fetchMock.get(/\/api\/v1\/courses\/2\/users.*/, staff)
   fetchMock.get(/\/api\/v1\/users\/self\/todo.*/, MOCK_TODOS)
-  fetchMock.put('/api/v1/users/self/settings', JSON.stringify({}))
+  fetchMock.put('/api/v1/users/self/settings', {})
   fetchMock.get(ASSIGNMENTS_URL, MOCK_ASSIGNMENTS)
   fetchMock.get(EVENTS_URL, MOCK_EVENTS)
-  fetchMock.post(
-    /\/api\/v1\/calendar_events\/save_selected_contexts.*/,
-    JSON.stringify({status: 'ok'})
-  )
+  fetchMock.post(/\/api\/v1\/calendar_events\/save_selected_contexts.*/, {
+    status: 200,
+    body: {status: 'ok'},
+  })
   fetchMock.put(/\/api\/v1\/users\/\d+\/colors\.*/, {status: 200, body: []})
   global.ENV = defaultEnv
 })
@@ -172,7 +185,7 @@ describe('K-5 Dashboard', () => {
 
   it('allows admins and teachers to turn off the elementary dashboard', async () => {
     const {getByRole} = render(
-      <K5Dashboard {...defaultProps} canDisableElementaryDashboard={true} />
+      <K5Dashboard {...defaultProps} canDisableElementaryDashboard={true} />,
     )
     const optionsButton = getByRole('button', {name: 'Dashboard Options'})
     act(() => optionsButton.click())
@@ -195,7 +208,7 @@ describe('K-5 Dashboard', () => {
       expect(fetchMock.lastOptions('/api/v1/users/self/settings').body).toEqual(
         JSON.stringify({
           elementary_dashboard_disabled: true,
-        })
+        }),
       )
     })
   })
@@ -240,7 +253,7 @@ describe('K-5 Dashboard', () => {
       expect(missingItemsLink).toBeInTheDocument()
       expect(missingItemsLink).toHaveTextContent('View 2 missing items for course Economics 101')
       expect(missingItemsLink.getAttribute('href')).toMatch(
-        '/courses/1?focusTarget=missing-items#schedule'
+        '/courses/1?focusTarget=missing-items#schedule',
       )
     })
 
@@ -264,10 +277,10 @@ describe('K-5 Dashboard', () => {
         response: [],
       })
       const {getByTestId, getByText} = render(
-        <K5Dashboard {...defaultProps} plannerEnabled={true} />
+        <K5Dashboard {...defaultProps} plannerEnabled={true} />,
       )
       await waitFor(() =>
-        expect(getByText("You don't have any active courses yet.")).toBeInTheDocument()
+        expect(getByText("You don't have any active courses yet.")).toBeInTheDocument(),
       )
       expect(getByTestId('empty-dash-panda')).toBeInTheDocument()
       const scheduleTab = getByText('Schedule')
@@ -292,7 +305,7 @@ describe('K-5 Dashboard', () => {
               // Expect just one announcement request for all cards
               expect(fetchMock.calls(/\/api\/v1\/announcements.*latest_only=true.*/).length).toBe(1)
               done()
-            })
+            }),
         )
       })
     })
@@ -311,10 +324,10 @@ describe('K-5 Dashboard', () => {
             .then(() => {
               expect(fetchMock.calls(/\/api\/v1\/announcements.*/).length).toBe(0)
               expect(
-                fetchMock.calls(/\/api\/v1\/external_tools\/visible_course_nav_tools.*/).length
+                fetchMock.calls(/\/api\/v1\/external_tools\/visible_course_nav_tools.*/).length,
               ).toBe(0)
               done()
-            })
+            }),
         )
       })
     })
@@ -327,7 +340,7 @@ describe('K-5 Dashboard', () => {
           {...defaultProps}
           currentUserRoles={['student']}
           hideGradesTabForStudents={true}
-        />
+        />,
       )
       await findByRole('tab', {name: 'Homeroom'})
       expect(queryByRole('tab', {name: 'Grades'})).not.toBeInTheDocument()
@@ -339,14 +352,14 @@ describe('K-5 Dashboard', () => {
           {...defaultProps}
           currentUserRoles={['student', 'teacher']}
           hideGradesTabForStudents={true}
-        />
+        />,
       )
       expect(await findByRole('tab', {name: 'Grades'})).toBeInTheDocument()
     })
 
     it('displays a score summary for each non-homeroom course', async () => {
       const {getByText, queryByText, findByRole} = render(
-        <K5Dashboard {...defaultProps} defaultTab="tab-grades" />
+        <K5Dashboard {...defaultProps} defaultTab="tab-grades" />,
       )
       expect(await findByRole('link', {name: 'Economics 101'})).toBeInTheDocument()
       expect(getByText('B-')).toBeInTheDocument()
@@ -357,7 +370,7 @@ describe('K-5 Dashboard', () => {
   describe('Resources Section', () => {
     it('displays syllabus content for homeroom under important info section', async () => {
       const {getByText, findByText} = render(
-        <K5Dashboard {...defaultProps} defaultTab="tab-resources" />
+        <K5Dashboard {...defaultProps} defaultTab="tab-resources" />,
       )
       expect(await findByText("Here's the grading scheme for this class.")).toBeInTheDocument()
       expect(getByText('Important Info')).toBeInTheDocument()
@@ -398,7 +411,7 @@ describe('K-5 Dashboard', () => {
 
     it('does not show the todos tab to students or admins', async () => {
       const {findByRole, queryByRole} = render(
-        <K5Dashboard {...defaultProps} currentUserRoles={['admin', 'student']} />
+        <K5Dashboard {...defaultProps} currentUserRoles={['admin', 'student']} />,
       )
       expect(await findByRole('tab', {name: 'Homeroom', selected: true})).toBeInTheDocument()
       expect(queryByRole('tab', {name: 'To Do'})).not.toBeInTheDocument()
@@ -428,7 +441,7 @@ describe('K-5 Dashboard', () => {
           {...defaultProps}
           selectedContextsLimit={1}
           selectedContextCodes={['course_1']}
-        />
+        />,
       )
       await waitFor(() => {
         expect(getByText('Algebra 2')).toBeInTheDocument()
@@ -469,15 +482,130 @@ describe('K-5 Dashboard', () => {
         overwriteRoutes: true,
       })
       const {getByText} = render(
-        <K5Dashboard {...defaultProps} selectedContextCodes={['course_1', 'account_1']} />
+        <K5Dashboard {...defaultProps} selectedContextCodes={['course_1', 'account_1']} />,
       )
       await waitFor(() => expect(getByText('History Discussion')).toBeInTheDocument())
       expect(fetchMock.lastUrl(EVENTS_URL)).toMatch(
-        'context_codes%5B%5D=course_1&context_codes%5B%5D=account_1'
+        'context_codes%5B%5D=course_1&context_codes%5B%5D=account_1',
       )
       ;['Morning Yoga', 'Football Game', 'CSU'].forEach(label =>
-        expect(getByText(label)).toBeInTheDocument()
+        expect(getByText(label)).toBeInTheDocument(),
       )
+    })
+  })
+})
+
+// These are the tests that needed to be modified when
+// the dashboard_graphql_integration feature flag was turned on
+describe('K-5 Dashboard with dashboard_graphql_integration on', () => {
+  const queryKey = [
+    'dashboard_cards',
+    {userID: defaultEnv.current_user_id, observedUserID: undefined},
+  ]
+
+  beforeEach(() => {
+    global.ENV = {
+      ...defaultEnv,
+      FEATURES: {
+        ...defaultEnv?.FEATURES,
+        dashboard_graphql_integration: true,
+      },
+    }
+    queryClient.setQueryData(queryKey, MOCK_QUERY_CARDS_RESPONSE)
+  })
+  describe('Homeroom Section', () => {
+    it('shows the latest announcement for each subject course if one exists', async () => {
+      render(<K5Dashboard {...defaultProps} />)
+      await waitFor(() => {
+        const announcementLink = screen.getByText("This sure isn't a homeroom")
+        expect(announcementLink).toBeInTheDocument()
+        expect(announcementLink.closest('a')).toHaveAttribute('href', '/courses/1/announcements/21')
+      })
+    })
+    it('shows loading skeletons for course cards while they load', () => {
+      queryClient.clear()
+      // Hack to prevent the useQuery hook from returning data
+      jest
+        .spyOn(ReactQuery, 'useQuery')
+        .mockImplementation(jest.fn().mockReturnValue({isLoading: true}))
+      const {getAllByText} = render(<K5Dashboard {...defaultProps} />)
+      expect(getAllByText('Loading Card')[0]).toBeInTheDocument()
+    })
+    it('only fetches announcements based on cards once per page load', async () => {
+      render(<K5Dashboard {...defaultProps} />)
+      await waitFor(() => {
+        expect(fetchMock.calls(/\/api\/v1\/announcements.*latest_only=true.*/).length).toBe(1)
+      })
+    })
+
+    it('only fetches announcements and apps if there are any cards', async () => {
+      queryClient.setQueryData(queryKey, [])
+      await waitFor(() => {
+        expect(fetchMock.calls(/\/api\/v1\/announcements.*/).length).toBe(0)
+        expect(
+          fetchMock.calls(/\/api\/v1\/external_tools\/visible_course_nav_tools.*/).length,
+        ).toBe(0)
+      })
+    })
+  })
+  describe('Important Dates', () => {
+    it('filters important dates to those selected', async () => {
+      // set all cards to active
+      const updatedMockResponse = {
+        ...MOCK_QUERY_CARDS_RESPONSE,
+        legacyNode: {
+          ...MOCK_QUERY_CARDS_RESPONSE.legacyNode,
+          favoriteCoursesConnection: {
+            ...MOCK_QUERY_CARDS_RESPONSE.legacyNode.favoriteCoursesConnection,
+            nodes: MOCK_QUERY_CARDS_RESPONSE.legacyNode.favoriteCoursesConnection.nodes.map(
+              node => ({
+                ...node,
+                dashboardCard: {
+                  ...node.dashboardCard,
+                  enrollmentState: 'active',
+                },
+              }),
+            ),
+          },
+        },
+      }
+      queryClient.setQueryData(queryKey, updatedMockResponse)
+      // Only return assignments associated with course_1 on next call
+      fetchMock.get(ASSIGNMENTS_URL, MOCK_ASSIGNMENTS.slice(0, 1), {overwriteRoutes: true})
+      const {getByLabelText, getByTestId, getByText, queryByText} = render(
+        <K5Dashboard
+          {...defaultProps}
+          selectedContextsLimit={1}
+          selectedContextCodes={['course_1']}
+        />,
+      )
+      await waitFor(() => {
+        expect(getByText('Algebra 2')).toBeInTheDocument()
+        expect(queryByText('History Discussion')).not.toBeInTheDocument()
+        expect(queryByText('History Exam')).not.toBeInTheDocument()
+      })
+      expect(fetchMock.lastUrl(ASSIGNMENTS_URL)).toMatch('context_codes%5B%5D=course_1')
+      expect(fetchMock.lastUrl(ASSIGNMENTS_URL)).not.toMatch('context_codes%5B%5D=course_3')
+      // Only return assignments associated with course_3 on next call
+      fetchMock.get(ASSIGNMENTS_URL, MOCK_ASSIGNMENTS.slice(1, 3), {overwriteRoutes: true})
+      act(() => getByTestId('filter-important-dates-button').click())
+
+      const subjectCalendarEconomics = getByLabelText('Economics 101', {selector: 'input'})
+      expect(subjectCalendarEconomics).toBeChecked()
+
+      const subjectCalendarMaths = getByLabelText('The Maths', {selector: 'input'})
+      expect(subjectCalendarMaths).not.toBeChecked()
+
+      act(() => subjectCalendarEconomics.click())
+      act(() => subjectCalendarMaths.click())
+      act(() => getByText('Submit').click())
+      await waitFor(() => {
+        expect(queryByText('Algebra 2')).not.toBeInTheDocument()
+        expect(getByText('History Discussion')).toBeInTheDocument()
+        expect(getByText('History Exam')).toBeInTheDocument()
+      })
+      expect(fetchMock.lastUrl(ASSIGNMENTS_URL)).not.toMatch('context_codes%5B%5D=course_1')
+      expect(fetchMock.lastUrl(ASSIGNMENTS_URL)).toMatch('context_codes%5B%5D=course_3')
     })
   })
 })

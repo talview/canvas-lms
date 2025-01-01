@@ -15,17 +15,15 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <http://www.gnu.org/licenses/>.
 
-/* eslint-disable no-void */
-
 import {View} from '@canvas/backbone'
 import template from '../../jst/groupUser.handlebars'
 import {GroupUserMenu} from '../../react/GroupUserMenu'
 import React from 'react'
 import ReactDOM from 'react-dom'
 import $ from 'jquery'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
-const I18n = useI18nScope('GroupUsersView')
+const I18n = createI18nScope('GroupUsersView')
 
 export default class GroupUserView extends View {
   static initClass() {
@@ -74,6 +72,7 @@ export default class GroupUserView extends View {
         `group_${groupId}_user_${userId}_menu_selector`
       )
       if (this.canEditGroupAssignment && groupUserMenuSelector) {
+         
         ReactDOM.render(
           <GroupUserMenu
             userId={userId}

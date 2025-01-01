@@ -21,11 +21,11 @@ import PropTypes from 'prop-types'
 import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import {TextInput} from '@instructure/ui-text-input'
 import {Flex} from '@instructure/ui-flex'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
 import {assessmentShape} from './types'
 
-const I18n = useI18nScope('edit_rubricPoints')
+const I18n = createI18nScope('edit_rubricPoints')
 
 export const roundIfWhole = n =>
   I18n.toNumber(n, {
@@ -38,6 +38,12 @@ const pointString = points =>
 export const possibleString = possible =>
   I18n.t('%{possible} pts', {
     possible: I18n.toNumber(possible, {precision: 2, strip_insignificant_zeros: true}),
+  })
+
+export const possibleStringRange = (min, possible) =>
+  I18n.t('%{min} to %{possible} pts', {
+    possible: I18n.toNumber(possible, {precision: 2, strip_insignificant_zeros: true}),
+    min: I18n.toNumber(min, {precision: 2, strip_insignificant_zeros: true}),
   })
 
 export const scoreString = (points, possible) =>
@@ -70,6 +76,7 @@ const Points = props => {
           <Flex alignItems="end" wrap="wrap">
             <Flex.Item size="4rem" margin="none small none none">
               <TextInput
+                autoComplete="off"
                 display="inline-block"
                 renderLabel={<ScreenReaderContent>{I18n.t('Points')}</ScreenReaderContent>}
                 messages={[

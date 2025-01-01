@@ -106,7 +106,7 @@ describe ContextModuleProgression do
     end
   end
 
-  context "#evaluate" do
+  describe "#evaluate" do
     let(:module_progression) do
       p = @module.context_module_progressions.create!(
         context_module: @module,
@@ -119,7 +119,7 @@ describe ContextModuleProgression do
     end
 
     context "does not evaluate" do
-      before { module_progression.evaluated_at = Time.now }
+      before { module_progression.evaluated_at = Time.zone.now }
 
       it "when current" do
         module_progression.evaluate

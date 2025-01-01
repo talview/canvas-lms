@@ -16,8 +16,9 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
+import _ from 'lodash'
 
 import {CloseButton, Button} from '@instructure/ui-buttons'
 import {Heading} from '@instructure/ui-heading'
@@ -32,7 +33,7 @@ import actions from './actions/developerKeysActions'
 import type {AnyAction, Dispatch} from 'redux'
 import type {DeveloperKey} from '../model/api/DeveloperKey'
 
-const I18n = useI18nScope('react_developer_keys')
+const I18n = createI18nScope('react_developer_keys')
 
 type Props = {
   createOrEditDeveloperKeyState: DeveloperKeyCreateOrEditState
@@ -48,7 +49,7 @@ type Props = {
   }
   actions: typeof actions
   selectedScopes: Array<string>
-  handleSuccessfulSave: (warningMessage?: string) => void
+  handleSuccessfulSave: (warningMessage?: string | string[]) => void
 }
 
 type ConfigurationMethod = 'manual' | 'json' | 'url'
@@ -91,7 +92,7 @@ export default class DeveloperKeyModal extends React.Component<Props, State> {
     return {...this.props.createOrEditDeveloperKeyState.developerKey, ...this.state.developerKey}
   }
 
-  get manualForm() {
+  get toolConfigForm() {
     return this.newForm
       ? this.newForm
       : {
@@ -186,18 +187,24 @@ export default class DeveloperKeyModal extends React.Component<Props, State> {
       return
     }
 
+    this.setState({isSaving: true})
     return dispatch(
       createOrEditDeveloperKey(
         {developer_key: toSubmit},
         this.developerKeyUrl(),
         method
       ) as unknown as AnyAction
-    ).then(() => {
-      if (this.keySavedSuccessfully) {
-        this.props.handleSuccessfulSave()
-      }
-      this.closeModal()
-    })
+    )
+      .then(() => {
+        this.setState({isSaving: false})
+        if (this.keySavedSuccessfully) {
+          this.props.handleSuccessfulSave()
+        }
+        this.closeModal()
+      })
+      .catch(() => {
+        this.setState({isSaving: false})
+      })
   }
 
   saveLTIKeyEdit(
@@ -233,6 +240,11 @@ export default class DeveloperKeyModal extends React.Component<Props, State> {
       actions,
     } = this.props
     const developer_key = {...this.developerKey}
+
+    if (!developer_key.redirect_uris?.trim()) {
+      delete developer_key.redirect_uris
+    }
+
     if (!this.hasRedirectUris && !this.isUrlConfig) {
       $.flashError(I18n.t('A redirect_uri is required, please supply one.'))
       this.setState({submitted: true})
@@ -244,23 +256,24 @@ export default class DeveloperKeyModal extends React.Component<Props, State> {
     let settings: {
       scopes?: unknown
     } = {}
+
     if (this.isJsonConfig) {
-      if (!this.state.toolConfiguration) {
-        // TODO: I don't think this code is called as we initialize
-        // toolConfiguration to an empty object, which is truthy. Fixing this
-        // correctly with regards to invalid JSON is a bit more involved,
-        // though, and simply enabling this has the effect of doing nothing
-        // when the JSON is unchanged
+      if (!this.state.toolConfiguration || _.isEmpty(this.state.toolConfiguration)) {
+        this.setState({submitted: true})
+        $.flashError(I18n.t('Configuration JSON cannot be empty.'))
+        return
+      }
+      if (!this.toolConfigForm.valid()) {
         this.setState({submitted: true})
         return
       }
       settings = this.state.toolConfiguration
     } else if (this.isManualConfig) {
-      if (!this.manualForm.valid()) {
+      if (!this.toolConfigForm.valid()) {
         this.setState({submitted: true})
         return
       }
-      settings = this.manualForm.generateToolConfiguration()
+      settings = this.toolConfigForm.generateToolConfiguration()
       this.setState({toolConfiguration: settings})
     }
     developer_key.scopes = settings.scopes
@@ -305,15 +318,11 @@ export default class DeveloperKeyModal extends React.Component<Props, State> {
     this.setState({toolConfigurationUrl})
   }
 
-  updateToolConfiguration = (update: any, field: string | null = null, sync = false) => {
+  updateToolConfiguration = (update: any, field: string | null = null) => {
     if (field) {
       this.setState(state => ({toolConfiguration: {...state.toolConfiguration, [field]: update}}))
     } else {
       this.setState({toolConfiguration: update})
-    }
-
-    if (sync) {
-      this.updateDeveloperKey('redirect_uris', this.developerKey.tool_configuration.target_link_uri)
     }
 
     if (!this.hasRedirectUris) {
@@ -322,7 +331,7 @@ export default class DeveloperKeyModal extends React.Component<Props, State> {
   }
 
   syncRedirectUris = () => {
-    this.updateToolConfiguration(this.toolConfiguration, null, true)
+    this.updateDeveloperKey('redirect_uris', this.state.toolConfiguration?.target_link_uri)
   }
 
   updateDeveloperKey = (field: string, update: any) => {

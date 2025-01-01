@@ -104,9 +104,10 @@ function getProps(column, gradebook: Gradebook, options) {
     pointsBasedGradingScheme: pointsBased,
     isRunningScoreToUngraded: gradebook.isRunningScoreToUngraded,
     weightedGroups: gradebook.weightedGroups(),
-    allStudents: Object.keys(gradebook.students).map(key =>
-      processStudent(gradebook.students[key], assignmentGroup.id)
-    ),
+    getAllStudents: () =>
+      Object.keys(gradebook.students).map(key =>
+        processStudent(gradebook.students[key], assignmentGroup.id)
+      ),
     courseId: gradebook.options.context_id,
     messageAttachmentUploadFolderId: gradebook.options.message_attachment_upload_folder_id,
     userId: gradebook.options.currentUserId,
@@ -123,6 +124,7 @@ export default class AssignmentGroupColumnHeaderRenderer {
 
   render(column, $container: HTMLElement, _gridSupport: GridSupport, options) {
     const props = getProps(column, this.gradebook, options)
+    // eslint-disable-next-line no-restricted-properties
     ReactDOM.render(<AssignmentGroupColumnHeader {...props} />, $container)
   }
 

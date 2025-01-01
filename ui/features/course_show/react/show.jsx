@@ -27,7 +27,7 @@ import createStore from '@canvas/backbone/createStore'
 import {View} from '@instructure/ui-view'
 import $ from 'jquery'
 import '@canvas/rails-flash-notifications'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import React from 'react'
 import PropTypes from 'prop-types'
 import ReactDOM from 'react-dom'
@@ -37,7 +37,7 @@ import apiUserContent from '@canvas/util/jquery/apiUserContent'
 import * as apiClient from '@canvas/courses/courseAPIClient'
 import {dateString, datetimeString, timeString} from '@canvas/datetime/date-functions'
 
-const I18n = useI18nScope('courses_show')
+const I18n = createI18nScope('courses_show')
 
 const defaultViewStore = createStore({
   selectedDefaultView: ENV.COURSE.default_view,
@@ -113,47 +113,9 @@ const addToDoSidebar = parent => {
 }
 
 $(() => {
-  $('#course_status_form').submit(e => {
-    const input = e.target.elements.namedItem('course[event]')
-    const value = input && input.value
-    const courseId = ENV.COURSE.id
-    if (value === 'offer') {
-      e.preventDefault()
-
-      const defaultView = defaultViewStore.getState().savedDefaultView
-      const container = document.getElementById('choose_home_page_not_modules')
-      if (container) {
-        apiClient.getModules({courseId}).then(({data: modules}) => {
-          if (defaultView === 'modules' && modules.length === 0) {
-            ReactDOM.render(
-              <HomePagePromptContainer
-                forceOpen={true}
-                store={defaultViewStore}
-                courseId={courseId}
-                wikiFrontPageTitle={ENV.COURSE.front_page_title}
-                wikiUrl={ENV.COURSE.pages_url}
-                returnFocusTo={$('.btn-publish').get(0)}
-                onSubmit={() => {
-                  if (defaultViewStore.getState().savedDefaultView !== 'modules') {
-                    apiClient.publishCourse({courseId})
-                  }
-                }}
-              />,
-              container
-            )
-          } else {
-            apiClient.publishCourse({courseId})
-          }
-        })
-      } else {
-        // we don't have the ability to change to change the course home page so just publish it
-        apiClient.publishCourse({courseId})
-      }
-    }
-  })
-
   const container = document.getElementById('choose_home_page')
   if (container) {
+     
     ReactDOM.render(<ChooseHomePageButton store={defaultViewStore} />, container)
   }
 
@@ -164,6 +126,7 @@ $(() => {
 
   const observerPickerContainer = document.getElementById('observer-picker-mountpoint')
   if (observerPickerContainer && ENV.OBSERVER_OPTIONS?.OBSERVED_USERS_LIST) {
+     
     ReactDOM.render(
       <View as="div" maxWidth="12em">
         <ObserverOptions

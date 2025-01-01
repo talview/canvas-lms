@@ -42,10 +42,38 @@ class AnnouncementNewEdit
       "/#{context_type}/#{context.id}/discussion_topics/#{announcement.id}"
     end
 
+    def title_field_selector
+      "input[placeholder='Topic Title']"
+    end
+
+    def message_body_selector
+      "#discussion-topic-message-body"
+    end
+
+    def new_submit_button_selector
+      "button[data-testid='announcement-submit-button']"
+    end
+
     # -------------------- discussion_create + react_discussions_post flag elements -----------------
+
+    def available_from_reset_button
+      f("button[data-testid=reset-available-from-button]")
+    end
+
+    def available_until_reset_button
+      f("button[data-testid=reset-available-until-button]")
+    end
+
+    def submit_button
+      f("button[data-testid=announcement-submit-button]")
+    end
 
     def publish_button
       fj("button:contains('Publish')")
+    end
+
+    def save_button
+      fj("button:contains('Save')")
     end
 
     def notification_modal
@@ -62,6 +90,18 @@ class AnnouncementNewEdit
 
     def notification_modal_cancel
       f("button[data-testid='cancel']", notification_modal)
+    end
+
+    def title_field
+      f(title_field_selector)
+    end
+
+    def message_body
+      f(message_body_selector)
+    end
+
+    def new_submit_button
+      f(new_submit_button_selector)
     end
 
     # ---------------------- Controls ----------------------
@@ -111,6 +151,10 @@ class AnnouncementNewEdit
       # Note that add_message *appends* to existing
       add_message(message)
       submit_announcement_form
+    end
+
+    def submit
+      new_submit_button.click
     end
   end
 end

@@ -19,6 +19,14 @@
 #
 
 module Types
+  class DashboardObserveeFilterInputType < BaseInputObject
+    graphql_name "DashboardObserveeFilter"
+    argument :observed_user_id,
+             ID,
+             "Only view filtered user",
+             required: false
+  end
+
   class UserType < ApplicationObjectType
     #
     # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -40,13 +48,13 @@ module Types
     global_id_field :id
 
     field :name, String, null: true
-    field :sortable_name,
-          String,
-          "The name of the user that is should be used for sorting groups of users, such as in the gradebook.",
-          null: true
     field :short_name,
           String,
           "A short name the user has selected, for use in conversations or other less formal places through the site.",
+          null: true
+    field :sortable_name,
+          String,
+          "The name of the user that is should be used for sorting groups of users, such as in the gradebook.",
           null: true
 
     field :pronouns, String, null: true
@@ -100,6 +108,7 @@ module Types
     def sis_id
       domain_root_account = context[:domain_root_account]
       if domain_root_account.grants_any_right?(context[:current_user], :read_sis, :manage_sis) ||
+         context[:course]&.grants_any_right?(context[:current_user], :read_sis, :manage_sis) ||
          object.grants_any_right?(context[:current_user], :read_sis, :manage_sis)
         Loaders::AssociationLoader.for(User, :pseudonyms)
                                   .load(object)
@@ -119,6 +128,7 @@ module Types
     def integration_id
       domain_root_account = context[:domain_root_account]
       if domain_root_account.grants_any_right?(context[:current_user], :read_sis, :manage_sis) ||
+         context[:course]&.grants_any_right?(context[:current_user], :read_sis, :manage_sis) ||
          object.grants_any_right?(context[:current_user], :read_sis, :manage_sis)
         Loaders::AssociationLoader.for(User, :pseudonyms)
                                   .load(object)
@@ -144,13 +154,13 @@ module Types
                Boolean,
                "Whether or not to restrict results to `active` enrollments in `available` courses",
                required: false
-      argument :order_by,
-               [String],
-               "The fields to order the results by",
-               required: false
       argument :exclude_concluded,
                Boolean,
                "Whether or not to exclude `completed` enrollments",
+               required: false
+      argument :order_by,
+               [String],
+               "The fields to order the results by",
                required: false
     end
 
@@ -189,8 +199,8 @@ module Types
 
     field :notification_preferences_enabled, Boolean, null: false do
       argument :account_id, ID, required: false, prepare: GraphQLHelpers.relay_or_legacy_id_prepare_func("Account")
-      argument :course_id, ID, required: false, prepare: GraphQLHelpers.relay_or_legacy_id_prepare_func("Course")
       argument :context_type, NotificationPreferencesContextType, required: true
+      argument :course_id, ID, required: false, prepare: GraphQLHelpers.relay_or_legacy_id_prepare_func("Course")
     end
     def notification_preferences_enabled(account_id: nil, course_id: nil, context_type: nil)
       enabled_for = lambda do |context|
@@ -220,8 +230,8 @@ module Types
     end
 
     field :conversations_connection, Types::ConversationParticipantType.connection_type, null: true do
-      argument :scope, String, required: false
       argument :filter, [String], required: false
+      argument :scope, String, required: false
     end
     def conversations_connection(scope: nil, filter: nil)
       if object == context[:current_user]
@@ -263,8 +273,8 @@ module Types
     end
 
     field :recipients, RecipientsType, null: true do
-      argument :search, String, required: false
       argument :context, String, required: false
+      argument :search, String, required: false
     end
     def recipients(search: nil, context: nil)
       return nil unless object == self.context[:current_user]
@@ -284,7 +294,8 @@ module Types
           context:,
           synthetic_contexts: true,
           messageable_only: true,
-          base_url: self.context[:request].base_url
+          base_url: self.context[:request].base_url,
+          include_concluded: false
         )
 
         contexts_collection = collections.select { |c| c[0] == "contexts" }
@@ -314,8 +325,8 @@ module Types
     end
 
     field :recipients_observers, MessageableUserType.connection_type, null: true do
-      argument :recipient_ids, [String], required: true
       argument :context_code, String, required: true
+      argument :recipient_ids, [String], required: true
     end
     def recipients_observers(recipient_ids: nil, context_code: nil)
       return nil unless object == context[:current_user]
@@ -369,8 +380,10 @@ module Types
       ).load(object)
     end
 
-    field :favorite_courses_connection, Types::CourseType.connection_type, null: true
-    def favorite_courses_connection
+    field :favorite_courses_connection, Types::CourseType.connection_type, null: true do
+      argument :dashboard_filter, Types::DashboardObserveeFilterInputType, required: false
+    end
+    def favorite_courses_connection(dashboard_filter: nil)
       return unless object == current_user
 
       load_association(:enrollments).then do |enrollments|
@@ -378,19 +391,59 @@ module Types
                       Loaders::AssociationLoader.for(Enrollment, :course).load_many(enrollments),
                       load_association(:favorites)
                     ]).then do
-          object.menu_courses
+          opts = {}
+          if dashboard_filter&.dig(:observed_user_id).present?
+            observed_user_id = dashboard_filter[:observed_user_id].to_i
+            opts[:observee_user] = User.find_by(id: observed_user_id) || current_user
+          end
+
+          menu_courses = object.menu_courses(nil, opts)
+          published, unpublished = menu_courses.partition(&:published?)
+
+          Rails.cache.write(["last_known_dashboard_cards_published_count", current_user.global_id].cache_key, published.count)
+          Rails.cache.write(["last_known_dashboard_cards_unpublished_count", current_user.global_id].cache_key, unpublished.count)
+          Rails.cache.write(["last_known_k5_cards_count", current_user.global_id].cache_key, menu_courses.count { |course| !course.homeroom_course? })
+
+          menu_courses
         end
       end
     end
 
-    field :favorite_groups_connection, Types::GroupType.connection_type, null: true
-    def favorite_groups_connection
+    def get_favorite_groups(scope)
+      favorite_group_ids = object.favorite_context_ids("Group")
+      favorite_groups = scope.where(id: favorite_group_ids)
+
+      # Return favorite groups if any exist; otherwise, return the provided scope
+      favorite_groups.exists? ? favorite_groups : scope
+    end
+
+    field :favorite_groups_connection, Types::GroupType.connection_type, null: true do
+      description "Favorite groups for the user."
+      argument :include_non_collaborative, Boolean, required: false, default_value: false
+    end
+    def favorite_groups_connection(include_non_collaborative: false)
+      # Ensure that the field is accessed by the current user
       return unless object == current_user
 
       load_association(:groups).then do |groups|
-        load_association(:favorites).then do
-          favorite_groups = groups.active.shard(object).where(id: object.favorite_context_ids("Group"))
-          favorite_groups.any? ? favorite_groups : object.groups.active.shard(object)
+        collaborative_scope = groups.active.shard(object)
+        final_scope = collaborative_scope
+
+        if include_non_collaborative
+          load_association(:differentiation_tags).then do |differentiation_tags|
+            non_collaborative_scope = differentiation_tags.active.shard(object)
+
+            # non_collaborative groups where the current user does not have read access
+            non_viewable_group_ids = non_collaborative_scope
+                                     .reject { |group| group.grants_right?(object, :read) }
+                                     .map(&:id)
+            non_collaborative_scope = non_collaborative_scope.where.not(id: non_viewable_group_ids)
+            final_scope = collaborative_scope.or(non_collaborative_scope)
+
+            get_favorite_groups(final_scope)
+          end
+        else
+          get_favorite_groups(final_scope)
         end
       end
     end
@@ -470,9 +523,9 @@ module Types
     end
 
     field :course_roles, [String], null: true do
+      argument :built_in_only, Boolean, "Only return default/built_in roles", required: false
       argument :course_id, String, required: false
       argument :role_types, [String], "Return only requested base role types", required: false
-      argument :built_in_only, Boolean, "Only return default/built_in roles", required: false
     end
     def course_roles(course_id: nil, role_types: nil, built_in_only: true)
       # This graphql execution context can be used to set course_id if you are calling course_role from a nested query
@@ -482,11 +535,41 @@ module Types
       Loaders::CourseRoleLoader.for(course_id: resolved_course_id, role_types:, built_in_only:).load(object)
     end
 
+    field :course_progression, CourseProgressionType, <<~MD, null: true # rubocop:disable GraphQL/ExtractType
+      Returns null if either of these conditions are met:
+      * the course is not module based
+      * no module in it has completion requirements
+      * the queried user is not a student in the course
+      * insufficient permissions for the request
+    MD
+    def course_progression
+      target_user = object
+      course = context[:course]
+      return if course.nil?
+      return unless course.grants_right?(current_user, session, :view_all_grades) || target_user.grants_right?(current_user, session, :read)
+
+      progress = CourseProgress.new(context[:course], object, read_only: true)
+      return unless progress.can_evaluate_progression?
+
+      progress
+    end
+
     field :inbox_labels, [String], null: true
     def inbox_labels
       return unless object == current_user
 
       object.inbox_labels
+    end
+
+    field :activity_stream, ActivityStreamType, null: true do
+      argument :only_active_courses, Boolean, required: false
+    end
+    def activity_stream(only_active_courses: false)
+      return unless object == current_user
+
+      context.scoped_set!(:only_active_courses, only_active_courses)
+      context.scoped_set!(:context_type, "User")
+      object
     end
   end
 end

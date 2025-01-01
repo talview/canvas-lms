@@ -510,9 +510,19 @@ class EnrollmentsApiController < ApplicationController
       collection =
         if use_bookmarking?
           enrollments = enrollments.select("users.sortable_name AS sortable_name")
-          bookmarker = BookmarkedCollection::SimpleBookmarker.new(Enrollment,
-                                                                  { type: { skip_collation: true }, sortable_name: { type: :string, null: false } },
-                                                                  :id)
+
+          if @domain_root_account&.feature_enabled?(:temporary_enrollments)
+            temp_enroll_params = params.slice(:temporary_enrollments_for_recipient,
+                                              :temporary_enrollment_recipients_for_provider)
+          end
+
+          sorting_column = if temp_enroll_params.present?
+                             { type: { skip_collation: true }, start_at: { type: :datetime, null: false }, end_at: { type: :datetime, null: false } }
+                           else
+                             { type: { skip_collation: true }, sortable_name: { type: :string, null: false } }
+                           end
+
+          bookmarker = BookmarkedCollection::SimpleBookmarker.new(Enrollment, sorting_column, :id)
           ShardedBookmarkedCollection.build(bookmarker, enrollments, always_use_bookmarks: true)
         else
           enrollments.order(:type, User.sortable_name_order_by_clause("users"), :id)
@@ -953,7 +963,7 @@ class EnrollmentsApiController < ApplicationController
   #
   # @example_response
   #   {
-  #     "is_provider": false, "is_recipient": true
+  #     "is_provider": false, "is_recipient": true, "can_provide": false
   #   }
   def show_temporary_enrollment_status
     GuardRail.activate(:secondary) do
@@ -968,8 +978,10 @@ class EnrollmentsApiController < ApplicationController
             end
           is_provider = enrollment_scope.temporary_enrollment_recipients_for_provider(user).exists?
           is_recipient = enrollment_scope.temporary_enrollments_for_recipient(user).exists?
+          # mirror provider enrollments listed in temp enrollment assign modal
+          can_provide = enrollment_scope.active_by_date.for_user(user.id).present?
 
-          render json: { is_provider:, is_recipient: }
+          render json: { is_provider:, is_recipient:, can_provide: }
         else
           render_unauthorized_action and return false
         end
@@ -1023,11 +1035,13 @@ class EnrollmentsApiController < ApplicationController
       temp_enroll_params = params.slice(:temporary_enrollments_for_recipient,
                                         :temporary_enrollment_recipients_for_provider)
       if temp_enroll_params.present?
-        enrollments =
-          temporary_enrollment_conditions(user, temp_enroll_params).to_a.select do |e|
-            e.course.account.grants_any_right?(@current_user, *RoleOverride::MANAGE_TEMPORARY_ENROLLMENT_PERMISSIONS)
-          end
-        return Enrollment.where(id: enrollments) if enrollments.present?
+        enrollments = temporary_enrollment_conditions(user, temp_enroll_params)
+        return Enrollment.none unless enrollments.present?
+
+        authorized_enrollments = enrollments.select do |e|
+          e.course.account.grants_any_right?(@current_user, *RoleOverride::MANAGE_TEMPORARY_ENROLLMENT_PERMISSIONS)
+        end
+        return Enrollment.where(id: authorized_enrollments) if authorized_enrollments.present?
 
         render_unauthorized_action and return false
       end
@@ -1168,7 +1182,6 @@ class EnrollmentsApiController < ApplicationController
     elsif value_to_boolean(temp_enroll_params[:temporary_enrollment_recipients_for_provider])
       enrollments = Enrollment.temporary_enrollment_recipients_for_provider(user)
     end
-    return false unless enrollments.present?
 
     if params[:state].present?
       enrollments = enrollments.joins(:enrollment_state).where(enrollment_states: { state: enrollment_states_for_state_param })

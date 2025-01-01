@@ -54,7 +54,7 @@ describe "differentiated_assignments" do
   end
 
   def assignment_with_false_only_visible_to_overrides
-    make_assignment({ date: Time.now, ovto: false })
+    make_assignment({ date: Time.zone.now, ovto: false })
   end
 
   def group_assignment_with_true_only_visible_to_overrides(opts = {})
@@ -468,16 +468,6 @@ describe "differentiated_assignments" do
 
     before do
       Account.site_admin.disable_feature!(:selective_release_backend)
-    end
-
-    describe ".assignments_visible_to_all_students" do
-      let(:assignments_visible_to_all_students) do
-        AssignmentStudentVisibility.assignments_visible_to_all_students([assignment])
-      end
-
-      it "returns a hash with an empty visibility array for each assignment" do
-        expect(assignments_visible_to_all_students).to eq({ assignment.id => [] })
-      end
     end
 
     describe ".assignments_with_user_visibilities" do

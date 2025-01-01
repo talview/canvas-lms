@@ -17,7 +17,7 @@
 
 import Backbone from '@canvas/backbone'
 import $ from 'jquery'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import WikiPageIndexEditDialog from './WikiPageIndexEditDialog'
 import WikiPageDeleteDialog from '@canvas/wiki/backbone/views/WikiPageDeleteDialog'
 import PublishIconView from '@canvas/publish-icon-view'
@@ -26,7 +26,7 @@ import template from '../../jst/WikiPageIndexItem.handlebars'
 import '../../jquery/redirectClickTo'
 import {renderFrontPagePill} from '@canvas/wiki/react/renderFrontPagePill'
 
-const I18n = useI18nScope('pages')
+const I18n = createI18nScope('pages')
 
 export default class WikiPageIndexItemView extends Backbone.View {
   static initClass() {
@@ -100,6 +100,10 @@ export default class WikiPageIndexItemView extends Backbone.View {
     json.isChecked = this.selectedPages.hasOwnProperty(this.model.get('page_id'))
     json.collectionHasTodoDate = this.collectionHasTodoDate()
     json.frontPageText = ENV.K5_SUBJECT_COURSE ? I18n.t('Subject Home') : I18n.t('Front Page')
+    json.block_editor = !!ENV.FEATURES?.BLOCK_EDITOR
+    json.page_is_block = this.model.get('editor') === 'block_editor'
+    json.page_type_label = json.page_is_block ? I18n.t('block page') : I18n.t('classic page')
+    json.is_horizon_course = ENV?.horizon_course
     return json
   }
 

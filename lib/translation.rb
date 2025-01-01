@@ -19,6 +19,7 @@
 require "aws-sdk-sagemakerruntime"
 require "cld"
 require "pragmatic_segmenter"
+require "nokogiri"
 
 module Translation
   class << self
@@ -73,6 +74,8 @@ module Translation
         tgt_lang = trim_locale(user.locale)
       end
 
+      InstStatsd::Statsd.increment("translation.create.#{src_lang}.#{tgt_lang}")
+
       # TODO: Error handling of invoke endpoint.
       response = sagemaker_client.invoke_endpoint(
         endpoint_name: @endpoint,
@@ -84,16 +87,140 @@ module Translation
       JSON.parse(response.body.read)
     end
 
+    def translate_html(html_string:, user: nil, src_lang: nil, tgt_lang: nil)
+      # Parse the document into a nokogiri fragment, needed to maintain the structure of the message
+      # Gather up all the translations that need to happen.
+      # With those translations, piece the document back together and return the to_html version of that
+      # back to the client.
+
+      fragment = Nokogiri::HTML.fragment(html_string)
+      translations = []
+
+      # Initialize our search
+      to_visit = fragment.children
+
+      # Walk the tree.
+      current = nil
+      until to_visit.empty?
+        current = to_visit.shift
+        if current.text? && !current.content.gsub(/[[:space:]]+/, "").empty? # Remove whitespace strings, including NBSP
+          translations << current
+        else
+          current.children.each { |child| to_visit << child }
+        end
+      end
+
+      # Do the translations
+      translations.each do |translation|
+        translation.content = Translation.create(text: translation.content, user:, src_lang:, tgt_lang:)
+      end
+
+      fragment.to_html
+    end
+
     def languages
       [
-        { id: "en", name: "English" },
-        { id: "ga", name: "Irish" },
-        { id: "ja", name: "Japanese" },
+        { id: "af", name: "Afrikaans" },
+        { id: "am", name: "Amharic" },
+        { id: "ar", name: "Arabic" },
+        { id: "ast", name: "Asturian" },
+        { id: "az", name: "Azerbaijani" },
+        { id: "ba", name: "Bashkir" },
+        { id: "be", name: "Belarusian" },
+        { id: "bg", name: "Bulgarian" },
+        { id: "bn", name: "Bengali" },
+        { id: "br", name: "Breton" },
+        { id: "bs", name: "Bosnian" },
+        { id: "ca", name: "Catalan; Valencian" },
+        { id: "ceb", name: "Cebuano" },
+        { id: "cs", name: "Czech" },
+        { id: "cy", name: "Welsh" },
+        { id: "da", name: "Danish" },
         { id: "de", name: "German" },
-        { id: "hu", name: "Hungarian" },
+        { id: "el", name: "Greek" },
+        { id: "en", name: "English" },
         { id: "es", name: "Spanish" },
-        { id: "zh", name: "Chinese" }
-      ]
+        { id: "et", name: "Estonian" },
+        { id: "fa", name: "Persian" },
+        { id: "ff", name: "Fulah" },
+        { id: "fi", name: "Finnish" },
+        { id: "fr", name: "French" },
+        { id: "fy", name: "Western Frisian" },
+        { id: "ga", name: "Irish" },
+        { id: "gd", name: "Gaelic; Scottish Gaelic" },
+        { id: "gl", name: "Galician" },
+        { id: "gu", name: "Gujarati" },
+        { id: "ha", name: "Hausa" },
+        { id: "he", name: "Hebrew" },
+        { id: "hi", name: "Hindi" },
+        { id: "hr", name: "Croatian" },
+        { id: "ht", name: "Haitian; Haitian Creole" },
+        { id: "hu", name: "Hungarian" },
+        { id: "hy", name: "Armenian" },
+        { id: "id", name: "Indonesian" },
+        { id: "ig", name: "Igbo" },
+        { id: "ilo", name: "Iloko" },
+        { id: "is", name: "Icelandic" },
+        { id: "it", name: "Italian" },
+        { id: "ja", name: "Japanese" },
+        { id: "jv", name: "Javanese" },
+        { id: "ka", name: "Georgian" },
+        { id: "kk", name: "Kazakh" },
+        { id: "km", name: "Central Khmer" },
+        { id: "kn", name: "Kannada" },
+        { id: "ko", name: "Korean" },
+        { id: "lb", name: "Luxembourgish; Letzeburgesch" },
+        { id: "lg", name: "Ganda" },
+        { id: "ln", name: "Lingala" },
+        { id: "lo", name: "Lao" },
+        { id: "lt", name: "Lithuanian" },
+        { id: "lv", name: "Latvian" },
+        { id: "mg", name: "Malagasy" },
+        { id: "mk", name: "Macedonian" },
+        { id: "ml", name: "Malayalam" },
+        { id: "mn", name: "Mongolian" },
+        { id: "mr", name: "Marathi" },
+        { id: "ms", name: "Malay" },
+        { id: "my", name: "Burmese" },
+        { id: "ne", name: "Nepali" },
+        { id: "nl", name: "Dutch; Flemish" },
+        { id: "no", name: "Norwegian" },
+        { id: "ns", name: "Northern Sotho" },
+        { id: "oc", name: "Occitan (post 1500)" },
+        { id: "or", name: "Oriya" },
+        { id: "pa", name: "Panjabi; Punjabi" },
+        { id: "pl", name: "Polish" },
+        { id: "ps", name: "Pushto; Pashto" },
+        { id: "pt", name: "Portuguese" },
+        { id: "ro", name: "Romanian; Moldavian; Moldovan" },
+        { id: "ru", name: "Russian" },
+        { id: "sd", name: "Sindhi" },
+        { id: "si", name: "Sinhala; Sinhalese" },
+        { id: "sk", name: "Slovak" },
+        { id: "sl", name: "Slovenian" },
+        { id: "so", name: "Somali" },
+        { id: "sq", name: "Albanian" },
+        { id: "sr", name: "Serbian" },
+        { id: "ss", name: "Swati" },
+        { id: "su", name: "Sundanese" },
+        { id: "sv", name: "Swedish" },
+        { id: "sw", name: "Swahili" },
+        { id: "ta", name: "Tamil" },
+        { id: "th", name: "Thai" },
+        { id: "tl", name: "Tagalog" },
+        { id: "tn", name: "Tswana" },
+        { id: "tr", name: "Turkish" },
+        { id: "uk", name: "Ukrainian" },
+        { id: "ur", name: "Urdu" },
+        { id: "uz", name: "Uzbek" },
+        { id: "vi", name: "Vietnamese" },
+        { id: "wo", name: "Wolof" },
+        { id: "xh", name: "Xhosa" },
+        { id: "yi", name: "Yiddish" },
+        { id: "yo", name: "Yoruba" },
+        { id: "zh", name: "Chinese" },
+        { id: "zu", name: "Zulu" }
+      ].sort_by { |a| a[:name] }
     end
 
     # For translating the translation controls into the users locale. Don't translate if it's english
@@ -102,15 +229,33 @@ module Translation
       return languages if user.locale.nil?
 
       locale = trim_locale(user.locale)
-      # Don't translate unless the browser locale is different for the current user.
+      language_cache_key = ["translated_languages", locale].cache_key
+
+      # The controls are in English, don't translate anything
       if locale == "en"
         return languages
       end
 
+      # Check if Redis is present. If yes, then we try to read the key from Redis
+      if Canvas.redis_enabled?
+        # Try to read the key
+        cached_languages = Canvas.redis.get(language_cache_key)
+        unless cached_languages.nil?
+          return JSON.parse(cached_languages)
+        end
+      end
+
+      # Translate our language controls
       translated = []
       languages.each do |language|
         language[:name] = create(src_lang: "en", tgt_lang: locale, text: language[:name])
         translated << language
+      end
+
+      # Cache the translation for new loads
+      if Canvas.redis_enabled?
+        Rails.logger.info "Caching supported language translation: #{locale}}}}"
+        Canvas.redis.set(language_cache_key, translated.to_json)
       end
 
       translated

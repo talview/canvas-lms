@@ -242,11 +242,13 @@ describe "Api::V1::Assignment" do
 
           @student = @assignment.course.enroll_student(User.create!, enrollment_state: "active").user
           @students = [@student]
+          @assignment.course.enroll_teacher(@teacher, enrollment_state: "active")
 
+          create_adhoc_override_for_assignment(@c1, @students, due_at: 2.days.from_now)
           create_adhoc_override_for_assignment(@c2, @students, due_at: 2.days.from_now)
         end
 
-        it "returns the checkpoints attribute with the correct values" do
+        it "returns the checkpoints attribute with the correct values for student" do
           json = api.assignment_json(assignment, @student, session, { include_checkpoints: true })
           checkpoints = json["checkpoints"]
           first_checkpoint = checkpoints.find { |c| c[:tag] == CheckpointLabels::REPLY_TO_TOPIC }
@@ -257,9 +259,26 @@ describe "Api::V1::Assignment" do
           expect(checkpoints).to be_present
           expect(checkpoints.pluck(:tag)).to match_array [@c1.sub_assignment_tag, @c2.sub_assignment_tag]
           expect(checkpoints.pluck(:points_possible)).to match_array [@c1.points_possible, @c2.points_possible]
-          expect(checkpoints.pluck(:due_at)).to match_array [@c1.due_at, @c2.due_at]
+          expect(checkpoints.pluck(:due_at)).to match_array [@c1.assignment_overrides.first.due_at, @c2.assignment_overrides.first.due_at]
           expect(checkpoints.pluck(:only_visible_to_overrides)).to match_array [@c1.only_visible_to_overrides, @c2.only_visible_to_overrides]
           expect(first_checkpoint[:overrides].length).to eq 0
+          expect(second_checkpoint[:overrides].length).to eq 0
+        end
+
+        it "returns the checkpoints attribute with the correct values" do
+          json = api.assignment_json(assignment, @teacher, session, { include_checkpoints: true })
+          checkpoints = json["checkpoints"]
+          first_checkpoint = checkpoints.find { |c| c[:tag] == CheckpointLabels::REPLY_TO_TOPIC }
+          second_checkpoint = checkpoints.find { |c| c[:tag] == CheckpointLabels::REPLY_TO_ENTRY }
+
+          expect(json["has_sub_assignments"]).to be_truthy
+
+          expect(checkpoints).to be_present
+          expect(checkpoints.pluck(:tag)).to match_array [@c1.sub_assignment_tag, @c2.sub_assignment_tag]
+          expect(checkpoints.pluck(:points_possible)).to match_array [@c1.points_possible, @c2.points_possible]
+          expect(checkpoints.pluck(:due_at)).to match_array [@c1.assignment_overrides.first.due_at, @c2.assignment_overrides.first.due_at]
+          expect(checkpoints.pluck(:only_visible_to_overrides)).to match_array [@c1.only_visible_to_overrides, @c2.only_visible_to_overrides]
+          expect(first_checkpoint[:overrides].length).to eq 1
           expect(second_checkpoint[:overrides].length).to eq 1
           expect(second_checkpoint[:overrides].first[:assignment_id]).to eq @c2.id
           expect(second_checkpoint[:overrides].first[:student_ids]).to match_array @students.map(&:id)
@@ -328,6 +347,41 @@ describe "Api::V1::Assignment" do
         expect(assessment_request["workflow_state"]).to eq @assessment_request.workflow_state
         expect(assessment_request["anonymous_id"]).to eq @assessment_request.asset.anonymous_id
         expect(assessment_request["available"]).to eq @assessment_request.available?
+      end
+    end
+
+    context "include_all_dates" do
+      describe "checkpointed assignments" do
+        before do
+          @student1 = student_in_course(course: @course, active_all: true).user
+          @course.root_account.enable_feature!(:discussion_checkpoints)
+
+          @topic = DiscussionTopic.create_graded_topic!(course: @course, title: "checkpointed discussion")
+          Checkpoints::DiscussionCheckpointCreatorService.call(
+            discussion_topic: @topic,
+            checkpoint_label: CheckpointLabels::REPLY_TO_TOPIC,
+            dates: [{ type: "everyone", due_at: 2.days.from_now }, { type: "override", set_type: "ADHOC", student_ids: [@student1.id], due_at: 3.days.from_now }],
+            points_possible: 4
+          )
+
+          Checkpoints::DiscussionCheckpointCreatorService.call(
+            discussion_topic: @topic,
+            checkpoint_label: CheckpointLabels::REPLY_TO_ENTRY,
+            dates: [{ type: "everyone", due_at: 3.days.from_now }, { type: "override", set_type: "ADHOC", student_ids: [@student1.id], due_at: 10.days.from_now }],
+            points_possible: 7
+          )
+        end
+
+        it "returns all_dates associated with a checkpointed assignment's sub_assignments" do
+          json = api.assignment_json(@topic.assignment, @teacher, session, { include_all_dates: true, include_discussion_topic: false, override_dates: false })
+
+          # Should return dates for sub_assignment overrides and the checkpointed due dates
+          expect(json["all_dates"].length).to eq 4
+          due_dates = @topic.assignment.sub_assignments.flat_map do |sub_assignment|
+            [sub_assignment.due_at] + sub_assignment.assignment_overrides.pluck(:due_at)
+          end
+          expect(json["all_dates"].pluck(:due_at)).to contain_exactly(*due_dates)
+        end
       end
     end
 

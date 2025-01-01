@@ -52,13 +52,16 @@ describe "Translation" do
     allow(DynamicSettings).to receive(:find).with(any_args).and_call_original
     allow(DynamicSettings).to receive(:find).with(tree: :private).and_return({ "sagemaker.yml" => { "endpoint_name" => "translation-endpoint" }.to_yaml })
 
+    # Mock statsd to allow it to receive what we expect
+    allow(InstStatsd::Statsd).to receive(:increment)
+
     # Mock the runtime and the credential provider
-    @runtime_mock = instance_double("Aws::SageMakerRuntime::Client")
+    @runtime_mock = instance_double(Aws::SageMakerRuntime::Client)
     allow(Canvas::AwsCredentialProvider).to receive(:new).and_return(MockCredentials.new)
     allow(Aws::SageMakerRuntime::Client).to receive(:new).and_return(@runtime_mock)
 
     # Mock the response that the runtime returns.
-    @mock_response = instance_double("Response")
+    @mock_response = instance_double(Aws::SageMakerRuntime::Types::InvokeEndpointOutput)
     allow(@mock_response).to receive(:body).and_return(MockResponse.new)
     allow(@runtime_mock).to receive(:invoke_endpoint).and_return(@mock_response)
 
@@ -87,6 +90,11 @@ describe "Translation" do
       Translation.create(user: @user, src_lang: "es", text: "¿Dónde está el baño?")
       expect(@runtime_mock).to have_received(:invoke_endpoint).with(USER_LOCALE_SET)
     end
+
+    it "increments the translation metric" do
+      Translation.create(tgt_lang: "en", text: "¿Dónde está el baño?")
+      expect(InstStatsd::Statsd).to have_received(:increment).with("translation.create.es.en")
+    end
   end
 
   describe ":translated_languages" do
@@ -109,6 +117,30 @@ describe "Translation" do
       Translation.translated_languages(@user)
       expect(Translation).to have_received(:create).exactly(Translation.languages.length).times
     end
+
+    it "uses the cache if key is present" do
+      # Arrange
+      @user.locale = "es"
+      allow(Canvas.redis).to receive(:get).with(["translated_languages", @user.locale].cache_key).and_return({ language: "languages" }.to_json)
+
+      # Act
+      resp = Translation.translated_languages(@user)
+
+      # Assert
+      expect(resp).to eq({ "language" => "languages" })
+    end
+
+    it "caches the translation results" do
+      # Arrange
+      allow(Canvas.redis).to receive(:set)
+      @user.locale = "es"
+
+      # Act
+      Translation.translated_languages(@user)
+
+      # Assert
+      expect(Canvas.redis).to have_received(:set).exactly(1)
+    end
   end
 
   describe ":language_matches_user_locale?" do
@@ -120,6 +152,22 @@ describe "Translation" do
     it "does not match" do
       @user.locale = "en"
       expect(Translation.language_matches_user_locale?(@user, "¿Dónde está el baño?")).to be_falsey
+    end
+  end
+
+  describe ":translate_html" do
+    it "translates HTML" do
+      allow(Translation).to receive(:create).and_return("fake")
+      text = "<p>Hello mom!</p><p>I am a person</p>"
+      expected = "<p>fake</p><p>fake</p>"
+      expect(Translation.translate_html(html_string: text)).to eq(expected)
+    end
+
+    it "translates HTML but leaves whitespace-only strings" do
+      allow(Translation).to receive(:create).and_return("fake")
+      text = "<p>Hello mom!</p><p>&nbsp;</p>"
+      not_expected = "<p>fake</p><p>fake</p>"
+      expect(Translation.translate_html(html_string: text)).to_not eq(not_expected)
     end
   end
 end

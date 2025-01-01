@@ -23,6 +23,7 @@ import ReactDOM from 'react-dom'
 import {parse} from 'url'
 import ready from '@instructure/ready'
 import CanvasMediaPlayer from '@canvas/canvas-media-player'
+import StudioMediaPlayer from '@canvas/canvas-studio-player'
 import {captionLanguageForLocale} from '@instructure/canvas-media'
 
 const isStandalone = () => {
@@ -76,7 +77,10 @@ ready(() => {
   window.addEventListener(
     'message',
     event => {
-      if (event?.data?.subject === 'reload_media' && media_id === event?.data?.media_object_id) {
+      if (
+        event?.data?.subject === 'reload_media' &&
+        (media_id === event?.data?.media_object_id || attachment_id === event?.data?.attachment_id)
+      ) {
         document.getElementsByTagName('video')[0].load()
       } else if (event?.data?.subject === 'media_tracks_request') {
         const tracks = mediaTracks?.map(t => ({
@@ -110,16 +114,33 @@ ready(() => {
   }
 
   const aria_label = !media_object.title ? undefined : media_object.title
-  ReactDOM.render(
-    <CanvasMediaPlayer
-      media_id={media_id}
-      media_sources={href_source || media_object.media_sources}
-      media_tracks={mediaTracks}
-      type={is_video ? 'video' : 'audio'}
-      aria_label={aria_label}
-      is_attachment={is_attachment}
-      attachment_id={attachment_id}
-    />,
-    document.getElementById('player_container')
-  )
+  if (window.ENV.FEATURES?.consolidated_media_player_iframe) {
+    // eslint-disable-next-line no-restricted-properties
+    ReactDOM.render(
+      <StudioMediaPlayer
+        media_id={media_id}
+        media_sources={href_source || media_object.media_sources}
+        media_tracks={mediaTracks}
+        type={is_video ? 'video' : 'audio'}
+        aria_label={aria_label}
+        is_attachment={is_attachment}
+        attachment_id={attachment_id}
+      />,
+      document.getElementById('player_container')
+    )
+  } else {
+    // eslint-disable-next-line no-restricted-properties
+    ReactDOM.render(
+      <CanvasMediaPlayer
+        media_id={media_id}
+        media_sources={href_source || media_object.media_sources}
+        media_tracks={mediaTracks}
+        type={is_video ? 'video' : 'audio'}
+        aria_label={aria_label}
+        is_attachment={is_attachment}
+        attachment_id={attachment_id}
+      />,
+      document.getElementById('player_container')
+    )
+  }
 })

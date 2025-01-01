@@ -17,8 +17,8 @@
  */
 
 import React from 'react'
-import {MockedProvider} from '@apollo/react-testing'
-import {QueryProvider, queryClient} from '@canvas/query'
+import {queryClient} from '@canvas/query'
+import {MockedQueryProvider} from '@canvas/test-utils/query'
 import userSettings from '@canvas/user-settings'
 import {fireEvent, render, within} from '@testing-library/react'
 import axios from 'axios'
@@ -27,7 +27,7 @@ import * as ReactRouterDom from 'react-router-dom'
 import {BrowserRouter, Route, Routes} from 'react-router-dom'
 import {GradebookSortOrder} from '../../../types/gradebook.d'
 import LearningMasteryTabsView from '../LearningMasteryTabsView'
-import {OUTCOME_ROLLUP_QUERY_RESPONSE, setGradebookOptions, setupGraphqlMocks} from './fixtures'
+import {OUTCOME_ROLLUP_QUERY_RESPONSE, setGradebookOptions, setupCanvasQueries} from './fixtures'
 
 jest.mock('axios') // mock axios for final grade override helper API call
 jest.mock('@canvas/do-fetch-api-effect', () => jest.fn()) // mock doFetchApi for final grade override helper API call
@@ -70,6 +70,8 @@ describe('Enhanced Individual Wrapper Gradebook', () => {
       data: [],
     })
     $.subscribe = jest.fn()
+
+    setupCanvasQueries()
   })
   afterEach(() => {
     jest.spyOn(ReactRouterDom, 'useSearchParams').mockClear()
@@ -78,20 +80,18 @@ describe('Enhanced Individual Wrapper Gradebook', () => {
 
   const renderLearningMasteryGradebookWrapper = (mockOverrides = []) => {
     return render(
-      <QueryProvider>
-        <BrowserRouter basename="">
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <MockedProvider mocks={setupGraphqlMocks(mockOverrides)} addTypename={false}>
-                  <LearningMasteryTabsView />
-                </MockedProvider>
-              }
-            />
-          </Routes>
-        </BrowserRouter>
-      </QueryProvider>
+      <BrowserRouter basename="">
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <MockedQueryProvider>
+                <LearningMasteryTabsView />
+              </MockedQueryProvider>
+            }
+          />
+        </Routes>
+      </BrowserRouter>
     )
   }
 
@@ -110,7 +110,8 @@ describe('Enhanced Individual Wrapper Gradebook', () => {
       window.ENV.FEATURES = {instui_nav: true}
       mockSearchParams({student: '5', outcome: '1'})
 
-      const {getByTestId, getByText, queryByTestId} = renderLearningMasteryGradebookWrapper()
+      const {getByTestId, getByText, queryByTestId, findByTestId} =
+        renderLearningMasteryGradebookWrapper()
 
       const learningMasteryTab = getByText('Learning Mastery')
       expect(learningMasteryTab).toBeInTheDocument()
@@ -132,7 +133,9 @@ describe('Enhanced Individual Wrapper Gradebook', () => {
       // content selection query params
       await new Promise(resolve => setTimeout(resolve, 0))
 
-      const contentSelectionStudent = getByTestId('learning-mastery-content-selection-student')
+      const contentSelectionStudent = await findByTestId(
+        'learning-mastery-content-selection-student'
+      )
       expect(contentSelectionStudent).toBeInTheDocument()
       expect(within(contentSelectionStudent).getByText('Student 1')).toBeInTheDocument()
 
@@ -170,7 +173,7 @@ describe('Enhanced Individual Wrapper Gradebook', () => {
       })
       window.ENV.FEATURES = {instui_nav: true}
       mockSearchParams({student: '5', outcome: '1'})
-      const {getByTestId, getByText} = renderLearningMasteryGradebookWrapper()
+      const {getByTestId, getByText, findByTestId} = renderLearningMasteryGradebookWrapper()
 
       const learningMasteryTab = getByText('Learning Mastery')
       expect(learningMasteryTab).toBeInTheDocument()
@@ -192,7 +195,9 @@ describe('Enhanced Individual Wrapper Gradebook', () => {
       // content selection query params
       await new Promise(resolve => setTimeout(resolve, 0))
 
-      const contentSelectionStudent = getByTestId('learning-mastery-content-selection-student')
+      const contentSelectionStudent = await findByTestId(
+        'learning-mastery-content-selection-student'
+      )
       expect(contentSelectionStudent).toBeInTheDocument()
       expect(within(contentSelectionStudent).getByText('Student 1')).toBeInTheDocument()
 
@@ -236,7 +241,8 @@ describe('Enhanced Individual Wrapper Gradebook', () => {
 
   describe('with no presets on learning mastery', () => {
     it('renders on user changes the tab', async () => {
-      const {getByText, queryByTestId, getByTestId} = renderLearningMasteryGradebookWrapper()
+      const {getByText, queryByTestId, getByTestId, findByTestId} =
+        renderLearningMasteryGradebookWrapper()
 
       const assignmentTabData = queryByTestId('assignment-data')
       expect(assignmentTabData).toBeInTheDocument()
@@ -258,7 +264,9 @@ describe('Enhanced Individual Wrapper Gradebook', () => {
       await new Promise(resolve => setTimeout(resolve, 0))
 
       // Content selection
-      const contentSelectionStudent = getByTestId('learning-mastery-content-selection-student')
+      const contentSelectionStudent = await findByTestId(
+        'learning-mastery-content-selection-student'
+      )
       expect(within(contentSelectionStudent).getByText('No Student Selected')).toBeInTheDocument()
 
       const contentSelectionOutcome = getByTestId('learning-mastery-content-selection-outcome')
@@ -288,7 +296,7 @@ describe('Enhanced Individual Wrapper Gradebook', () => {
 
   describe('without presets on induvidual gradebook', () => {
     it('renders without error', async () => {
-      const {queryByTestId, getByTestId} = renderLearningMasteryGradebookWrapper()
+      const {queryByTestId, getByTestId, findByTestId} = renderLearningMasteryGradebookWrapper()
 
       const assignmentTabData = queryByTestId('assignment-data')
       expect(assignmentTabData).toBeInTheDocument()
@@ -329,7 +337,7 @@ describe('Enhanced Individual Wrapper Gradebook', () => {
 
       await new Promise(resolve => setTimeout(resolve, 0))
 
-      const contentSelectionStudent = getByTestId('content-selection-student')
+      const contentSelectionStudent = await findByTestId('content-selection-student')
       expect(within(contentSelectionStudent).getByText('No Student Selected')).toBeInTheDocument()
       const contentSelectionAssignment = getByTestId('content-selection-assignment')
       expect(

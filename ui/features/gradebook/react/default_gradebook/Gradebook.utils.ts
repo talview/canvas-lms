@@ -22,7 +22,7 @@ import assignmentHelper from '../shared/helpers/assignmentHelper'
 import LongTextEditor from '../../jquery/slickgrid.long_text_editor'
 import {showConfirmationDialog} from '@canvas/feature-flags/react/ConfirmationDialog'
 import getTextWidth from '../shared/helpers/TextMeasure'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import _ from 'lodash'
 import htmlEscape, {unescape} from '@instructure/html-escape'
 import filterTypes from './constants/filterTypes'
@@ -62,7 +62,7 @@ import SubmissionStateMap from '@canvas/grading/SubmissionStateMap'
 import type {GradeStatus} from '@canvas/grading/accountGradingStatus'
 import type {CamelizedGradingPeriod} from '@canvas/grading/grading'
 
-const I18n = useI18nScope('gradebook')
+const I18n = createI18nScope('gradebook')
 
 const createDateTimeFormatter = (timeZone: string) => {
   return Intl.DateTimeFormat(I18n.currentLocale(), {
@@ -81,7 +81,7 @@ export function compareAssignmentDueDates(assignment1: GridColumn, assignment2: 
 
 export function ensureAssignmentVisibility(assignment: Assignment, submission: Submission) {
   if (
-    assignment?.only_visible_to_overrides &&
+    assignment?.visible_to_everyone === false &&
     !assignment.assignment_visibility.includes(submission.user_id)
   ) {
     return assignment.assignment_visibility.push(submission.user_id)
@@ -460,7 +460,7 @@ export function buildStudentColumn(
     : defaultWidth
   if (Number.isNaN(studentColumnWidth)) {
     studentColumnWidth = defaultWidth
-    // eslint-disable-next-line no-console
+     
     console.warn('invalid student column width')
   }
   return {

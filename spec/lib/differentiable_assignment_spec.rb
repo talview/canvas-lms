@@ -75,7 +75,7 @@ shared_examples_for "a differentiable_object" do
         @section = @course.course_sections.create!(name: "test section")
         @section2 = @course.course_sections.create!(name: "second test section")
         student_in_section(@section, user: @student1)
-        create_section_override_for_assignment(differentiable, { course_section: @section })
+        create_section_override_for_assignment(differentiable, { course_section: @section, due_at: nil, due_at_overridden: false })
         @course.reload
         @observer = User.create(name: "observer")
       end
@@ -195,7 +195,7 @@ end
 
 describe Assignment do
   let(:differentiable_service) { AssignmentVisibility::AssignmentVisibilityService }
-  let(:service_method) { :assignment_visible_to_students }
+  let(:service_method) { :assignments_visible_to_students }
   let(:differentiable) { assignment_model(due_at: 5.days.ago, only_visible_to_overrides: true) }
 
   include_examples "a non-module differentiable object"
@@ -204,7 +204,7 @@ end
 
 describe Quizzes::Quiz do
   let(:differentiable_service) { QuizVisibility::QuizVisibilityService }
-  let(:service_method) { :quiz_visible_to_students }
+  let(:service_method) { :quizzes_visible_to_students }
   let(:differentiable) { quiz_model(due_at: 5.days.ago, only_visible_to_overrides: true) }
 
   include_examples "a non-module differentiable object"
@@ -213,7 +213,7 @@ end
 
 describe ContextModule do
   let(:differentiable_service) { ModuleVisibility::ModuleVisibilityService }
-  let(:service_method) { :module_visible_to_students }
+  let(:service_method) { :modules_visible_to_students }
   let(:differentiable) do
     course = course_factory(active_all: true)
     cm = course.context_modules.create!(name: "test module")

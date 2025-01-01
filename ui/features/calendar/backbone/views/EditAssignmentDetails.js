@@ -16,7 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import moment from 'moment'
 import natcompare from '@canvas/util/natcompare'
@@ -37,10 +37,10 @@ import fcUtil from '@canvas/calendar/jquery/fcUtil'
 import '@canvas/jquery/jquery.instructure_forms'
 import '@canvas/jquery/jquery.instructure_misc_helpers'
 import '../../fcMomentHandlebarsHelpers'
-import {encodeQueryString} from '@canvas/query-string-encoding'
+import {encodeQueryString} from '@instructure/query-string-encoding'
 import {renderDatetimeField} from '@canvas/datetime/jquery/DatetimeField'
 
-const I18n = useI18nScope('calendar')
+const I18n = createI18nScope('calendar')
 
 export default class EditAssignmentDetailsRewrite extends ValidatedFormView {
   initialize(selector, event, contextChangeCB, closeCB) {

@@ -23,11 +23,10 @@ import DashboardCard from './react/DashboardCard'
 import axios from '@canvas/axios'
 import {showFlashAlert} from '@canvas/alerts/react/FlashAlert'
 import {asJson, checkStatus, getPrefetchedXHR} from '@canvas/util/xhr'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import type {Card} from './types'
-import {fetchDashboardCardsAsync, mapDashboardResponseToCard} from './dashboardCardsQuery'
 
-const I18n = useI18nScope('load_card_dashboard')
+const I18n = createI18nScope('load_card_dashboard')
 
 export function createDashboardCards(
   dashboardCards: Card[],
@@ -60,27 +59,28 @@ export class CardDashboardLoader {
 
   renderIntoDOM = (dashboardCards: Card[]) => {
     const dashboardContainer = document.getElementById('DashboardCard_Container')
+     
     ReactDOM.render(
       createDashboardCards(dashboardCards, DashboardCard, {observedUserId: this.observedUserId}),
       dashboardContainer
     )
   }
 
-  async loadCardDashboard(renderFn = this.renderIntoDOM, observedUserId: string) {
+  async loadCardDashboard(
+    renderFn = this.renderIntoDOM,
+    observedUserId: string,
+    preloadedCards?: Card[] | null
+  ) {
     if (observedUserId) {
       this.observedUserId = observedUserId
     }
 
-    if (!!window?.ENV?.FEATURES?.dashboard_graphql_integration && ENV?.current_user_id) {
-      const queryKey = {userID: ENV.current_user_id, observedUserID: observedUserId}
-      fetchDashboardCardsAsync(queryKey)
-        .then(data => {
-          const mappedDashboardCards = mapDashboardResponseToCard(data)
-          renderFn(mappedDashboardCards)
-        })
-        .catch(e => {
-          this.showError(e)
-        })
+    if (window?.ENV?.FEATURES?.dashboard_graphql_integration && preloadedCards) {
+      try {
+        renderFn(preloadedCards)
+      } catch (e) {
+        this.showError(e as Error)
+      }
     } else if (observedUserId && CardDashboardLoader.observedUsersDashboardCards[observedUserId]) {
       // @ts-expect-error
       renderFn(CardDashboardLoader.observedUsersDashboardCards[observedUserId], true)

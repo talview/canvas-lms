@@ -17,14 +17,13 @@
  */
 
 import React, {useCallback, useState} from 'react'
-// @ts-ignore
 import {Modal} from '@instructure/ui-modal'
 import {Button, CloseButton} from '@instructure/ui-buttons'
 import {Heading} from '@instructure/ui-heading'
 import {Alert} from '@instructure/ui-alerts'
 import {View} from '@instructure/ui-view'
 import {Spinner} from '@instructure/ui-spinner'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {
   IconSettingsLine,
   IconSyllabusLine,
@@ -41,15 +40,15 @@ import {
   IconRubricLine,
   IconGroupLine,
   IconOutcomesLine,
-  IconStandardsLine,
   IconFolderLine,
   IconDocumentLine,
 } from '@instructure/ui-icons'
 import doFetchApi from '@canvas/do-fetch-api-effect'
 import {CollapsableList, type Item} from '@canvas/content-migrations'
 import type {ContentMigrationItem, ContentMigrationWorkflowState} from './types'
+import {Text} from '@instructure/ui-text'
 
-const I18n = useI18nScope('content_migrations_redesign')
+const I18n = createI18nScope('content_migrations_redesign')
 
 const ICONS: {[key: string]: any} = {
   course_settings: IconSettingsLine,
@@ -67,7 +66,7 @@ const ICONS: {[key: string]: any} = {
   calendar_events: IconCalendarDaysLine,
   rubrics: IconRubricLine,
   groups: IconGroupLine,
-  learning_outcomes: ENV.SHOW_SELECTABLE_OUTCOMES_IN_IMPORT ? IconOutcomesLine : IconStandardsLine,
+  learning_outcomes: IconOutcomesLine,
   learning_outcome_groups: IconFolderLine,
   attachments: IconDocumentLine,
   assignment_groups: IconFolderLine,
@@ -110,7 +109,8 @@ const mapSelectiveDataResponse = async (response: SelectiveDataResponse): Promis
     })
 
     if (sub_items_url && count) {
-      // eslint-disable-next-line no-await-in-loop
+      // @ts-expect-error
+       
       const {json}: {json: GenericItemResponse[]} = await doFetchApi({
         path: sub_items_url,
         method: 'GET',
@@ -163,15 +163,19 @@ export const ContentSelectionModal = ({
   const [selectedProperties, setSelectedProperties] = useState<Array<string>>([])
   const [items, setItems] = useState<Item[]>([])
   const [hasErrors, setHasErrors] = useState<boolean>(false)
+  const [isLoading, setIsLoading] = useState<boolean>(false)
 
   const handleEntered = useCallback(() => {
+    setIsLoading(true)
     doFetchApi({
       path: `/api/v1/courses/${courseId}/content_migrations/${migration.id}/selective_data`,
       method: 'GET',
     })
+      // @ts-expect-error
       .then(({json}: {json: SelectiveDataResponse}) => mapSelectiveDataResponse(json))
       .then((mappedItems: Item[]) => setItems(mappedItems))
       .catch(() => setHasErrors(true))
+      .finally(() => setIsLoading(false))
   }, [courseId, migration.id])
 
   const handleSubmit = () => {
@@ -190,7 +194,7 @@ export const ContentSelectionModal = ({
   if (!courseId || migration.workflow_state !== 'waiting_for_select') return null
 
   let content
-  if (items.length > 0 && !hasErrors) {
+  if (items.length > 0 && !hasErrors && !isLoading) {
     content = (
       <CollapsableList
         items={items}
@@ -203,17 +207,26 @@ export const ContentSelectionModal = ({
         {I18n.t('Failed to fetch content for import.')}
       </Alert>
     )
-  } else {
+  } else if (isLoading) {
     content = (
       <View display="block" padding="large" textAlign="center">
         <Spinner renderTitle={() => I18n.t('Loading content for import.')} />
+      </View>
+    )
+  } else if (items.length === 0) {
+    content = (
+      <View display="block" padding="0 0 xx-large">
+        <Text>
+          {I18n.t(
+            'This file appears to be empty. Do you still want to proceed with content selection?'
+          )}
+        </Text>
       </View>
     )
   }
 
   return (
     <>
-      {/* @ts-ignore */}
       <Button size="small" color="primary" onClick={() => setOpen(true)}>
         {I18n.t('Select content')}
       </Button>
@@ -236,14 +249,12 @@ export const ContentSelectionModal = ({
         </Modal.Header>
         <Modal.Body>{content}</Modal.Body>
         <Modal.Footer>
-          {/* @ts-ignore */}
           <Button onClick={() => setOpen(false)} margin="0 x-small 0 0">
             {I18n.t('Cancel')}
           </Button>
           <Button
             color="primary"
-            interaction={selectedProperties.length > 0 ? 'enabled' : 'disabled'}
-            // @ts-ignore
+            interaction={hasErrors || isLoading ? 'disabled' : 'enabled'}
             onClick={handleSubmit}
           >
             {I18n.t('Select Content')}

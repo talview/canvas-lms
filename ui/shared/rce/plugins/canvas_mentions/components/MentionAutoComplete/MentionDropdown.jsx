@@ -31,7 +31,7 @@ import {
   KEY_CODES,
 } from '../../constants'
 import {MENTIONABLE_USERS_QUERY} from './graphql/Queries'
-import {useQuery} from '@apollo/react-hooks'
+import {useQuery} from '@apollo/client'
 
 const MOUSE_FOCUS_TYPE = 'mouse'
 const KEYBOARD_FOCUS_TYPE = 'keyboard'
@@ -72,7 +72,7 @@ const MentionUIManager = ({editor, onExited, onFocusedUserChange, rceRef}) => {
 
   const filteredOptions = useMemo(() => {
     return mentionData?.filter(o => {
-      return o.name.toLowerCase().includes(inputText?.toLowerCase().trim())
+      return o.name.toLowerCase().includes(inputText?.toLowerCase().trim()) || o.shortName.toLowerCase().includes(inputText?.toLowerCase().trim())
     })
   }, [mentionData, inputText])
 

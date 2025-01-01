@@ -78,7 +78,6 @@ module Lti
           validate_oidc_params!
           validate_current_user!
           validate_client_id!
-          validate_launch_eligibility!
           set_extra_csp_frame_ancestor! unless @oidc_error
 
           # This was added as a resolution to the INTEROP-8200 saga. Essentially, for a reason that no one was able to
@@ -97,12 +96,26 @@ module Lti
               account = context.account
             end
 
-            InstStatsd::Statsd.increment("lti.oidc_login_required_error", tags: {
-                                           account: account&.global_id,
-                                           client_id: oidc_params[:client_id],
-                                         })
-            render("lti/ims/authentication/login_required_error_screen", status: :unauthorized, layout: "borderless_lti", formats: :html)
+            if !account.root_account.feature_enabled?(:lti_oidc_missing_cookie_retry) || params[:retried] == "true"
+              InstStatsd::Statsd.increment("lti.oidc_login_required_error", tags: {
+                                             account: account&.global_id,
+                                             client_id: oidc_params[:client_id],
+                                           })
+              render("lti/ims/authentication/login_required_error_screen", status: :unauthorized, layout: "borderless_lti", formats: :html)
+            else
+              # In some cases resubmitting the request from within Canvas can fix the missing cookie problem (see INTEROP-8868)
+              InstStatsd::Statsd.increment("lti.oidc_missing_cookie_retry", tags: { client_id: oidc_params[:client_id] })
+              @oidc_params = oidc_params
+              render("lti/ims/authentication/missing_cookie_fix", status: :ok, layout: "borderless_lti", formats: :html)
+            end
             return
+          end
+
+          # We need to validate the launch after the possible cookie fix, which resubmits the request and would otherwise invalidate the nonce.
+          validate_launch_eligibility!
+
+          if params[:retried] == "true"
+            InstStatsd::Statsd.increment("lti.oidc_missing_cookie_retry_worked", tags: { client_id: oidc_params[:client_id] })
           end
 
           render(
@@ -190,7 +203,7 @@ module Lti
           launch_payload = fetch_and_delete_launch(context, verifier)
           raise InvalidLaunch, "no payload found in cache" if launch_payload.nil?
 
-          JSON.parse(launch_payload).merge({ nonce: oidc_params[:nonce] })
+          Lti::Messages::JwtMessage.cached_hash_to_launch(JSON.parse(launch_payload), oidc_params[:nonce])
         end
       end
 

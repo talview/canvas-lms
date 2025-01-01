@@ -16,10 +16,10 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* eslint-disable no-void */
+ 
 
 import {extend} from '@canvas/backbone/utils'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import ValidatedFormView from '@canvas/forms/backbone/views/ValidatedFormView'
 import AssignmentGroupSelector from '@canvas/assignments/backbone/views/AssignmentGroupSelector'
 import GradingTypeSelector from '@canvas/assignments/backbone/views/GradingTypeSelector'
@@ -49,7 +49,7 @@ import 'jqueryui/tabs'
 import {unfudgeDateForProfileTimezone} from '@instructure/moment-utils'
 import {renderDatetimeField} from '@canvas/datetime/jquery/DatetimeField'
 
-const I18n = useI18nScope('discussion_topics')
+const I18n = createI18nScope('discussion_topics')
 
 RichContentEditor.preloadRemoteModule()
 
@@ -298,6 +298,7 @@ EditView.prototype.toJSON = function () {
     allow_todo_date: data.todo_date != null,
     unlocked: data.locked === void 0 ? !this.isAnnouncement() : !data.locked,
     announcementsLocked: this.announcementsLocked,
+    isCreate: !this.options.isEditing,
   })
   json.assignment = json.assignment.toView()
   return json
@@ -401,12 +402,7 @@ EditView.prototype.render = function () {
 }
 
 EditView.prototype.shouldRenderUsageRights = function () {
-  return (
-    ENV.FEATURES.usage_rights_discussion_topics &&
-    ENV.USAGE_RIGHTS_REQUIRED &&
-    ENV.PERMISSIONS.manage_files &&
-    this.permissions.CAN_ATTACH
-  )
+  return ENV.USAGE_RIGHTS_REQUIRED && ENV.PERMISSIONS.manage_files && this.permissions.CAN_ATTACH
 }
 
 EditView.prototype.afterRender = function () {

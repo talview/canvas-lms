@@ -1,4 +1,3 @@
-// @ts-nocheck
 /*
  * Copyright (C) 2017 - present Instructure, Inc.
  *
@@ -20,7 +19,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom'
 import update from 'immutability-helper'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {Button} from '@instructure/ui-buttons'
 import Modal from '@canvas/instui-bindings/react/InstuiModal'
 import {Text} from '@instructure/ui-text'
@@ -28,7 +27,7 @@ import {statuses} from '../constants/statuses'
 import StatusColorListItem from './StatusColorListItem'
 import type {StatusColors} from '../constants/colors'
 
-const I18n = useI18nScope('gradebook')
+const I18n = createI18nScope('gradebook')
 
 const {Body: ModalBody, Footer: ModalFooter} = Modal as any
 
@@ -104,18 +103,22 @@ class StatusesModal extends React.Component<Props, State> {
     })
   }
 
+  // @ts-expect-error
   bindColorPickerButton = (status: string) => button => {
     this.colorPickerButtons[status] = button
   }
 
+  // @ts-expect-error
   bindColorPickerContent = (status: string) => content => {
     this.colorPickerContents[status] = content
   }
 
+  // @ts-expect-error
   bindDoneButton = button => {
     this.doneButton = button
   }
 
+  // @ts-expect-error
   bindContentRef = content => {
     this.modalContentRef = content
   }
@@ -125,6 +128,7 @@ class StatusesModal extends React.Component<Props, State> {
       <StatusColorListItem
         key={status}
         status={status}
+        // @ts-expect-error
         color={this.state.colors[status]}
         isColorPickerShown={this.isPopoverShown(status)}
         colorPickerOnToggle={this.handleOnToggle(status)}

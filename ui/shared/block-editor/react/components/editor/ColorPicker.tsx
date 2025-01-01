@@ -20,10 +20,11 @@ import React, {useCallback, useState} from 'react'
 import tinycolor from 'tinycolor2'
 import {ColorIndicator, ColorMixer, ColorPreset} from '@instructure/ui-color-picker'
 import {FormFieldGroup, type FormMessage} from '@instructure/ui-form-field'
-import {TextInput} from '@instructure/ui-text-input'
+import {ScreenReaderContent} from '@instructure/ui-a11y-content'
+import {TextInput, type TextInputProps} from '@instructure/ui-text-input'
 
 type ColorPickerProps = {
-  label: string
+  label: React.ReactNode
   disabled: boolean
   value: string
   onChange: (color: string) => void
@@ -34,6 +35,7 @@ const ColorPicker = ({label, disabled, value, onChange}: ColorPickerProps) => {
   const [messages, setMessages] = useState<FormMessage[]>([])
 
   const setValidColor = useCallback(
+    // @ts-expect-error
     newcolor => {
       setTypedColor(newcolor)
       setHexColor(newcolor)
@@ -47,7 +49,7 @@ const ColorPicker = ({label, disabled, value, onChange}: ColorPickerProps) => {
     (_event: React.ChangeEvent<HTMLInputElement>, typedvalue: string) => {
       setTypedColor(typedvalue)
       const color = tinycolor(typedvalue)
-      if (color.isValid(typedvalue)) {
+      if (color.isValid()) {
         setMessages([{text: 'Hit enter to set this color', type: 'hint'}])
       } else {
         setMessages([{text: 'Not a valid color', type: 'error'}])
@@ -57,10 +59,10 @@ const ColorPicker = ({label, disabled, value, onChange}: ColorPickerProps) => {
   )
 
   const handleHexKey = useCallback(
-    (event: React.KeyboardEvent<HTMLInputElement>) => {
+    (event: React.KeyboardEvent<TextInputProps>) => {
       if (event.key === 'Enter') {
         const color = tinycolor(typedColor)
-        if (color.isValid(typedColor)) {
+        if (color.isValid()) {
           const hex = color.toHex()
           setValidColor(hex)
         }
@@ -79,7 +81,7 @@ const ColorPicker = ({label, disabled, value, onChange}: ColorPickerProps) => {
   return (
     <FormFieldGroup layout="stacked" description={label} rowSpacing="small">
       <TextInput
-        renderLabel="Enter a color"
+        renderLabel={<ScreenReaderContent>Custom color</ScreenReaderContent>}
         interaction={disabled ? 'disabled' : 'enabled'}
         value={typedColor}
         messages={messages}

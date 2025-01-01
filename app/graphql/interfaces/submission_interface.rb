@@ -168,22 +168,25 @@ module Interfaces::SubmissionInterface
     all_comments, for_attempt, peer_review = filter.values_at(:all_comments, :for_attempt, :peer_review)
 
     load_association(:assignment).then do
-      scope = include_draft_comments ? submission.comments_including_drafts_for(current_user) : submission.comments_excluding_drafts_for(current_user)
-      unless all_comments
-        target_attempt = for_attempt || submission.attempt || 0
-        if target_attempt <= 1
-          target_attempt = [nil, 0, 1] # Submission 0 and 1 share comments
-        end
-        scope = scope.where(attempt: target_attempt)
+      load_association(:submission_comments).then do
+        comments = include_draft_comments ? submission.comments_including_drafts_for(current_user) : submission.comments_excluding_drafts_for(current_user)
 
-        if peer_review
-          scope = scope.where(author: current_user)
-        end
+        comments = comments.select { |comment| comment.attempt.in?(attempt_filter(for_attempt)) } unless all_comments
+        comments = comments.select { |comment| comment.author == current_user } if peer_review && !all_comments
+        comments = comments.sort_by { |comment| [comment.created_at.to_i, comment.id] } if sort_order.present?
+        comments.reverse! if sort_order.to_s.casecmp("desc").zero?
+
+        comments.select { |comment| comment.grants_right?(current_user, :read) }
       end
-      scope = scope.reorder(created_at: sort_order) if sort_order
-      scope.select { |comment| comment.grants_right?(current_user, :read) }
     end
   end
+
+  def attempt_filter(for_attempt)
+    target_attempt = for_attempt || submission.attempt || 0
+    target_attempt = [nil, 0, 1] if target_attempt <= 1 # Submission 0 and 1 share comments
+    target_attempt.is_a?(Array) ? target_attempt : [target_attempt]
+  end
+  private :attempt_filter
 
   field :score, Float, null: true
   def score
@@ -234,6 +237,7 @@ module Interfaces::SubmissionInterface
   field :seconds_late, Float, null: true
   field :posted, Boolean, method: :posted?, null: false
   field :state, Types::SubmissionStateType, method: :workflow_state, null: false
+  field :redo_request, Boolean, null: true
 
   field :grade_hidden, Boolean, null: false
   def grade_hidden
@@ -252,7 +256,23 @@ module Interfaces::SubmissionInterface
     end
   end
 
+  field :sub_assignment_submissions, [Types::SubAssignmentSubmissionType], null: true
+  def sub_assignment_submissions
+    Loaders::AssociationLoader.for(Submission, :assignment).then do
+      return nil unless object.assignment.checkpoints_parent?
+
+      Loaders::AssociationLoader.for(Assignment, :sub_assignment_submissions).then do
+        object.assignment.sub_assignment_submissions.where(user_id: object.user_id)
+      end
+    end
+  end
+
   field :grading_status, Types::SubmissionGradingStatusType, null: true
+  field :last_commented_by_user_at, Types::DateTimeType, null: true
+  def last_commented_by_user_at
+    Loaders::LastCommentedByUserAtLoader.for(current_user:).load(submission.id)
+  end
+
   field :late_policy_status, LatePolicyStatusType, null: true
   field :late, Boolean, method: :late?, null: true
   field :missing, Boolean, method: :missing?, null: true
@@ -303,9 +323,31 @@ module Interfaces::SubmissionInterface
       end
   end
 
+  field :custom_grade_status_id, ID, null: true
+
   field :custom_grade_status, String, null: true
   def custom_grade_status
-    submission.custom_grade_status&.name.to_s
+    load_association(:custom_grade_status).then do |status|
+      status&.name.to_s
+    end
+  end
+
+  field :status, String, null: false
+  def status
+    Promise.all([load_association(:assignment), load_association(:custom_grade_status)]).then do
+      Loaders::AssociationLoader.for(Assignment, :external_tool_tag).load(object.assignment).then do
+        object.status
+      end
+    end
+  end
+
+  field :status_tag, Types::SubmissionStatusTagType, null: false
+  def status_tag
+    load_association(:assignment).then do
+      Loaders::AssociationLoader.for(Assignment, :external_tool_tag).load(object.assignment).then do
+        object.status_tag
+      end
+    end
   end
 
   field :media_object, Types::MediaObjectType, null: true
@@ -423,6 +465,8 @@ module Interfaces::SubmissionInterface
 
   field :assignment_id, ID, null: false
 
+  field :external_tool_url, String, null: true
+
   field :group_id, ID, null: true
   def group_id
     # Unfortunately, we can't use submissions.group_id, since that value is
@@ -433,14 +477,35 @@ module Interfaces::SubmissionInterface
 
   field :preview_url, String, "This field is currently under development and its return value is subject to change.", null: true
   def preview_url
-    GraphQLHelpers::UrlHelpers.course_assignment_submission_url(
-      object.course_id,
-      object.assignment_id,
-      object.user_id,
-      host: context[:request].host_with_port,
-      preview: 1,
-      version: version_query_param(object)
-    )
+    load_association(:assignment).then do |assignment|
+      if submission.not_submitted?
+        nil
+      elsif submission.submission_type == "basic_lti_launch"
+        GraphQLHelpers::UrlHelpers.retrieve_course_external_tools_url(
+          submission.course_id,
+          assignment_id: submission.assignment_id,
+          url: submission.external_tool_url(query_params: submission.tool_default_query_params(current_user)),
+          display: "borderless",
+          host: context[:request].host_with_port
+        )
+      elsif submission.submission_type == "discussion_topic"
+        GraphQLHelpers::UrlHelpers.course_discussion_topic_url(
+          submission.course_id,
+          assignment.discussion_topic.id,
+          host: context[:request].host_with_port,
+          embed: true
+        )
+      else
+        GraphQLHelpers::UrlHelpers.course_assignment_submission_url(
+          submission.course_id,
+          submission.assignment_id,
+          submission.user_id,
+          host: context[:request].host_with_port,
+          preview: 1,
+          version: version_query_param(submission)
+        )
+      end
+    end
   end
 
   field :submission_comment_download_url, String, null: true
@@ -450,8 +515,6 @@ module Interfaces::SubmissionInterface
 
   field :word_count, Float, null: true
   delegate :word_count, to: :object
-
-  private
 
   def version_query_param(submission)
     if submission.attempt.present? && submission.attempt > 0

@@ -25,26 +25,23 @@ import {HeadingBlock} from '../HeadingBlock'
 import {TextBlock} from '../TextBlock'
 import {ButtonBlock} from '../ButtonBlock'
 import {IconBlock} from '../IconBlock'
+import {type ResourceCardProps} from './types'
+import {isLastChild} from '../../../../utils'
 
-type ResourceCardProps = {
-  id?: string
-  title?: string
-  description?: string
-  iconName?: string
-  linkText?: string
-  linkUrl?: string
-}
+import {useScope as createI18nScope} from '@canvas/i18n'
+
+const I18n = createI18nScope('block-editor')
 
 const ResourceCard = ({id, title, description, iconName, linkText, linkUrl}: ResourceCardProps) => {
   const [myId] = useState(id)
-  const [myTitle] = useState(title || 'Title')
-  const [myDescription] = useState(description || 'Description')
-  const [myIcon] = useState(iconName || 'apple')
-  const [myLinkText] = useState(linkText || 'Link')
-  const [myLinkUrl] = useState(linkUrl || '')
+  const [myTitle] = useState(title || ResourceCard.craft.defaultProps.title)
+  const [myDescription] = useState(description || ResourceCard.craft.defaultProps.description)
+  const [myIcon] = useState(iconName || ResourceCard.craft.defaultProps.iconName)
+  const [myLinkText] = useState(linkText || ResourceCard.craft.defaultProps.linkText)
+  const [myLinkUrl] = useState(linkUrl || ResourceCard.craft.defaultProps.linkUrl)
 
   return (
-    <Container className="resource-card" id={myId} background="#fff">
+    <Container className="block resource-card" id={myId} background="#fff">
       <Flex
         direction="column"
         justifyItems="center"
@@ -57,21 +54,21 @@ const ResourceCard = ({id, title, description, iconName, linkText, linkUrl}: Res
           id={`${myId}__icon`}
           is={IconBlock}
           iconName={myIcon}
-          custom={{displayName: 'Icon'}}
+          custom={{displayName: I18n.t('Icon')}}
         />
         <Element
           id={`${myId}__title`}
           is={HeadingBlock}
           text={myTitle}
           level="h3"
-          custom={{displayName: 'Title'}}
+          custom={{displayName: I18n.t('Title')}}
         />
         <Element
           id={`${myId}__desc`}
           is={TextBlock}
           text={myDescription}
           textAlign="center"
-          custom={{displayName: 'Description'}}
+          custom={{displayName: I18n.t('Description')}}
         />
         <Element
           id={`${myId}__link`}
@@ -79,7 +76,7 @@ const ResourceCard = ({id, title, description, iconName, linkText, linkUrl}: Res
           href={myLinkUrl}
           color="#fff"
           text={myLinkText}
-          custom={{displayName: 'Link'}}
+          custom={{displayName: I18n.t('Link')}}
         />
       </Flex>
     </Container>
@@ -87,24 +84,20 @@ const ResourceCard = ({id, title, description, iconName, linkText, linkUrl}: Res
 }
 
 ResourceCard.craft = {
-  displayName: 'Resource Card',
+  displayName: I18n.t('Resource Card'),
   defaultProps: {
     id: uid('resource-card', 2),
+    title: 'Title',
+    description: 'Description',
+    iconName: 'apple',
+    linkText: 'Link',
+    linkUrl: '',
   },
-  rules: {
-    isDeletable: () => {
-      // const node = query.node(id)
-      // if (!node.isDeletable()) {
-      //   return false
-      // }
-
-      // const target = query.node(id)
-      // const ancestors = target.ancestors()
-      // const parent = query.node(ancestors[0])
-      // if (parent.get().rules?.canMoveOut) {
-      //   return parent.get().rules.canMoveOut([node.get()], parent.get())
-      // }
-      return true
+  custom: {
+    isDeletable: (nodeId: string, query: any) => {
+      const parentId = query.node(nodeId).get().data.parent
+      const parent = query.node(parentId).get()
+      return parent?.data.name === 'ResourcesSectionInner' && !isLastChild(nodeId, query)
     },
   },
 }

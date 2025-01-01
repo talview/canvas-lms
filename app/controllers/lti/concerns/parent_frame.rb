@@ -24,7 +24,7 @@
 #    send messages to the embedding (trusted) tool (usually set in js_env to
 #    the value of parent_frame_origin)
 # 2. Add the embedding tool's host to the Content-Security-Policy (CSP)
-#    header's frame-ancestor directive to allow the page to me loaded in an
+#    header's frame-ancestor directive to allow the page to be loaded in an
 #    iframe embedded in the embedding tool. For this, call
 #    set_extra_csp_frame_ancestor!
 module Lti::Concerns
@@ -56,13 +56,13 @@ module Lti::Concerns
            !tool.context&.grants_any_right?(@current_user, session, :read, :launch_external_tool)
           nil
         elsif tool.url
-          override_parent_frame_origin(tool.url)
+          override_parent_frame_origin(tool.url_with_environment_overrides(tool.url, include_launch_url: true))
         elsif tool.domain
-          "https://#{tool.domain}"
+          "https://#{tool.domain_with_environment_overrides}"
         end
     end
 
-    # Tools sometimes may mangle the parent_frame_context header if
+    # Tools sometimes may mangle the parent_frame_context param if
     # they do not account for query parameters present in the launch
     # or content return URL. This will result in this request being
     # blocked by browsers since the CSP header is not correct. When

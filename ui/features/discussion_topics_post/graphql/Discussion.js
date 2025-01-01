@@ -22,7 +22,7 @@ import {Assignment} from './Assignment'
 import {Attachment} from './Attachment'
 import {Section} from './Section'
 import {DiscussionPermissions} from './DiscussionPermissions'
-import gql from 'graphql-tag'
+import {gql} from '@apollo/client'
 import {User} from './User'
 import {DiscussionEntry} from './DiscussionEntry'
 import {PageInfo} from './PageInfo'
@@ -39,6 +39,7 @@ export const Discussion = {
       message
       createdAt
       updatedAt
+      editedAt
       postedAt
       requireInitialPost
       initialPostRequiredForCurrentUser
@@ -58,6 +59,8 @@ export const Discussion = {
       userCount
       replyToEntryRequiredCount
       contextType
+      lockInformation
+      subscriptionDisabledForUser
       editor {
         ...User
       }
@@ -89,6 +92,10 @@ export const Discussion = {
       rootTopic {
         ...RootTopic
       }
+      participant {
+        sortOrder
+        expanded
+      }
     }
     ${User.fragment}
     ${Attachment.fragment}
@@ -107,6 +114,7 @@ export const Discussion = {
     message: string,
     createdAt: string,
     updatedAt: string,
+    editedAt: string,
     postedAt: string,
     requireInitialPost: bool,
     initialPostRequiredForCurrentUser: bool,
@@ -127,6 +135,7 @@ export const Discussion = {
     userCount: number,
     replyToEntryRequiredCount: number,
     contextType: string,
+    lockInformation: string,
     entryCounts: shape({
       unreadCount: number,
       repliesCount: number,
@@ -143,6 +152,11 @@ export const Discussion = {
     rootTopic: RootTopic.shape,
     rootEntriesTotalPages: number,
     entriesTotalPages: number,
+    subscriptionDisabledForUser: bool,
+    participant: shape({
+      sortOrder: string,
+      expanded: bool,
+    }),
   }),
 
   mock: ({
@@ -152,6 +166,7 @@ export const Discussion = {
     message = 'This is a Discussion Topic Message',
     createdAt = '2020-11-23T11:40:44-07:00',
     updatedAt = '2021-04-22T12:41:56-06:00',
+    editedAt = '2021-04-22T12:41:56-06:00',
     postedAt = '2020-11-23T11:40:44-07:00',
     requireInitialPost = false,
     initialPostRequiredForCurrentUser = false,
@@ -172,6 +187,7 @@ export const Discussion = {
     userCount = 4,
     replyToEntryRequiredCount = 2,
     contextType = 'Course',
+    lockInformation = 'This topic is locked.',
     entryCounts = {
       unreadCount: 2,
       repliesCount: 56,
@@ -193,6 +209,12 @@ export const Discussion = {
       pageInfo: PageInfo.mock(),
       __typename: 'DiscussionEntriesConnection',
     },
+    participant = {
+      sortOrder: 'desc',
+      expanded: false,
+      __typename: 'DiscussionParticipant',
+    },
+    subscriptionDisabledForUser = false,
   } = {}) => ({
     id,
     _id,
@@ -200,6 +222,7 @@ export const Discussion = {
     message,
     createdAt,
     updatedAt,
+    editedAt,
     postedAt,
     requireInitialPost,
     initialPostRequiredForCurrentUser,
@@ -220,6 +243,7 @@ export const Discussion = {
     userCount,
     replyToEntryRequiredCount,
     contextType,
+    lockInformation,
     author,
     anonymousAuthor,
     editor,
@@ -233,6 +257,8 @@ export const Discussion = {
     searchEntryCount,
     entriesTotalPages,
     discussionEntriesConnection,
+    subscriptionDisabledForUser,
+    participant,
     __typename: 'Discussion',
   }),
 }

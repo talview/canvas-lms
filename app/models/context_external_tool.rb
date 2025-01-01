@@ -26,6 +26,9 @@ class ContextExternalTool < ActiveRecord::Base
   has_many :content_tags, as: :content
   has_many :context_external_tool_placements, autosave: true
   has_many :lti_resource_links, class_name: "Lti::ResourceLink"
+  has_many :progresses, as: :context, inverse_of: :context
+  has_many :lti_notice_handlers, class_name: "Lti::NoticeHandler"
+  has_many :lti_asset_processors, class_name: "Lti::AssetProcessor"
 
   belongs_to :context, polymorphic: [:course, :account]
   belongs_to :developer_key
@@ -73,6 +76,7 @@ class ContextExternalTool < ActiveRecord::Base
   # should always be the last field change callback to run
   before_save :infer_defaults, :validate_vendor_help_link, :add_identity_hash
   after_save :touch_context, :check_global_navigation_cache, :clear_tool_domain_cache
+  after_commit :update_unified_tool_id, if: :update_unified_tool_id?
   validate :check_for_xml_error
 
   scope :disabled, -> { where(workflow_state: DISABLED_STATE) }
@@ -105,7 +109,8 @@ class ContextExternalTool < ActiveRecord::Base
 
   CUSTOM_EXTENSION_KEYS = {
     file_menu: [:accept_media_types].freeze,
-    editor_button: [:use_tray].freeze
+    editor_button: [:use_tray].freeze,
+    submission_type_selection: [:description, :require_resource_selection].freeze,
   }.freeze
 
   DISABLED_STATE = "disabled"
@@ -125,25 +130,19 @@ class ContextExternalTool < ActiveRecord::Base
   end
 
   set_policy do
-    #################### Begin legacy permission block #########################
     given do |user, session|
-      !context.root_account.feature_enabled?(:granular_permissions_manage_lti) &&
-        context.grants_right?(user, session, :lti_add_edit)
-    end
-    can :read and can :update and can :delete and can :update_manually
-    ##################### End legacy permission block ##########################
-
-    given do |user, session|
-      context.root_account.feature_enabled?(:granular_permissions_manage_lti) &&
-        context.grants_right?(user, session, :manage_lti_edit)
+      context.grants_right?(user, session, :manage_lti_edit)
     end
     can :read and can :update and can :update_manually
 
     given do |user, session|
-      context.root_account.feature_enabled?(:granular_permissions_manage_lti) &&
-        context.grants_right?(user, session, :manage_lti_delete)
+      context.grants_right?(user, session, :manage_lti_delete)
     end
     can :read and can :delete
+  end
+
+  def related_account
+    account || course&.account
   end
 
   class << self
@@ -228,7 +227,7 @@ class ContextExternalTool < ActiveRecord::Base
     def editor_button_json(tools, context, user, session, default_tool_icon_base_url)
       tools.select! { |tool| visible?(tool.editor_button["visibility"], user, context, session) }
       markdown = Redcarpet::Markdown.new(Redcarpet::Render::HTML.new({ link_attributes: { target: "_blank" } }))
-      always_on_ids = Setting.get("rce_always_on_developer_key_ids", "").split(",").map(&:to_i)
+      on_by_default_ids = ContextExternalTool.on_by_default_ids
       tools.map do |tool|
         canvas_icon_class = tool.editor_button(:canvas_icon_class)
         icon_url = tool.editor_button(:icon_url)
@@ -248,7 +247,7 @@ class ContextExternalTool < ActiveRecord::Base
           width: tool.editor_button(:selection_width),
           height: tool.editor_button(:selection_height),
           use_tray: tool.editor_button(:use_tray) == "true",
-          always_on: always_on_ids.include?(tool.global_developer_key_id),
+          on_by_default: tool.on_by_default?(on_by_default_ids),
           description: if tool.description
                          Sanitize.clean(markdown.render(tool.description), CanvasSanitize::SANITIZE)
                        else
@@ -256,6 +255,10 @@ class ContextExternalTool < ActiveRecord::Base
                        end
         }
       end
+    end
+
+    def on_by_default_ids
+      Setting.get("rce_always_on_developer_key_ids", "").split(",").reject(&:empty?).map(&:to_i)
     end
 
     private
@@ -314,7 +317,11 @@ class ContextExternalTool < ActiveRecord::Base
     val = calculate_extension_setting(type, property)
     if property == :icon_url
       # make sure it's a valid url
-      return nil if val && (URI.parse(val) rescue nil).nil?
+      begin
+        URI.parse(val) if val
+      rescue URI::InvalidURIError
+        return nil
+      end
 
       # account for beta and test overrides
       return url_with_environment_overrides(val)
@@ -425,6 +432,10 @@ class ContextExternalTool < ActiveRecord::Base
     !editor_button.nil?
   end
 
+  def can_be_top_nav_favorite?
+    has_placement? :top_navigation
+  end
+
   def is_rce_favorite_in_context?(context)
     context = context.context if context.is_a?(Group)
     context = context.account if context.is_a?(Course)
@@ -435,6 +446,13 @@ class ContextExternalTool < ActiveRecord::Base
       # TODO: remove after the datafixup and this column is dropped
       is_rce_favorite
     end
+  end
+
+  def top_nav_favorite_in_context?(context)
+    context = context.context if context.is_a?(Group)
+    context = context.account if context.is_a?(Course)
+    top_nav_favorite_tool_ids = context.top_nav_favorite_tool_ids[:value]
+    !!top_nav_favorite_tool_ids&.include?(global_id)
   end
 
   def sync_placements!(placements)
@@ -481,7 +499,7 @@ class ContextExternalTool < ActiveRecord::Base
   private :validate_url
 
   def settings
-    read_or_initialize_attribute(:settings, {}.with_indifferent_access)
+    self["settings"] ||= {}.with_indifferent_access
   end
 
   def label_for(key, lang = nil)
@@ -489,7 +507,7 @@ class ContextExternalTool < ActiveRecord::Base
     labels = settings[key] && settings[key][:labels]
     (labels && labels[lang]) ||
       (labels && lang && labels[lang.split("-").first]) ||
-      (settings[key] && settings[key][:text]) ||
+      settings.dig(key, :text).presence ||
       default_label(lang)
   end
 
@@ -498,7 +516,7 @@ class ContextExternalTool < ActiveRecord::Base
     default_labels = settings[:labels]
     (default_labels && default_labels[lang]) ||
       (default_labels && lang && default_labels[lang.split("-").first]) ||
-      settings[:text] || name || "External Tool"
+      settings[:text].presence || name || "External Tool"
   end
 
   def check_for_xml_error
@@ -673,7 +691,7 @@ class ContextExternalTool < ActiveRecord::Base
   end
 
   def not_selectable=(bool)
-    write_attribute(:not_selectable, Canvas::Plugin.value_to_boolean(bool))
+    super(Canvas::Plugin.value_to_boolean(bool))
   end
 
   def selectable
@@ -681,10 +699,17 @@ class ContextExternalTool < ActiveRecord::Base
   end
 
   def shared_secret=(val)
-    write_attribute(:shared_secret, val) unless val.blank?
+    super unless val.blank?
   end
 
   def display_type(extension_type)
+    if ["global_navigation", "analytics_hub"].include?(extension_type.to_s)
+      if Lti::AppUtil::TOOL_DISPLAY_TEMPLATES.key?(settings.dig(extension_type, :display_type))
+        return extension_setting(extension_type, :display_type) || "full_width"
+      else
+        return "full_width"
+      end
+    end
     extension_setting(extension_type, :display_type) || "in_context"
   end
 
@@ -1030,6 +1055,18 @@ class ContextExternalTool < ActiveRecord::Base
     )
   end
 
+  def can_access_content_tag?(content_tag)
+    return false unless content_tag.is_a?(ContentTag)
+    return true if content_tag.content == self
+    return false unless use_1_3? && developer_key
+
+    # LTI 1.3: dev key ids match
+    context = content_tag.context
+    context = context.context if context.is_a?(Assignment)
+
+    developer_key_id == ContextExternalTool.from_content_tag(content_tag, context)&.developer_key_id
+  end
+
   def self.contexts_to_search(context, include_federated_parent: false)
     case context
     when Course
@@ -1071,6 +1108,10 @@ class ContextExternalTool < ActiveRecord::Base
 
   def self.find_external_tool_by_id(id, context)
     where(id:, context: contexts_to_search(context)).first
+  end
+
+  def self.find_external_tool_client_id(id, context)
+    where(id:, context: contexts_to_search(context)).pluck(:developer_key_id).map { Shard.global_id_for _1 }
   end
 
   # Order of precedence: Basic LTI defines precedence as first
@@ -1468,6 +1509,7 @@ class ContextExternalTool < ActiveRecord::Base
 
     # is there a 1.1 tool that matches this one?
     matching_1_1_tool = self.class.find_external_tool(url || domain, context, nil, id, prefer_1_1: true)
+
     return if matching_1_1_tool.nil? || matching_1_1_tool.use_1_3?
 
     delay_if_production(priority: Delayed::LOW_PRIORITY).migrate_content_to_1_3(matching_1_1_tool.id)
@@ -1480,6 +1522,10 @@ class ContextExternalTool < ActiveRecord::Base
   # @see Lti::Migratable
   def migrate_content_to_1_3(tool_id)
     tool_id ||= id
+
+    # Counters for tracking migration progress
+    total_batches = 0
+
     GuardRail.activate(:secondary) do
       VALID_MIGRATION_TYPES.each do |type|
         next unless type.include?(Lti::Migratable)
@@ -1491,7 +1537,9 @@ class ContextExternalTool < ActiveRecord::Base
             priority: Delayed::LOW_PRIORITY,
             n_strand: ["ContextExternalTool#migrate_content_to_1_3", tool_id]
           ).prepare_direct_batch_for_migration(ids, type)
+          total_batches += 1
         end
+
         type.scope_to_context(
           type.indirectly_associated_items(tool_id), context
         ).find_ids_in_batches do |ids|
@@ -1499,9 +1547,22 @@ class ContextExternalTool < ActiveRecord::Base
             priority: Delayed::LOW_PRIORITY,
             n_strand: ["ContextExternalTool#migrate_content_to_1_3", tool_id]
           ).prepare_indirect_batch_for_migration(tool_id, ids, type)
+          total_batches += 1
         end
       end
     end
+
+    prog = Progress.create!(context: self, tag: "migrate_content_to_1_3", workflow_state: "queued", results: { total_batches: total_batches + 1, tool_id: })
+
+    delay_if_production(
+      priority: Delayed::LOW_PRIORITY,
+      n_strand: ["ContextExternalTool#migrate_content_to_1_3", tool_id]
+    ).mark_migration_completed(prog.id)
+  end
+
+  def mark_migration_completed(prog_id)
+    prog = Progress.find(prog_id)
+    prog.update!(workflow_state: "completed")
   end
 
   # For the given content_type, migrates the direct batch
@@ -1543,6 +1604,11 @@ class ContextExternalTool < ActiveRecord::Base
     end
   end
 
+  # The result of this method should correspond with conditional rendering of the ExternalMigrationInfo component
+  def migrating?
+    progresses.where.not(workflow_state: "completed").exists?
+  end
+
   # Intended to return true only for Instructure-owned tools that have been
   # properly configured as "internal" tools. Used for some custom variable substitutions.
   # Will only return true if the launch_url's domain ends with a domain from the allowlist,
@@ -1551,7 +1617,11 @@ class ContextExternalTool < ActiveRecord::Base
     return false unless developer_key&.internal_service?
     return false unless launch_url
 
-    domain = URI.parse(launch_url).host rescue nil
+    begin
+      domain = URI.parse(launch_url).host
+    rescue URI::InvalidURIError
+      # ignore
+    end
     return false unless domain
 
     internal_tool_domain_allowlist.any? { |d| domain.end_with?(".#{d}") || domain == d }
@@ -1604,7 +1674,6 @@ class ContextExternalTool < ActiveRecord::Base
   # id, and the tool name
   def default_icon_path
     Rails.application.routes.url_helpers.lti_tool_default_icon_path(
-      id: global_developer_key_id || global_id,
       name:
     )
   end
@@ -1614,15 +1683,17 @@ class ContextExternalTool < ActiveRecord::Base
 
     allowed_domains = Setting.get("#{placement}_allowed_launch_domains", "").split(",").map(&:strip).reject(&:empty?)
     allowed_dev_keys = Setting.get("#{placement}_allowed_dev_keys", "").split(",").map(&:strip).reject(&:empty?)
-    allowed_domains.include?(domain) || allowed_dev_keys.include?(Shard.global_id_for(developer_key&.id).to_s)
+
+    allowed_dev_keys.include?(global_developer_key_id.to_s) ||
+      allowed_domains.include?(domain) ||
+      allowed_domains.any? do |allowed_domain|
+        # wildcard domains: allowed_domain "*.foo.com" -> domain.end_with? ".foo.com"
+        allowed_domain.start_with?("*.") && domain&.end_with?(allowed_domain[1..])
+      end
   end
 
-  def placement_pinned?(placement)
-    return false unless Lti::ResourcePlacement::PINNABLE_PLACEMENTS.include? placement.to_sym
-
-    pinned_launch_domains = Setting.get("#{placement}_pinned_launch_domains", "").split(",").map(&:strip).reject(&:empty?)
-    pinned_dev_keys = Setting.get("#{placement}_pinned_dev_keys", "").split(",").map(&:to_i)
-    pinned_launch_domains.include?(domain) || pinned_dev_keys.include?(Shard.global_id_for(developer_key&.id))
+  def on_by_default?(on_by_default_ids)
+    on_by_default_ids.include?(global_developer_key_id)
   end
 
   private
@@ -1644,7 +1715,39 @@ class ContextExternalTool < ActiveRecord::Base
 
   def clear_tool_domain_cache
     if saved_change_to_domain? || saved_change_to_url? || saved_change_to_workflow_state?
-      context.clear_tool_domain_cache
+      context&.clear_tool_domain_cache
     end
+  end
+
+  def update_unified_tool_id
+    return unless context.root_account.feature_enabled?(:update_unified_tool_id)
+
+    unified_tool_id = if use_1_3? && (utid = developer_key.tool_configuration.unified_tool_id)
+                        utid
+                      else
+                        LearnPlatform::GlobalApi.get_unified_tool_id(**params_for_unified_tool_id)
+                      end
+    update_column(:unified_tool_id, unified_tool_id) if unified_tool_id
+  end
+  handle_asynchronously :update_unified_tool_id, priority: Delayed::LOW_PRIORITY
+
+  def params_for_unified_tool_id
+    params = {
+      lti_name: name,
+      lti_tool_id: tool_id,
+      lti_domain: domain,
+      lti_version:,
+      lti_url: url,
+    }
+    params[:lti_redirect_url] = settings.dig(:custom_fields, :url) if tool_id == "redirect"
+    params
+  end
+  private :params_for_unified_tool_id
+
+  def update_unified_tool_id?
+    return false if workflow_state == "deleted"
+
+    fields_for_utid = %w[tool_id name domain url settings]
+    !!saved_changes.keys.intersect?(fields_for_utid)
   end
 end

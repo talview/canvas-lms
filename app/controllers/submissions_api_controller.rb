@@ -219,6 +219,7 @@ class SubmissionsApiController < ApplicationController
                                              rubric_assessments_read_state
                                              mark_rubric_assessments_read
                                              mark_submission_item_read]
+  before_action :check_limited_access_for_students, only: %i[create_file]
   include Api::V1::Progress
   include Api::V1::Submission
   include Submissions::ShowHelper
@@ -227,7 +228,7 @@ class SubmissionsApiController < ApplicationController
   #
   # A paginated list of all existing submissions for an assignment.
   #
-  # @argument include[] [String, "submission_history"|"submission_comments"|"rubric_assessment"|"assignment"|"visibility"|"course"|"user"|"group"|"read_status"]
+  # @argument include[] [String, "submission_history"|"submission_comments"|"submission_html_comments"|"rubric_assessment"|"assignment"|"visibility"|"course"|"user"|"group"|"read_status"|"student_entered_score"]
   #   Associations to include with the group.  "group" will add group_id and group_name.
   #
   # @argument grouped [Boolean]
@@ -355,7 +356,7 @@ class SubmissionsApiController < ApplicationController
   #   Determines whether ordered results are returned in ascending or descending
   #   order.  Defaults to "ascending".  Doesn't affect results for "grouped" mode.
   #
-  # @argument include[] [String, "submission_history"|"submission_comments"|"rubric_assessment"|"assignment"|"total_scores"|"visibility"|"course"|"user"|"sub_assignment_submissions"]
+  # @argument include[] [String, "submission_history"|"submission_comments"|"submission_html_comments"|"rubric_assessment"|"assignment"|"total_scores"|"visibility"|"course"|"user"|"sub_assignment_submissions"|"student_entered_score"]
   #   Associations to include with the group. `total_scores` requires the
   #   `grouped` argument.
   #
@@ -473,12 +474,11 @@ class SubmissionsApiController < ApplicationController
       return render json: { error: "invalid assignment ids requested" }, status: :forbidden
     end
 
-    assignment_visibilities = {}
     assignment_visibilities = if Account.site_admin.feature_enabled?(:selective_release_backend)
                                 unless student_ids.is_a?(Array)
                                   student_ids = student_ids.pluck(:user_id)
                                 end
-                                AssignmentVisibility::AssignmentVisibilityService.users_with_visibility_by_assignment_for_users(course_id: @context.id, user_ids: student_ids, assignment_ids: assignments.map(&:id))
+                                AssignmentVisibility::AssignmentVisibilityService.users_with_visibility_by_assignment(course_id: @context.id, user_ids: student_ids, assignment_ids: assignments.map(&:id))
                               else
                                 AssignmentStudentVisibility.users_with_visibility_by_assignment(course_id: @context.id, user_id: student_ids, assignment_id: assignments.map(&:id))
                               end
@@ -622,7 +622,7 @@ class SubmissionsApiController < ApplicationController
   #
   # Get a single submission, based on user id.
   #
-  # @argument include[] [String, "submission_history"|"submission_comments"|"rubric_assessment"|"full_rubric_assessment"|"visibility"|"course"|"user"|"read_status"]
+  # @argument include[] [String, "submission_history"|"submission_comments"|"submission_html_comments"|"rubric_assessment"|"full_rubric_assessment"|"visibility"|"course"|"user"|"read_status"|"student_entered_score"]
   #   Associations to include with the group.
   def show
     bulk_load_attachments_and_previews([@submission])
@@ -878,6 +878,7 @@ class SubmissionsApiController < ApplicationController
         end
 
         if params[:submission].key?(:sticker)
+          InstStatsd::Statsd.increment("submission_stickers.sticker_applied")
           submission[:sticker] = params[:submission].delete(:sticker)
         end
 
@@ -925,7 +926,9 @@ class SubmissionsApiController < ApplicationController
           custom_status = @context.custom_grade_statuses.find(submission[:custom_grade_status_id])
         end
 
-        @submissions.each do |sub|
+        @submissions.each do |original_sub|
+          sub = effective_submission(original_sub, submission[:sub_assignment_tag])
+
           if custom_status
             sub.custom_grade_status = custom_status
           elsif submission.key?(:late_policy_status)
@@ -941,6 +944,7 @@ class SubmissionsApiController < ApplicationController
           # new submission version on this request.
           previously_graded = graded_just_now && (sub.grade.present? || sub.excused?)
           previously_graded ? sub.save! : sub.with_versioning(explicit: true) { sub.save! }
+          original_sub.reload
         end
       end
 
@@ -1004,7 +1008,7 @@ class SubmissionsApiController < ApplicationController
       if visiblity_included
         user_ids = @submissions.map(&:user_id)
         users_with_visibility = if Account.site_admin.feature_enabled?(:selective_release_backend)
-                                  AssignmentVisibility::AssignmentVisibilityService.assignment_visible_to_students_in_course(course_ids: [@context], assignment_ids: [@assignment.id], user_ids:).map(&:user_id)
+                                  AssignmentVisibility::AssignmentVisibilityService.assignments_visible_to_students(course_ids: @context, assignment_ids: @assignment.id, user_ids:).map(&:user_id)
                                 else
                                   AssignmentStudentVisibility.where(course_id: @context, assignment_id: @assignment, user_id: user_ids).pluck(:user_id).to_set
                                 end
@@ -1038,6 +1042,19 @@ class SubmissionsApiController < ApplicationController
       end
       render json:
     end
+  end
+
+  def effective_submission(sub, sub_assignment_tag)
+    assignment = sub.assignment
+
+    return sub unless sub_assignment_tag.present?
+    return sub unless assignment.checkpoints_parent?
+
+    sub_assignment = assignment.find_checkpoint(sub_assignment_tag)
+
+    return sub if sub_assignment.nil?
+
+    sub_assignment.all_submissions.find_by(user: sub.user) || sub
   end
 
   # @API Grade or comment on a submission by anonymous id
@@ -1246,7 +1263,7 @@ class SubmissionsApiController < ApplicationController
       student_scope = context.students_visible_to(@current_user, include: :inactive)
 
       if Account.site_admin.feature_enabled?(:selective_release_backend)
-        visible_assignment_user_ids = AssignmentVisibility::AssignmentVisibilityService.assignments_visible_in_course(assignment_ids:, course_id: context.id).map(&:user_id)
+        visible_assignment_user_ids = AssignmentVisibility::AssignmentVisibilityService.assignments_visible_to_students(assignment_ids:, course_ids: context.id).map(&:user_id)
         student_scope = student_scope.where(id: visible_assignment_user_ids).distinct.order(:id)
       else
         student_scope = student_scope
@@ -1264,7 +1281,7 @@ class SubmissionsApiController < ApplicationController
       student_displays = students.map do |student|
         user_display = user_display_json(student, @context)
         if Account.site_admin.feature_enabled?(:selective_release_backend)
-          visible_assignment_ids = AssignmentVisibility::AssignmentVisibilityService.assignments_visible_to_student_by_assignment(assignment_ids:, user_id: student.id).map(&:assignment_id)
+          visible_assignment_ids = AssignmentVisibility::AssignmentVisibilityService.assignments_visible_to_students(assignment_ids:, user_ids: student.id).map(&:assignment_id)
           user_display["assignment_ids"] = visible_assignment_ids
         else
           user_display["assignment_ids"] = student.assignment_student_visibilities
@@ -1332,7 +1349,7 @@ class SubmissionsApiController < ApplicationController
     end
 
     assignment_ids = grade_data.keys
-    @assignments = api_find_all(@context.assignments.active, assignment_ids)
+    @assignments = api_find_all(@context.assignments_scope, assignment_ids)
 
     unless @assignments.all?(&:published?) &&
            @context.grants_right?(@current_user, session, :manage_grades)
@@ -1668,9 +1685,9 @@ class SubmissionsApiController < ApplicationController
       bulk_load_attachments_and_previews(submission_batch)
       user_ids = submission_batch.map(&:user_id)
       users_with_visibility = if Account.site_admin.feature_enabled?(:selective_release_backend)
-                                AssignmentVisibility::AssignmentVisibilityService.assignment_visible_to_students_in_course(
-                                  course_ids: [@context.id],
-                                  assignment_ids: [@assignment.id],
+                                AssignmentVisibility::AssignmentVisibilityService.assignments_visible_to_students(
+                                  course_ids: @context.id,
+                                  assignment_ids: @assignment.id,
                                   user_ids:
                                 ).map(&:user_id)
                               else

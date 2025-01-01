@@ -17,7 +17,7 @@
  */
 import ReactDOM from 'react-dom'
 import React from 'react'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import {tabIdFromElement} from './course_settings_helper'
 import {isMidnight} from '@instructure/moment-utils'
@@ -40,7 +40,7 @@ import 'jqueryui/tabs'
 
 import {GradingSchemesSelector} from '@canvas/grading-scheme'
 
-const I18n = useI18nScope('course_settings')
+const I18n = createI18nScope('course_settings')
 
 const GradePublishing = {
   status: null,
@@ -103,7 +103,7 @@ const GradePublishing = {
             'Are you sure you want to sync these grades to the student information system? You should only do this if all your grades have been finalized.'
           )
 
-    // eslint-disable-next-line no-alert
+     
     if (!window.confirm(confirmMessage)) {
       return
     }
@@ -241,7 +241,7 @@ $(document).ready(function () {
     },
   })
   $('.cant_delete_section_link').click(function (_event) {
-    // eslint-disable-next-line no-alert
+     
     window.alert($(this).attr('title'))
     return false
   })
@@ -388,6 +388,7 @@ $(document).ready(function () {
         // special value indicating the default grading scheme
         selectedGradingSchemeId = undefined
       }
+       
       ReactDOM.render(
         <GradingSchemesSelector
           canManage={ENV.PERMISSIONS.manage_grading_schemes}
@@ -419,6 +420,7 @@ $(document).ready(function () {
           renderGradingSchemeSelector($('#grading_standard_id').val())
         } else {
           $('#grading_standard_id').val('')
+           
           ReactDOM.render(<></>, grading_scheme_selector)
           $course_form.find('.grading_scheme_selector').hide()
         }
@@ -452,13 +454,27 @@ $(document).ready(function () {
         .find('.grading_standard_checkbox')
         .prop('checked')
 
+      const errorMessages = []
       if (rqdEnabled && !hasCourseDefaultGradingScheme) {
-        $.flashError(
+        errorMessages.push(
           I18n.t(
-            'errors.restrict_quantitative_data',
             'If "Restrict view of quantitative data" is enabled, then the course must have a default grading scheme enabled.'
           )
         )
+      }
+
+      if (
+        data['course[start_at]'].length > 0 &&
+        data['course[conclude_at]'].length > 0 &&
+        data['course[conclude_at]'] < data['course[start_at]']
+      ) {
+        errorMessages.push(
+          I18n.t('The course end date can not occur before the course start date.')
+        )
+      }
+
+      if (errorMessages.length > 0) {
+        renderFlashError(errorMessages.join(' '))
         return false
       }
 
@@ -471,6 +487,7 @@ $(document).ready(function () {
       $('#course_reload_form').submit()
     },
     error(_data) {
+      renderFlashError(I18n.t('There was an error saving the changes to the course.'))
       $(this).loadingImage('remove')
     },
     disableWhileLoading: 'spin_on_success',
@@ -489,7 +506,7 @@ $(document).ready(function () {
       enrollment_data.associated_user_id,
       enrollment => {
         if (enrollment) {
-          // eslint-disable-next-line @typescript-eslint/no-shadow
+           
           const $user = $('.observer_enrollments .user_' + enrollment.user_id)
           const $enrollment_link = $user.find('.enrollment_link.enrollment_' + enrollment.id)
           $enrollment_link.find('.associated_user.associated').showIf(enrollment.associated_user_id)
@@ -542,6 +559,10 @@ $(document).ready(function () {
       }
     )
   })
+
+  const renderFlashError = errorMessage => {
+    $.flashError(errorMessage)
+  }
 
   const $default_edit_roles_select = $('#course_default_wiki_editing_roles')
   $default_edit_roles_select.data(
@@ -649,7 +670,7 @@ $(document).ready(function () {
 
       let found_current = false
       visibility_options.each((_index, item) => {
-        // eslint-disable-next-line eqeqeq
+         
         const isCourseSel = item == course_visibility[0]
         if (isCourseSel) found_current = true
         if (isCourseSel || (allow_tighter && !found_current) || (allow_looser && found_current)) {

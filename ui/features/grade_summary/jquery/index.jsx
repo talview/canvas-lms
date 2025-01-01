@@ -30,7 +30,7 @@ import React from 'react'
 import ReactDOM from 'react-dom'
 import gradingPeriodSetsApi from '@canvas/grading/jquery/gradingPeriodSetsApi'
 import htmlEscape from '@instructure/html-escape'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import round from '@canvas/round'
 import numberHelper from '@canvas/i18n/numberHelper'
 import CourseGradeCalculator from '@canvas/grading/CourseGradeCalculator'
@@ -46,7 +46,7 @@ import {scoreToPercentage, scoreToScaledPoints} from '@canvas/grading/GradeCalcu
 import useStore from '../react/stores'
 import replaceTags from '@canvas/util/replaceTags'
 
-const I18n = useI18nScope('gradingGradeSummary')
+const I18n = createI18nScope('gradingGradeSummary')
 
 const SUBMISSION_UNREAD_PREFIX = 'submission_unread_dot_'
 
@@ -136,7 +136,7 @@ const GradeSummary = {
     }
 
     // set 'isChanged' to true if the user entered the score already on the submission
-    const isChanged = score.numericalValue != originalScore.numericalValue // eslint-disable-line eqeqeq
+    const isChanged = score.numericalValue != originalScore.numericalValue  
 
     // update '.what_if_score' with the parsed value from '#grade_entry'
     $assignment.find('.what_if_score').text(score.formattedValue)
@@ -481,7 +481,8 @@ function calculateTotals(calculatedGrades, currentOrFinal, groupWeightingScheme)
       scoreToLetterGrade(
         scoreToUse,
         grading_scheme,
-        ENV.course_active_grading_scheme?.points_based
+        ENV.course_active_grading_scheme?.points_based,
+        ENV.course_active_grading_scheme?.scaling_factor
       ) || I18n.t('N/A')
 
     $('.final_grade .letter_grade').text(GradeFormatHelper.replaceDashWithMinus(letterGrade))
@@ -506,7 +507,8 @@ function calculateTotals(calculatedGrades, currentOrFinal, groupWeightingScheme)
             Number(scaledPointsPossible.toFixed(2))
           ),
           grading_scheme,
-          ENV.course_active_grading_scheme.points_based
+          ENV.course_active_grading_scheme.points_based,
+          scaledPointsPossible
         ) || I18n.t('N/A')
 
       $('.final_grade .letter_grade').text(GradeFormatHelper.replaceDashWithMinus(letterGrade))
@@ -653,6 +655,10 @@ function bindShowAllDetailsButton($ariaAnnouncer) {
           $(`#rubric_${assignmentId}`).show()
           $(`#grade_info_${assignmentId}`).show()
           $(`#final_grade_info_${assignmentId}`).show()
+          $(`.parent_assignment_id_${assignmentId}`).show()
+          $(`#parent_assignment_id_${assignmentId} i`)
+            .removeClass('icon-arrow-open-end')
+            .addClass('icon-arrow-open-down')
         }
       })
       $ariaAnnouncer.text(I18n.t('assignment details expanded'))
@@ -660,10 +666,19 @@ function bindShowAllDetailsButton($ariaAnnouncer) {
       $button.text(I18n.t('Show All Details'))
       $('tr.rubric_assessments').hide()
       $('tr.comments').hide()
+      $('tr.sub_assignment_row').hide()
+      $(`.toggle_sub_assignments i`)
+        .removeClass('icon-arrow-open-down')
+        .addClass('icon-arrow-open-end')
       $ariaAnnouncer.text(I18n.t('assignment details collapsed'))
     }
   })
 }
+
+$(window).on('beforeprint', function () {
+  $('tr.sub_assignment_row').show()
+  $(`.toggle_sub_assignments i`).removeClass('icon-arrow-open-end').addClass('icon-arrow-open-down')
+})
 
 function displayPageContent() {
   document.getElementById('grade-summary-content').style.display = ''
@@ -704,6 +719,7 @@ function getCourseId() {
 }
 
 function renderSelectMenuGroup() {
+   
   ReactDOM.render(
     <SelectMenuGroup {...GradeSummary.getSelectMenuGroupProps()} />,
     document.getElementById('GradeSummarySelectMenuGroup')
@@ -711,6 +727,7 @@ function renderSelectMenuGroup() {
 }
 
 function renderGradeSummaryTable() {
+   
   ReactDOM.render(<GradeSummaryManager />, document.getElementById('grade-summary-react'))
 }
 
@@ -758,6 +775,7 @@ function getSubmissionCommentsTrayProps(assignmentId) {
 
 function renderSubmissionCommentsTray() {
   ReactDOM.unmountComponentAtNode(document.getElementById('GradeSummarySubmissionCommentsTray'))
+   
   ReactDOM.render(
     <SubmissionCommentsTray
       onDismiss={() => {
@@ -774,6 +792,7 @@ function renderClearBadgeCountsButton() {
   ReactDOM.unmountComponentAtNode(document.getElementById('ClearBadgeCountsButton'))
   const userId = ENV.student_id
   const courseId = ENV.course_id ?? ENV.context_asset_string.replace('course_', '')
+   
   ReactDOM.render(
     <ClearBadgeCountsButton userId={userId} courseId={courseId} />,
     document.getElementById('ClearBadgeCountsButton')
@@ -793,7 +812,7 @@ function setup() {
       $('#grades_summary .revert_score_link').each(function () {
         $(this).trigger('click', {skipEval: true, refocus: false})
       })
-      $('#.show_guess_grades.exists').show()
+      $('.show_guess_grades.exists').show()
       GradeSummary.updateStudentGrades()
       showAllWhatIfButton.focus()
       $.screenReaderFlashMessageExclusive(I18n.t('Grades are now reverted to original scores'))
@@ -840,6 +859,25 @@ function setup() {
         const mark_rubric_comments_read_url = $unreadIcon.data('href')
         $.ajaxJSON(mark_rubric_comments_read_url, 'PUT', {}, () => {})
         $unreadIcon.remove()
+      }
+    })
+    $('.toggle_sub_assignments').on('click', function (event) {
+      event.preventDefault()
+      const assignmentcode = $(this).prop('id')
+      if ($(`#${assignmentcode} i`).prop('class').includes('icon-arrow-open-end')) {
+        $(`.${assignmentcode}`).show()
+        $(`.${assignmentcode}`).prop('aria-expanded', true)
+        $(`#${assignmentcode} i`)
+          .removeClass('icon-arrow-open-end')
+          .addClass('icon-arrow-open-down')
+        $('#aria-announcer').text(I18n.t('Sub Assignment details expanded'))
+      } else {
+        $(`.${assignmentcode}`).hide()
+        $(`.${assignmentcode}`).prop('aria-expanded', true)
+        $(`#${assignmentcode} i`)
+          .removeClass('icon-arrow-open-down')
+          .addClass('icon-arrow-open-end')
+        $('#aria-announcer').text(I18n.t('Sub Assignment details collapsed'))
       }
     })
 
@@ -998,4 +1036,5 @@ export default lodashExtend(GradeSummary, {
   renderClearBadgeCountsButton,
   updateScoreForAssignment,
   updateStudentGrades,
+  bindShowAllDetailsButton,
 })

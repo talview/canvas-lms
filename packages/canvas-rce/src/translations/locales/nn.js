@@ -169,6 +169,7 @@ const locale = {
   "clubs_suit_c1ffedff": { "message": "Kløver (Korttype)" },
   "collaborations_5c56c15f": { "message": "Samarbeid" },
   "collapse_to_hide_types_1ab46d2e": { "message": "Skjul og lukk { types }" },
+  "color_a363e1b0": { "message": "Farge" },
   "color_picker_6b359edf": { "message": "Fargeveljar" },
   "color_picker_colorname_selected_ad4cf400": {
     "message": "Fargeveljar ({ colorName } vald)"
@@ -176,6 +177,7 @@ const locale = {
   "column_e1ae5c64": { "message": "kollonne" },
   "column_group_1c062368": { "message": "kollonnegruppe" },
   "complex_numbers_a543d004": { "message": "Komplekse tal" },
+  "compose_44c904f4": { "message": "Komponere" },
   "computer_1d7dfa6f": { "message": "Datamaskin" },
   "congruent_5a244acd": { "message": "Kongruent" },
   "contains_311f37b7": { "message": "Inneheld" },
@@ -189,6 +191,7 @@ const locale = {
   "content_subtype_5ce35e88": { "message": "Innhald underkategori" },
   "content_type_2cf90d95": { "message": "Innhaldstype" },
   "coproduct_e7838082": { "message": "Koprodukt" },
+  "copy_9748f9f": { "message": "Kopi" },
   "copyright_holder_66ee111": { "message": "Rettshavar:" },
   "could_not_insert_content_itemtype_items_are_not_cu_638dfecd": {
     "message": "Kunne ikkje sette inn innhald: \"{ itemType }\" er for augneblinken ikkje støtta i Canvas"
@@ -231,6 +234,7 @@ const locale = {
   "decorative_type_upper_f2c95e3": { "message": "Dekorativt { TYPE_UPPER }" },
   "decrease_indent_d9cf469d": { "message": "Reduser innrykk" },
   "deep_purple_bb3e2907": { "message": "Mørk lilla" },
+  "default_9db103d": { "message": "Standard" },
   "default_bulleted_unordered_list_47079da8": {
     "message": "standard uordna liste med kulepunkt"
   },
@@ -300,7 +304,6 @@ const locale = {
   },
   "edit_icon_2c6b0e91": { "message": "Rediger ikon" },
   "edit_link_7f53bebb": { "message": "Endre lenke" },
-  "editor_statusbar_26ac81fc": { "message": "Statusrad editor" },
   "element_starting_with_start_91bf4c3b": {
     "message": "Element som startar med { start }"
   },
@@ -340,6 +343,7 @@ const locale = {
   },
   "expand_to_see_types_f5d29352": { "message": "Vis og sjå { types }" },
   "external_link_d3f9e62a": { "message": "Ekstern lenke" },
+  "external_tool_frame_70b32473": { "message": "Ekstern verktøyramme" },
   "external_tools_6e77821": { "message": "Eksterne verktøy" },
   "extra_large_b6cdf1ff": { "message": "Ekstra stor" },
   "extra_small_9ae33252": { "message": "Svært liten" },
@@ -622,9 +626,6 @@ const locale = {
   "multi_color_image_63d7372f": { "message": "Fleirfargebilde" },
   "multiplication_sign_15f95c22": { "message": "Multiplikasjonsteikn" },
   "music_icon_4db5c972": { "message": "Musikk-ikon" },
-  "must_be_at_least_width_x_height_px_41dc825e": {
-    "message": "Må vere minst { width } x { height }px"
-  },
   "my_files_2f621040": { "message": "Mine filer" },
   "n_th_root_9991a6e4": { "message": "N-te rot" },
   "nabla_1e216d25": { "message": "Nabla" },
@@ -717,9 +718,6 @@ const locale = {
   },
   "outline_color_3ef2cea7": { "message": "Farge på omriss" },
   "outline_size_a6059a21": { "message": "Storleik på omriss" },
-  "p_is_not_a_valid_protocol_which_must_be_ftp_http_h_adf13fc2": {
-    "message": "{ p } er ikkje ein gyldig protokoll. Den må vere anten ftp, http, https, mailto, skype, tel, eller utelatast"
-  },
   "page_50c4823d": { "message": "Side" },
   "pages_e5414c2c": { "message": "Sider" },
   "paragraph_5e5ad8eb": { "message": "Avsnitt" },
@@ -816,6 +814,7 @@ const locale = {
   "result_index_of_max_7db5ad8b": {
     "message": "Resultat { index } av { max }."
   },
+  "retry_ebd5f8ba": { "message": "Prøv på nytt" },
   "rho_a0244a36": { "message": "Rho" },
   "rho_variant_415245cd": { "message": "Rho (Variant)" },
   "rich_content_editor_2708ef21": {
@@ -887,9 +886,13 @@ const locale = {
     "message": "Bruk Shift-O for å opne den pene HTML-editoren."
   },
   "shortcut_911d6255": { "message": "Snarveg" },
+  "show_all_967a90f0": { "message": "Vis alt" },
   "show_audio_options_b489926b": { "message": "Vis lydalternativ" },
   "show_image_options_1e2ecc6b": { "message": "Vis alternativ for bilde" },
   "show_link_options_545338fd": { "message": "Vis lenkealternativ" },
+  "show_studio_media_options_a0c748c6": {
+    "message": "Vis medievalg for studio"
+  },
   "show_video_options_6ed3721a": { "message": "Vis videoalternativ" },
   "sighted_users_browse_web_pages_quickly_looking_for_1d4db0c1": {
     "message": "Personer med normalt syn navigerer nettsider raskt ved å sjå etter store eller utheva titlar. Skjermlesarar brukar titlar for å forstå konteksten. Titlar burde bruke riktig struktur."
@@ -938,8 +941,10 @@ const locale = {
   "start_over_f7552aa9": { "message": "Start på nytt" },
   "start_recording_9a65141a": { "message": "Start opptak" },
   "steel_blue_14296f08": { "message": "Stålblå" },
+  "studio_media_options_ee504361": { "message": "Medieval for studio" },
   "styles_2aa721ef": { "message": "Stilar" },
   "submit_a3cc6859": { "message": "Send!" },
+  "submitting_b90fac62": { "message": "Leverer..." },
   "subscript_59744f96": { "message": "Senka skrift" },
   "subset_19c1a92f": { "message": "Delmengd" },
   "subset_strict_8d8948d6": { "message": "Delmengd (Streng)" },
@@ -1046,6 +1051,7 @@ const locale = {
     "message": "Diagonal pil opp til høgre"
   },
   "up_c553575d": { "message": "Opp" },
+  "updated_link_a827e441": { "message": "Oppdatert lenke" },
   "upload_document_253f0478": { "message": "Last opp dokument frå disk" },
   "upload_file_fd2361b8": { "message": "Last opp fil" },
   "upload_image_6120b609": { "message": "Last opp bilde frå disk" },

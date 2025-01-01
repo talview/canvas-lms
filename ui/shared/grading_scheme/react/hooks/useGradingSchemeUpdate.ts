@@ -19,7 +19,7 @@
 import {useState, useCallback} from 'react'
 
 import doFetchApi from '@canvas/do-fetch-api-effect'
-import type {GradingScheme, GradingSchemeUpdateRequest} from '../../gradingSchemeApiModel.d'
+import type {GradingScheme, GradingSchemeUpdateRequest} from '../../gradingSchemeApiModel'
 import {ApiCallStatus} from './ApiCallStatus'
 import {buildContextPath} from './buildContextPath'
 
@@ -47,7 +47,6 @@ export const useGradingSchemeUpdate = (): {
 
       try {
         setUpdateGradingSchemeStatus(ApiCallStatus.PENDING)
-        // @ts-expect-error
         const result = await doFetchApi<GradingScheme>({
           path: `${contextPath}/grading_schemes/${gradingSchemeUpdateRequest.id}`,
           method: 'PUT',
@@ -57,6 +56,7 @@ export const useGradingSchemeUpdate = (): {
           throw new Error(result.response.statusText)
         }
         setUpdateGradingSchemeStatus(ApiCallStatus.COMPLETED)
+        // @ts-expect-error
         return result.json
       } catch (err) {
         setUpdateGradingSchemeStatus(ApiCallStatus.FAILED)

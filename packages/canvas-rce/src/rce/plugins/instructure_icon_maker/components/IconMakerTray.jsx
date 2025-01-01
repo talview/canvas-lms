@@ -198,6 +198,9 @@ export function IconMakerTray({editor, onUnmount, editing, canvasOrigin}) {
   const onClose = event => {
     if (shouldIgnoreClose(event?.target, editor?.id)) return
     if (statusRef?.current === statuses.LOADING) return
+    // Uploading an image creates a modal on the page. If that modal is open, we don't want to close the tray
+    // eslint-disable-next-line no-extra-boolean-cast
+    if (!!hasOpenModal()) return
     // RCE already uses browser's confirm dialog for unsaved changes
     // Its use here in the Icon Maker tray keeps that consistency
     // eslint-disable-next-line no-restricted-globals, no-alert
@@ -206,6 +209,8 @@ export function IconMakerTray({editor, onUnmount, editing, canvasOrigin}) {
     }
     setIsOpen(false)
   }
+
+  const hasOpenModal = () => document.querySelector('[data-cid="Modal"]')
 
   const isLoading = () => status === statuses.LOADING
 
@@ -338,6 +343,7 @@ export function IconMakerTray({editor, onUnmount, editing, canvasOrigin}) {
       onDismiss={onClose}
       onUnmount={onUnmount}
       mountNode={mountNode}
+      shouldCloseOnDocumentClick={false}
       renderHeader={() => renderHeader(title, settings, onKeyDown, handleAlertDismissal, onClose)}
       renderBody={() =>
         renderBody(

@@ -20,10 +20,10 @@ import $ from 'jquery'
 import React from 'react'
 import PropTypes from 'prop-types'
 import ReactDOM from 'react-dom'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import '@canvas/jquery/jquery.instructure_forms'
 
-const I18n = useI18nScope('conditional_release')
+const I18n = createI18nScope('conditional_release')
 
 const SAVE_TIMEOUT = 15000
 
@@ -62,6 +62,10 @@ class Editor extends React.Component {
     }
   }
 
+  updateAssignmentFromEvent = event => {
+    this.updateAssignment(event.detail.assignmentInfo)
+  }
+
   updateAssignment = (newAttributes = {}) => {
     if (!this.state.editor) {
       return
@@ -77,6 +81,12 @@ class Editor extends React.Component {
       id: newAttributes.id,
       points_possible: newAttributes.points_possible,
       submission_types: newAttributes.submission_types,
+    })
+  }
+
+  saveFromEvent = () => {
+    this.save().then(() => {
+      window.dispatchEvent(new CustomEvent('navigateToDiscussionTopic'))
     })
   }
 
@@ -129,6 +139,9 @@ class Editor extends React.Component {
 
   componentDidMount() {
     this.createNativeEditor()
+
+    window.addEventListener('triggerMasteryPathsUpdateAssignment', this.updateAssignmentFromEvent)
+    window.addEventListener('triggerMasteryPathsSave', this.saveFromEvent)
   }
 
   render() {
@@ -138,6 +151,7 @@ class Editor extends React.Component {
 
 const attach = function (element, type, env) {
   const editor = <Editor env={env} type={type} />
+  // eslint-disable-next-line react/no-render-return-value
   return ReactDOM.render(editor, element)
 }
 

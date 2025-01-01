@@ -19,105 +19,53 @@ import React from 'react'
 import {fireEvent, render, screen, waitFor} from '@testing-library/react'
 import {ZAccountId} from '../../model/AccountId'
 import {DynamicRegistrationWizard} from '../DynamicRegistrationWizard'
-import type {DynamicRegistrationWizardService} from '../DynamicRegistrationWizardService'
 import {success} from '../../../common/lib/apiResult/ApiResult'
 import userEvent from '@testing-library/user-event'
 import {showFlashAlert} from '@canvas/alerts/react/FlashAlert'
-import {LtiScopes, i18nLtiScope} from '../../model/LtiScope'
-import type {LtiConfiguration} from '../../model/lti_tool_configuration/LtiConfiguration'
-import type {LtiImsRegistration} from '../../model/lti_ims_registration/LtiImsRegistration'
-import {ZLtiImsRegistrationId} from '../../model/lti_ims_registration/LtiImsRegistrationId'
-import {ZDeveloperKeyId} from '../../model/developer_key/DeveloperKeyId'
+import {i18nLtiScope} from '@canvas/lti/model/i18nLtiScope'
+import {mockRegistration, mockDynamicRegistrationWizardService} from './helpers'
 import {htmlEscape} from '@instructure/html-escape'
+import {ZUnifiedToolId} from '../../model/UnifiedToolId'
 
-jest.mock('@canvas/alerts/react/FlashAlert')
-
-const mockAlert = showFlashAlert as jest.Mock<typeof showFlashAlert>
-
-const mockService = (
-  mocked?: Partial<DynamicRegistrationWizardService>
-): DynamicRegistrationWizardService => ({
-  fetchRegistrationToken: jest.fn(),
-  deleteDeveloperKey: jest.fn(),
-  getRegistrationByUUID: jest.fn(),
-  updateDeveloperKeyWorkflowState: jest.fn(),
-  updateRegistrationOverlay: jest.fn(),
-  ...mocked,
-})
-
-const mockToolConfiguration = (config?: Partial<LtiConfiguration>): LtiConfiguration => ({
-  title: '',
-  target_link_uri: '',
-  oidc_initiation_url: '',
-  custom_fields: {},
-  is_lti_key: true,
-  scopes: [],
-  extensions: [],
-  ...config,
-})
-
-const mockRegistration = (
-  reg?: Partial<LtiImsRegistration>,
-  config?: LtiConfiguration
-): LtiImsRegistration => ({
-  id: ZLtiImsRegistrationId.parse('1'),
-  lti_tool_configuration: {
-    claims: [],
-    domain: '',
-    messages: [],
-    target_link_uri: '',
-  },
-  developer_key_id: ZDeveloperKeyId.parse('1'),
-  overlay: null,
-  grant_types: [],
-  response_types: [],
-  redirect_uris: [],
-  initiate_login_uri: '',
-  client_name: '',
-  jwks_uri: '',
-  token_endpoint_auth_method: '',
-  contacts: [],
-  scopes: [...Object.values(LtiScopes)],
-  created_at: '',
-  updated_at: '',
-  guid: '',
-  /**
-   * Tool configuration with overlay applied
-   */
-  tool_configuration: mockToolConfiguration(config),
-  /**
-   * The configuration without the overlay applied
-   */
-  default_configuration: mockToolConfiguration(config),
-  ...reg,
-})
+const mockAlert = jest.fn() as jest.Mock<typeof showFlashAlert>
 
 describe('DynamicRegistrationWizard', () => {
   it('renders a loading screen when fetching the registration token', () => {
     const accountId = ZAccountId.parse('123')
+    const unifiedToolId = ZUnifiedToolId.parse('asdf')
 
     const fetchRegistrationToken = jest.fn().mockImplementation(() => new Promise(() => {}))
 
     const getRegistrationByUUID = jest.fn().mockResolvedValue(success(mockRegistration()))
 
-    const service = mockService({fetchRegistrationToken, getRegistrationByUUID})
+    const service = mockDynamicRegistrationWizardService({
+      fetchRegistrationToken,
+      getRegistrationByUUID,
+    })
 
     render(
       <DynamicRegistrationWizard
         dynamicRegistrationUrl="https://example.com"
         service={service}
         accountId={accountId}
+        unifiedToolId={unifiedToolId}
         unregister={() => {}}
+        onSuccessfulRegistration={() => {}}
       />
     )
 
-    expect(fetchRegistrationToken).toHaveBeenCalledWith(accountId)
+    expect(fetchRegistrationToken).toHaveBeenCalledWith(
+      accountId,
+      'https://example.com',
+      unifiedToolId
+    )
     // Ignore screenreader title.
     expect(screen.getByText(/Loading/i, {ignore: 'title'})).toBeInTheDocument()
   })
 
   it('forwards users to the tool', async () => {
     const accountId = ZAccountId.parse('123')
+    const unifiedToolId = ZUnifiedToolId.parse('asdf')
     const fetchRegistrationToken = jest.fn().mockResolvedValue(
       success({
         token: 'reg_token_value',
@@ -126,17 +74,26 @@ describe('DynamicRegistrationWizard', () => {
       })
     )
     const getRegistrationByUUID = jest.fn().mockResolvedValue(success(mockRegistration()))
-    const service = mockService({fetchRegistrationToken, getRegistrationByUUID})
+    const service = mockDynamicRegistrationWizardService({
+      fetchRegistrationToken,
+      getRegistrationByUUID,
+    })
 
     render(
       <DynamicRegistrationWizard
         dynamicRegistrationUrl="https://example.com?foo=bar"
         service={service}
         accountId={accountId}
+        unifiedToolId={unifiedToolId}
         unregister={() => {}}
+        onSuccessfulRegistration={() => {}}
       />
     )
-    expect(fetchRegistrationToken).toHaveBeenCalledWith(accountId)
+    expect(fetchRegistrationToken).toHaveBeenCalledWith(
+      accountId,
+      'https://example.com?foo=bar',
+      unifiedToolId
+    )
     const frame = await waitFor(() => screen.getByTestId('dynamic-reg-wizard-iframe'))
     expect(frame).toBeInTheDocument()
     expect(frame).toBeInstanceOf(HTMLIFrameElement)
@@ -156,7 +113,10 @@ describe('DynamicRegistrationWizard', () => {
       })
     )
     const getRegistrationByUUID = jest.fn().mockResolvedValue(success(mockRegistration()))
-    const service = mockService({fetchRegistrationToken, getRegistrationByUUID})
+    const service = mockDynamicRegistrationWizardService({
+      fetchRegistrationToken,
+      getRegistrationByUUID,
+    })
 
     render(
       <DynamicRegistrationWizard
@@ -164,6 +124,7 @@ describe('DynamicRegistrationWizard', () => {
         dynamicRegistrationUrl="https://example.com/"
         accountId={accountId}
         unregister={() => {}}
+        onSuccessfulRegistration={() => {}}
       />
     )
 
@@ -205,7 +166,7 @@ describe('DynamicRegistrationWizard', () => {
     let reg = mockRegistration()
     const getRegistrationByUUID = jest.fn().mockImplementation(async () => success(reg))
     const deleteDeveloperKey = jest.fn().mockImplementation(async () => success(reg))
-    const service = mockService({
+    const service = mockDynamicRegistrationWizardService({
       fetchRegistrationToken,
       getRegistrationByUUID,
       deleteDeveloperKey,
@@ -218,6 +179,7 @@ describe('DynamicRegistrationWizard', () => {
           dynamicRegistrationUrl="https://example.com/"
           accountId={accountId}
           unregister={() => {}}
+          onSuccessfulRegistration={() => {}}
         />
       )
 

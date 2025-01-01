@@ -75,7 +75,7 @@ Javascript debugging may work but is not yet guaranteed in `inst` CLI.
 
 If you're using VSCode to debug you must install [this](https://marketplace.visualstudio.com/items?itemName=KoichiSasada.vscode-rdbg) VSCode extension.
 
-With `inst` CLI, Ruby debugging in Canvas LMS is on by default. You can change this default in your `~/.inst-cli/config.yml`:
+With `inst` CLI, Ruby debugging in Canvas LMS is on by default. You can change this default in your `~/.inst-cli/inst.yml`:
 
 ```yaml
 inst:
@@ -124,7 +124,7 @@ Running tests in Canvas works best after `inst canvas setup`.
 ### Running Ruby tests
 
 ```bash
-$ docker compose exec web bundle exec rspec spec
+docker compose exec web bundle exec rspec spec
 ```
 
 ### Running javascript tests
@@ -187,12 +187,6 @@ docker compose run --rm js-tests yarn test:jest:watch ui/features/speed_grader/r
 
 To enable Selenium: Add `docker-compose/selenium.override.yml` to your `COMPOSE_FILE` var in `.env`.
 
-For M1 Mac users using Chrome, the official selenium images are not ARM compatible so a standalone chromium image must be used. In the `docker-compose/selenium.override.yml` file, replace the image with the following:
-
-```bash
-image: seleniarm/standalone-chromium
-```
-
 The container used to run the selenium browser is only started when spinning up all docker compose containers, or when specified explicitly. The selenium container needs to be started before running any specs that require selenium. Select a browser to run in selenium through `config/selenium.yml` and then ensure that only the corresponding browser is configured in `docker-compose/selenium.override.yml`.
 
 ```bash
@@ -201,11 +195,7 @@ docker compose up -d selenium-hub
 
 With the container running, you should be able to open a VNC session:
 
-```bash
-open vnc://secret:secret@localhost:5900   # (firefox)
-open vnc://secret:secret@localhost:5901   # (chrome)
-open vnc://secret:secret@localhost:5902   # (edge)
-```
+<http://127.0.0.1:7900/?autoconnect=1&resize=scale&password=secret>
 
 Now just run your choice of selenium specs:
 
@@ -246,6 +236,7 @@ colorized rails log and a browser screenshot taken at the time of the failure.
 ## Extra Services
 
 ### Mail Catcher
+Mail Catcher is used to both send and view email in a development environment.
 
 To enable Mail Catcher: Add `docker-compose/mailcatcher.override.yml` to your `COMPOSE_FILE` var in `.env`. Then you can `docker compose up mailcatcher`.
 

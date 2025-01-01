@@ -30,11 +30,7 @@ describe "conversations new" do
   end
 
   # the js errors caught in here are captured by VICE-2507
-  context "when react_inbox feature flag is ON", :ignore_js_errors do
-    before do
-      Account.default.set_feature_flag! :react_inbox, "on"
-    end
-
+  context "react_inbox", :ignore_js_errors do
     it "shows no conversations selected ui" do
       get "/conversations"
       expect(fj("span:contains('No Conversations to Show')")).to be_present
@@ -177,6 +173,23 @@ describe "conversations new" do
         driver.switch_to.alert.accept
         wait_for_ajaximations
         expect(f("body")).not_to contain_jqcss "div[data-testid='conversation']"
+      end
+
+      it "archives convo then checks availability after a new message" do
+        get "/conversations"
+        f("div[data-testid='conversation']").click
+        wait_for_ajaximations
+        f("button[data-testid='more-options']").click
+        fj("li:contains('Archive')").click
+        driver.switch_to.alert.accept
+        wait_for_ajaximations
+        expect(f("body")).not_to contain_jqcss "div[data-testid='conversation']"
+
+        @convo.add_message(@s[0], "second Message")
+        @convo.save!
+        get "/conversations"
+        wait_for_ajaximations
+        expect(f("body")).to contain_jqcss "div[data-testid='conversation']"
       end
 
       it "does not have archive options button when in sent scope" do

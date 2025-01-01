@@ -51,6 +51,11 @@
 #         "bio": {
 #           "type": "string"
 #         },
+#         "pronunciation": {
+#           "description": "Name pronunciation",
+#           "example": "Sample name pronunciation",
+#           "type": "string"
+#         },
 #         "primary_email": {
 #           "description": "sample_user@example.com",
 #           "example": "sample_user@example.com",
@@ -161,6 +166,8 @@ class ProfileController < ApplicationController
   include Api::V1::UserProfile
 
   include TextHelper
+  include ProfileHelper
+  include Login::OtpHelper
 
   def show
     unless @current_user && @domain_root_account.enable_profiles?
@@ -183,7 +190,13 @@ class ProfileController < ApplicationController
 
     if @user_data[:known_user] # if you can message them, you can see the profile
       js_env enable_gravatar: @domain_root_account&.enable_gravatar?
-      add_crumb(t("crumbs.settings_frd", "%{user}'s Profile", user: @user.short_name), user_profile_path(@user))
+      if @domain_root_account.try(:feature_enabled?, :instui_nav)
+        add_crumb(@user.short_name, user_profile_path(@user))
+        add_crumb(t("Profile"))
+      else
+        add_crumb(t("crumbs.settings_frd", "%{user}'s Profile", user: @user.short_name), user_profile_path(@user))
+      end
+      page_has_instui_topnav
       render
     else
       render :unauthorized
@@ -207,20 +220,25 @@ class ProfileController < ApplicationController
       @user = @current_user
       @user.dismiss_bouncing_channel_message!
     end
-    @user_data = profile_data(@user.profile, @current_user, session, [])
     @channels = @user.communication_channels.unretired
-    @email_channels = @channels.select { |c| c.path_type == "email" }
-    @sms_channels = @channels.select { |c| c.path_type == "sms" }
-    @other_channels = @channels.reject { |c| c.path_type == "email" }
-    @default_email_channel = @email_channels.first
-    @default_pseudonym = @user.primary_pseudonym
-    @pseudonyms = @user.pseudonyms.active_only
-    @password_pseudonyms = @pseudonyms.reject(&:managed_password?)
+    @pseudonyms = @user.pseudonyms_visible_to(@current_user).select(&:active?)
     @context = @user.profile
     set_active_tab "profile_settings"
-    js_env enable_gravatar: @domain_root_account&.enable_gravatar?
+    register_cc_tabs = ["email"]
+    register_cc_tabs.push("sms") if current_mfa_settings != :disabled && otp_via_sms_in_us_region?
+    register_cc_tabs.push("slack") if @user.account.feature_enabled?(:slack_notifications)
+    is_default_account = @domain_root_account == Account.default
+    is_eligible_for_token_regeneration = @current_user.access_tokens.temp_record.grants_right?(logged_in_user, :update)
+    google_drive_oauth_url = oauth_url(service: "google_drive", return_to: settings_profile_url)
+    js_env({ enable_gravatar: @domain_root_account&.enable_gravatar?, register_cc_tabs:, is_default_account:, is_eligible_for_token_regeneration:, google_drive_oauth_url: })
     respond_to do |format|
       format.html do
+        @user_data = profile_data(@user.profile, @current_user, session, [])
+        @password_pseudonyms = @pseudonyms.reject(&:managed_password?)
+        @email_channels = @channels.select { |c| c.path_type == "email" }
+        @sms_channels = @channels.select { |c| c.path_type == "sms" }
+        @other_channels = @channels.reject { |c| c.path_type == "email" }
+        @default_email_channel = @email_channels.first
         @user.reload
         show_tutorial_ff_to_user = @domain_root_account&.feature_enabled?(:new_user_tutorial) &&
                                    @user.participating_instructor_course_ids.any?
@@ -463,6 +481,7 @@ class ProfileController < ApplicationController
     if params[:user_profile] && @user.user_can_edit_profile?
       user_profile_params = params[:user_profile].permit(:title, :pronunciation, :bio)
       user_profile_params.delete(:title) unless @user.user_can_edit_name?
+      user_profile_params.delete(:pronunciation) unless @user.can_change_pronunciation?(@domain_root_account)
       @profile.attributes = user_profile_params
     end
 

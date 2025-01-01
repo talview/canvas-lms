@@ -17,7 +17,7 @@
  */
 
 import {AlertManagerContext} from '@canvas/alerts/react/AlertManager'
-import {ApolloProvider} from 'react-apollo'
+import {ApolloProvider} from '@apollo/client'
 import {handlers} from '../../../../graphql/mswHandlers'
 import {MessageDetailContainer} from '../MessageDetailContainer'
 import {Conversation} from '../../../../graphql/Conversation'
@@ -206,6 +206,14 @@ describe('MessageDetailContainer', () => {
 
         expect(await container.findByTestId('message-detail-header-desktop')).toBeInTheDocument()
         expect(await container.findByText('my student comment')).toBeInTheDocument()
+      })
+
+      it('should not render the reply or reply_all option in header if student lacks permission', async () => {
+        const container = setup({
+          isSubmissionCommentsType: true,
+          conversation: mockSubmissionComment,
+        })
+        expect(container.queryByTestId('message-detail-header-reply-btn')).not.toBeInTheDocument()
       })
 
       it('should render with link in title', async () => {

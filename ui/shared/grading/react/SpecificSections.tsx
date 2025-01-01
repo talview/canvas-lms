@@ -1,4 +1,3 @@
-// @ts-nocheck
 /*
  * Copyright (C) 2019 - present Instructure, Inc.
  *
@@ -21,18 +20,18 @@ import React from 'react'
 import {Checkbox} from '@instructure/ui-checkbox'
 import {List} from '@instructure/ui-list'
 import {View} from '@instructure/ui-view'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
 const {Item: ListItem} = List as any
 
-const I18n = useI18nScope('hide_assignment_grades_tray')
+const I18n = createI18nScope('hide_assignment_grades_tray')
 
 type Props = {
   checked: boolean
   disabled: boolean
   onCheck: (checked: React.ChangeEvent<HTMLInputElement>) => void
   sections: Array<{id: string; name: string}>
-  sectionSelectionChanged: (boolean, string) => void
+  sectionSelectionChanged: (boolean: boolean, string: string) => void
   selectedSectionIds: string[]
 }
 

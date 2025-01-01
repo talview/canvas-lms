@@ -17,7 +17,7 @@
  */
 
 import AnonymousResponseSelector from '@canvas/discussions/react/components/AnonymousResponseSelector/AnonymousResponseSelector'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import React, {useRef, useState, useEffect, useContext} from 'react'
 import {Flex} from '@instructure/ui-flex'
 import {Button} from '@instructure/ui-buttons'
@@ -34,7 +34,7 @@ import {ReplyPreview} from '../ReplyPreview/ReplyPreview'
 import {AttachmentDisplay} from '@canvas/discussions/react/components/AttachmentDisplay/AttachmentDisplay'
 import {DiscussionManagerUtilityContext} from '../../utils/constants'
 
-const I18n = useI18nScope('discussion_posts')
+const I18n = createI18nScope('discussion_posts')
 
 export const DiscussionEdit = props => {
   const rceRef = useRef()
@@ -94,7 +94,7 @@ export const DiscussionEdit = props => {
               }}
             />
           </View>
-          <ReplyPreview {...props.quotedEntry} />
+          {!props.isEdit && <ReplyPreview {...props.quotedEntry} />}
         </span>
       )}
       {props.discussionAnonymousState && props.canReplyAnonymously && !props.isEdit && (
@@ -193,7 +193,7 @@ export const DiscussionEdit = props => {
                         )
                         props.onSubmit(
                           rceContent,
-                          includeQuotedReply ? props.quotedEntry.id : null,
+                          includeQuotedReply ? props.quotedEntry._id : null,
                           attachment,
                           anonymousAuthorState
                         )
@@ -203,7 +203,7 @@ export const DiscussionEdit = props => {
                     color="primary"
                     data-testid="DiscussionEdit-submit"
                     key="rce-reply-button"
-                    interaction={attachmentToUpload ? 'disabled' : 'enabled'}
+                    interaction={attachmentToUpload || props.isSubmitting ? 'disabled' : 'enabled'}
                   >
                     <Text size="medium">{props.isEdit ? I18n.t('Save') : I18n.t('Reply')}</Text>
                   </Button>
@@ -219,7 +219,8 @@ export const DiscussionEdit = props => {
                     setAttachmentToUpload={setAttachmentToUpload}
                     attachmentToUpload={attachmentToUpload}
                     responsiveQuerySizes={responsiveQuerySizes}
-                    isGradedDiscussion={isGradedDiscussion}
+                    attachmentFolderId={ENV?.DISCUSSION?.ATTACHMENTS_FOLDER_ID}
+                    checkContextQuota={!isGradedDiscussion}
                     canAttach={ENV.can_attach_entries}
                   />
                 </View>
@@ -235,7 +236,8 @@ export const DiscussionEdit = props => {
                       setAttachmentToUpload={setAttachmentToUpload}
                       attachmentToUpload={attachmentToUpload}
                       responsiveQuerySizes={responsiveQuerySizes}
-                      isGradedDiscussion={isGradedDiscussion}
+                      attachmentFolderId={ENV?.DISCUSSION?.ATTACHMENTS_FOLDER_ID}
+                      checkContextQuota={!isGradedDiscussion}
                       canAttach={ENV.can_attach_entries}
                     />
                   </View>
@@ -265,6 +267,7 @@ DiscussionEdit.propTypes = {
   quotedEntry: PropTypes.object,
   onInit: PropTypes.func,
   isAnnouncement: PropTypes.bool.isRequired,
+  isSubmitting: PropTypes.bool,
 }
 
 DiscussionEdit.defaultProps = {

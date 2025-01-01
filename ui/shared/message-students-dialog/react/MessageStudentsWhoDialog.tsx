@@ -1,4 +1,3 @@
-// @ts-nocheck
 /*
  * Copyright (C) 2021 - present Instructure, Inc.
  *
@@ -17,7 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import React, {useState, useContext, useEffect} from 'react'
 import {Button, CloseButton, IconButton} from '@instructure/ui-buttons'
 import {Checkbox} from '@instructure/ui-checkbox'
@@ -50,7 +49,7 @@ import {TextInput} from '@instructure/ui-text-input'
 import _ from 'lodash'
 import {OBSERVER_ENROLLMENTS_QUERY} from '../graphql/Queries'
 import Pill from './Pill'
-import {useQuery} from 'react-apollo'
+import {useQuery} from '@apollo/client'
 import {AlertManagerContext} from '@canvas/alerts/react/AlertManager'
 import {
   FileAttachmentUpload,
@@ -80,7 +79,7 @@ export type SendMessageArgs = {
   }
 }
 
-const I18n = useI18nScope('public_message_students_who')
+const I18n = createI18nScope('public_message_students_who')
 
 export type Student = {
   id: string
@@ -140,8 +139,10 @@ const isScored = (assignment: CamelizedAssignment) =>
 const isReassignable = (assignment: CamelizedAssignment) =>
   assignment !== null &&
   (assignment.allowedAttempts === -1 || (assignment.allowedAttempts || 0) > 1) &&
+  // @ts-expect-error
   assignment.dueDate != null &&
   !assignment.submissionTypes.includes(
+    // @ts-expect-error
     'on_paper' || 'external_tool' || 'none' || 'discussion_topic' || 'online_quiz'
   )
 
@@ -152,12 +153,6 @@ const isSubmittableAssignment = (assignment: CamelizedAssignment) =>
   )
 
 const filterCriteria: FilterCriterion[] = [
-  {
-    requiresCutoff: false,
-    shouldShow: isSubmittableAssignment,
-    title: I18n.t('Have submitted'),
-    value: 'submitted',
-  },
   {
     requiresCutoff: false,
     shouldShow: () => false, // Will never show in dropdown, but is used with radio button group on "Have submitted" option
@@ -181,6 +176,12 @@ const filterCriteria: FilterCriterion[] = [
     shouldShow: () => false, // Will never show in dropdown, but is used with checkbox on "Have not yet submitted" option
     title: I18n.t('Have not yet submitted and excused'),
     value: 'unsubmitted_skip_excused',
+  },
+  {
+    requiresCutoff: false,
+    shouldShow: isSubmittableAssignment,
+    title: I18n.t('Have submitted'),
+    value: 'submitted',
   },
   {
     requiresCutoff: false,
@@ -215,29 +216,38 @@ const filterCriteria: FilterCriterion[] = [
   {
     requiresCutoff: true,
     shouldShow: assignment => !assignment,
-    title: I18n.t('Total grade higher than'),
+    title: I18n.t('Have total grade higher than'),
     value: 'total_grade_higher_than',
   },
   {
     requiresCutoff: true,
     shouldShow: assignment => !assignment,
-    title: I18n.t('Total grade lower than'),
+    title: I18n.t('Have total grade lower than'),
     value: 'total_grade_lower_than',
   },
 ]
 
+// @ts-expect-error
 function observerCount(students, observers) {
+  // @ts-expect-error
   return students.reduce((acc, student) => acc + (observers[student.id]?.length || 0), 0)
 }
 
+// @ts-expect-error
 function calculateObserverRecipientCount(selectedObservers) {
   return Object.values(selectedObservers).reduce((acc: number, array: any) => acc + array.length, 0)
 }
 
+// @ts-expect-error
 function filterStudents(criterion, students, cutoff) {
   const newfilteredStudents: Student[] = []
   for (const student of students) {
     switch (criterion?.value) {
+      case 'unsubmitted':
+        if (!student.submittedAt) {
+          newfilteredStudents.push(student)
+        }
+        break
       case 'submitted':
         if (student.submittedAt) {
           newfilteredStudents.push(student)
@@ -250,11 +260,6 @@ function filterStudents(criterion, students, cutoff) {
         break
       case 'submitted_and_not_graded':
         if (student.submittedAt && (!student.grade || student.workflowState === 'pending_review')) {
-          newfilteredStudents.push(student)
-        }
-        break
-      case 'unsubmitted':
-        if (!student.submittedAt) {
           newfilteredStudents.push(student)
         }
         break
@@ -303,6 +308,7 @@ function filterStudents(criterion, students, cutoff) {
   return newfilteredStudents
 }
 
+// @ts-expect-error
 function cumulativeScoreDefaultSubject(criterion, launchContext, cutoff, assignmentGroupName = '') {
   const context =
     launchContext === MSWLaunchContext.ASSIGNMENT_GROUP_CONTEXT ? assignmentGroupName : 'course'
@@ -316,11 +322,17 @@ function cumulativeScoreDefaultSubject(criterion, launchContext, cutoff, assignm
 }
 
 function defaultSubject(
+  // @ts-expect-error
   criterion,
+  // @ts-expect-error
   assignment,
+  // @ts-expect-error
   launchContext,
+  // @ts-expect-error
   cutoff,
+  // @ts-expect-error
   pointsBasedGradingScheme,
+  // @ts-expect-error
   assignmentGroupName
 ) {
   if (cutoff === '') {
@@ -329,14 +341,14 @@ function defaultSubject(
 
   if (assignment) {
     switch (criterion) {
+      case 'unsubmitted':
+        return I18n.t('No submission for %{assignment}', {assignment: assignment.name})
       case 'submitted':
         return I18n.t('Submission for %{assignment}', {assignment: assignment.name})
       case 'submitted_and_graded':
         return I18n.t('Submission and grade for %{assignment}', {assignment: assignment.name})
       case 'submitted_and_not_graded':
         return I18n.t('Submission and no grade for %{assignment}', {assignment: assignment.name})
-      case 'unsubmitted':
-        return I18n.t('No submission for %{assignment}', {assignment: assignment.name})
       case 'graded':
         return I18n.t('Grade for %{assignment}', {assignment: assignment.name})
       case 'ungraded':
@@ -390,7 +402,9 @@ const MessageStudentsWhoDialog = ({
   const [sending, setSending] = useState(false)
   const [message, setMessage] = useState('')
 
+  // @ts-expect-error
   const initializeSelectedObservers = studentCollection =>
+    // @ts-expect-error
     studentCollection.reduce((map, student) => {
       map[student.id] = []
       return map
@@ -418,11 +432,13 @@ const MessageStudentsWhoDialog = ({
   })
 
   const observerEnrollments = data?.course?.enrollmentsConnection?.nodes || []
+  // @ts-expect-error
   const observersByStudentID = observerEnrollments.reduce((results, enrollment) => {
     const observeeId = enrollment.associatedUser._id
     results[observeeId] = results[observeeId] || []
     const existingObservers = results[observeeId]
 
+    // @ts-expect-error
     if (!existingObservers.some(user => user._id === enrollment.user._id)) {
       results[observeeId].push(enrollment.user)
     }
@@ -434,6 +450,7 @@ const MessageStudentsWhoDialog = ({
     subsetLength > 0 && subsetLength < totalLength
 
   const [cutoff, setCutoff] = useState(0.0)
+  // @ts-expect-error
   const availableCriteria = filterCriteria.filter(criterion => criterion.shouldShow(assignment))
   const sortedStudents = [...students].sort((a, b) => a.sortableName.localeCompare(b.sortableName))
   const [filteredStudents, setFilteredStudents] = useState(
@@ -522,6 +539,7 @@ const MessageStudentsWhoDialog = ({
     return <LoadingIndicator />
   }
 
+  // @ts-expect-error
   const handleCriterionSelected = (_e, {value}) => {
     const newCriterion = filterCriteria.find(criterion => criterion.value === value)
     if (newCriterion != null) {
@@ -593,6 +611,7 @@ const MessageStudentsWhoDialog = ({
     }
   }
 
+  // @ts-expect-error
   const onExcusedCheckBoxChange = event => {
     const criteriaValue = event.target.checked ? 'unsubmitted_skip_excused' : 'unsubmitted'
     const criterion = filterCriteria.find(c => c.value === criteriaValue)
@@ -610,6 +629,7 @@ const MessageStudentsWhoDialog = ({
     setOnSuccess
   )
   const onDeleteAttachment = removeAttachmentFn(setAttachments)
+  // @ts-expect-error
   const onReplaceAttachment = (id, e) => {
     onDeleteAttachment(id)
     onAddAttachment(e)
@@ -622,10 +642,12 @@ const MessageStudentsWhoDialog = ({
     setMediaUploadFile(null)
   }
 
+  // @ts-expect-error
   const onMediaUploadStart = file => {
     setMediaTitle(file.title)
   }
 
+  // @ts-expect-error
   const onMediaUploadComplete = (err, mediaData, captionData) => {
     if (err) {
       setOnFailure(I18n.t('There was an error uploading the media.'))
@@ -660,6 +682,7 @@ const MessageStudentsWhoDialog = ({
     setSelectedObservers({...selectedObservers, [studentId]: updatedObservers})
   }
 
+  // @ts-expect-error
   const onStudentsCheckboxChanged = event => {
     if (event.target.checked) {
       setSelectedStudents(filteredStudents.map(element => element.id))
@@ -668,11 +691,13 @@ const MessageStudentsWhoDialog = ({
     }
   }
 
+  // @ts-expect-error
   const onObserversCheckboxChanged = event => {
     if (event.target.checked) {
       setSelectedObservers(
         filteredStudents.reduce((map, student) => {
           const observers = observersByStudentID[student.id] || []
+          // @ts-expect-error
           map[student.id] = Object.keys(observers).map(key => observers[key]._id)
           return map
         }, {})
@@ -708,6 +733,7 @@ const MessageStudentsWhoDialog = ({
             <View as="div" padding="0 0 small 0">
               <SimpleSelect
                 renderLabel={I18n.t('For students who…')}
+                // @ts-expect-error
                 onChange={handleCriterionSelected}
                 value={selectedCriterion.value}
                 data-testid="criterion-dropdown"
@@ -727,8 +753,10 @@ const MessageStudentsWhoDialog = ({
             {selectedCriterion.requiresCutoff && (
               <>
                 <NumberInput
+                  allowStringValue={true}
                   value={cutoff}
                   onChange={(_e, value) => {
+                    // @ts-expect-error
                     setCutoff(value)
                     if (value !== '') {
                       setFilteredStudents(filterStudents(selectedCriterion, sortedStudents, value))
@@ -954,6 +982,7 @@ const MessageStudentsWhoDialog = ({
                 </Flex.Item>
                 <Flex.Item margin="0 0 0 x-small">
                   <Button
+                    id="send-message-button" // EVAL-4242
                     data-testid="send-message-button"
                     interaction={isFormDataValid ? 'enabled' : 'disabled'}
                     color="primary"

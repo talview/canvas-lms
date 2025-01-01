@@ -25,6 +25,41 @@ module Lti
     RSpec.describe DeepLinkingController do
       include_context "deep_linking_spec_helper"
 
+      describe "#deep_linking_cancel" do
+        subject do
+          params = {
+            placement: "editor_button",
+            lti_msg: "hello",
+            lti_log: "log",
+            lti_errormsg: "error",
+            lti_errorlog: "error log"
+          }
+          get :deep_linking_cancel, params:
+        end
+
+        it "renders the same page as the deep linking response URL" do
+          expect(subject).to render_template("lti/ims/deep_linking/deep_linking_response")
+        end
+
+        it "sets the JS ENV with no content_items" do
+          expected_dl_resp = {
+            placement: "editor_button",
+            content_items: [],
+            msg: "Message from external tool: hello",
+            log: "log",
+            errormsg: "Error message from external tool: error",
+            errorlog: "error log",
+            reloadpage: false,
+            moduleCreated: false,
+            replaceEditorContents: false
+          }
+
+          expect(controller).to receive(:js_env).with({ deep_link_response: expected_dl_resp })
+
+          subject
+        end
+      end
+
       describe "#deep_linking_response" do
         subject { post :deep_linking_response, params: }
 
@@ -53,7 +88,6 @@ module Lti
         end
 
         it "sets the JS ENV" do
-          expect(controller).to receive(:js_env).with({ deep_linking_use_window_parent: true })
           expect(controller).to receive(:js_env).with({
                                                         deep_link_response: {
                                                           placement:,
@@ -118,7 +152,6 @@ module Lti
           let(:errorlog) { { html: "some error log" } }
 
           it "turns them into strings before calling js_env to prevent HTML injection" do
-            expect(controller).to receive(:js_env).with({ deep_linking_use_window_parent: true })
             expect(controller).to receive(:js_env).with({
                                                           deep_link_response: hash_including(
                                                             msg: '{"html"=>"some message"}',
@@ -553,6 +586,26 @@ module Lti
                     it "doesn't ask to reload page" do
                       subject
                       expect(assigns.dig(:js_env, :deep_link_response, :reloadpage)).to be false
+                    end
+
+                    context "with flag enabled" do
+                      before do
+                        course.root_account.enable_feature!(:lti_deep_linking_line_items)
+                      end
+
+                      it "creates a resource link" do
+                        # the resource link has an Assignment context, not course
+                        expect { subject }.to change { Lti::ResourceLink.count }.by 1
+                      end
+
+                      it "creates a module item" do
+                        expect { subject }.to change { context_module.content_tags.count }.by 1
+                      end
+
+                      it "asks to reload page" do
+                        subject
+                        expect(assigns.dig(:js_env, :deep_link_response, :reloadpage)).to be true
+                      end
                     end
                   end
                 end
@@ -989,10 +1042,6 @@ module Lti
             end
 
             context "when on the new assignment page" do
-              before do
-                course.root_account.enable_feature! :lti_assignment_page_line_items
-              end
-
               let(:return_url_params) { super().merge({ placement: "assignment_selection" }) }
               let(:content_items) do
                 [
@@ -1000,14 +1049,6 @@ module Lti
                   { type: "ltiResourceLink", url: launch_url, title: "Item 2", lineItem: { scoreMaximum: 4 } },
                   { type: "ltiResourceLink", url: launch_url, title: "Item 3", lineItem: { scoreMaximum: 4 } }
                 ]
-              end
-
-              context "when assignment edit page feature flag is disabled" do
-                before do
-                  course.root_account.disable_feature! :lti_assignment_page_line_items
-                end
-
-                it_behaves_like "does nothing"
               end
 
               it "does not create a new module" do

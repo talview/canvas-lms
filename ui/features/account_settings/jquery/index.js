@@ -17,12 +17,11 @@
  */
 
 import 'jqueryui/dialog'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import htmlEscape from '@instructure/html-escape'
 import RichContentEditor from '@canvas/rce/RichContentEditor'
 import axios from '@canvas/axios'
-import {setupCache} from 'axios-cache-adapter/src/index'
 import 'jqueryui/tabs'
 import globalAnnouncements from './global_announcements'
 import '@canvas/jquery/jquery.ajaxJSON'
@@ -33,8 +32,9 @@ import '@canvas/loading-image'
 import '@instructure/date-js' // Date.parse
 import 'jquery-scroll-to-visible/jquery.scrollTo'
 import {renderDatetimeField} from '@canvas/datetime/jquery/DatetimeField'
+import doFetchApi from '@canvas/do-fetch-api-effect'
 
-const I18n = useI18nScope('account_settings')
+const I18n = createI18nScope('account_settings')
 
 let reportsTabHasLoaded = false
 
@@ -151,7 +151,7 @@ $(document).ready(function () {
 
   $('#account_settings_suppress_notifications').click(event => {
     if (event.target.checked) {
-      // eslint-disable-next-line no-alert
+       
       const result = window.confirm(
         I18n.t(
           'suppress_notifications_warning',
@@ -323,17 +323,7 @@ $(document).ready(function () {
             $('#tab-reports').text(I18n.t('There are no reports for you to view.'))
           })
       } else if (tabId === 'tab-security-link') {
-        // Set up axios and send a prefetch request to get the data we need,
-        // this should make things appear to be much quicker once the bundle
-        // loads in.
-        const cache = setupCache({
-          maxAge: 0.5 * 60 * 1000, // Hold onto the data for 30 seconds
-          debug: true,
-        })
-
-        const api = axios.create({
-          adapter: cache.adapter,
-        })
+        const api = axios.create({})
 
         const splitContext = window.ENV.context_asset_string.split('_')
 
@@ -621,20 +611,33 @@ $(document).ready(function () {
     const $textarea = $rce_container.find('textarea')
     RichContentEditor.preloadRemoteModule()
     const $terms_type = $('#account_terms_of_service_terms_type').change(onTermsTypeChange)
-    // eslint-disable-next-line no-inner-declarations
+     
     async function onTermsTypeChange() {
       if ($terms_type.val() === 'custom') {
         $('#terms_of_service_modal').show()
         $rce_container.show()
 
-        const url = '/api/v1/terms_of_service_custom_content'
-        const defaultContent = await (await fetch(url)).text()
+        try {
+          const {json, response} = await doFetchApi({
+            path: '/api/v1/acceptable_use_policy',
+          })
 
-        RichContentEditor.loadNewEditor($textarea, {
-          focus: true,
-          manageParent: true,
-          defaultContent,
-        })
+          if (response.ok) {
+            RichContentEditor.loadNewEditor($textarea, {
+              focus: true,
+              manageParent: true,
+              defaultContent: json?.content || '',
+            })
+          } else {
+             
+            console.error(
+              `Failed to load Acceptable Use Policy content: Received ${response.status} ${response.statusText}`
+            )
+          }
+        } catch (error) {
+           
+          console.error('Failed to load Acceptable Use Policy content:', error)
+        }
       } else {
         $rce_container.hide()
         $('#terms_of_service_modal').hide()

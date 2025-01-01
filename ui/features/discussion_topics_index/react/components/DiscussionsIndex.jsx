@@ -16,7 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import React, {Component} from 'react'
 import {func, bool, string, shape, arrayOf, oneOf} from 'prop-types'
 import {connect} from 'react-redux'
@@ -29,7 +29,7 @@ import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import {Text} from '@instructure/ui-text'
 import {Heading} from '@instructure/ui-heading'
 import {Spinner} from '@instructure/ui-spinner'
-import ItemAssignToTray from '@canvas/context-modules/differentiated-modules/react/Item/ItemAssignToTray'
+import ItemAssignToManager from '@canvas/context-modules/differentiated-modules/react/Item/ItemAssignToManager'
 
 import DirectShareCourseTray from '@canvas/direct-sharing/react/components/DirectShareCourseTray'
 import DirectShareUserModal from '@canvas/direct-sharing/react/components/DirectShareUserModal'
@@ -45,6 +45,7 @@ import {
 } from './DiscussionBackgrounds'
 import {ConnectedIndexHeader} from './IndexHeader'
 import DiscussionsDeleteModal from './DiscussionsDeleteModal'
+import DisallowThreadedFixAlert from './DisallowThreadedFixAlert'
 
 import {renderTray} from '@canvas/move-item-tray'
 import select from '@canvas/obj-select'
@@ -54,15 +55,17 @@ import propTypes from '../propTypes'
 import actions from '../actions'
 import {reorderDiscussionsURL} from '../utils'
 import {CONTENT_SHARE_TYPES} from '@canvas/content-sharing/react/proptypes/contentShare'
+import WithBreakpoints, {breakpointsShape} from '@canvas/with-breakpoints'
+import TopNavPortalWithDefaults from '@canvas/top-navigation/react/TopNavPortalWithDefaults'
 
-const I18n = useI18nScope('discussions_v2')
+const I18n = createI18nScope('discussions_v2')
 
 export default class DiscussionsIndex extends Component {
   static propTypes = {
     arrangePinnedDiscussions: func.isRequired,
     closedForCommentsDiscussions: discussionList.isRequired,
-    contextId: string.isRequired,
-    contextType: string.isRequired,
+    contextId: string,
+    contextType: string,
     deleteDiscussion: func.isRequired,
     getDiscussions: func.isRequired,
     setCopyToOpen: func.isRequired,
@@ -81,6 +84,7 @@ export default class DiscussionsIndex extends Component {
     }),
     DIRECT_SHARE_ENABLED: bool.isRequired,
     COURSE_ID: string,
+    breakpoints: breakpointsShape.isRequired,
   }
 
   state = {
@@ -163,11 +167,16 @@ export default class DiscussionsIndex extends Component {
   }
 
   renderStudentView() {
+    const mobileThemeOverride = {
+      padding: '10px 0',
+      border: 'none',
+    }
     return (
       <View margin="medium">
         {this.props.pinnedDiscussions.length ? (
           <div
             className="pinned-discussions-v2__wrapper"
+            style={this.props.breakpoints.mobileOnly ? mobileThemeOverride : {}}
             data-testid="discussion-connected-container"
           >
             <ConnectedDiscussionsContainer
@@ -185,6 +194,7 @@ export default class DiscussionsIndex extends Component {
         ) : null}
         <div
           className="unpinned-discussions-v2__wrapper"
+          style={this.props.breakpoints.mobileOnly ? mobileThemeOverride : {}}
           data-testid="discussion-connected-container"
         >
           <ConnectedDiscussionsContainer
@@ -202,6 +212,7 @@ export default class DiscussionsIndex extends Component {
         </div>
         <div
           className="closed-for-comments-discussions-v2__wrapper"
+          style={this.props.breakpoints.mobileOnly ? mobileThemeOverride : {}}
           data-testid="discussion-connected-container"
         >
           <ConnectedDiscussionsContainer
@@ -227,10 +238,15 @@ export default class DiscussionsIndex extends Component {
   }
 
   renderTeacherView() {
+    const mobileThemeOverride = {
+      padding: '10px 0',
+      border: 'none',
+    }
     return (
       <View margin="medium">
         <div
           className="pinned-discussions-v2__wrapper"
+          style={this.props.breakpoints.mobileOnly ? mobileThemeOverride : {}}
           data-testid="discussion-droppable-connected-container"
         >
           <DroppableConnectedDiscussionsContainer
@@ -249,6 +265,7 @@ export default class DiscussionsIndex extends Component {
         </div>
         <div
           className="unpinned-discussions-v2__wrapper"
+          style={this.props.breakpoints.mobileOnly ? mobileThemeOverride : {}}
           data-testid="discussion-droppable-connected-container"
         >
           <DroppableConnectedDiscussionsContainer
@@ -268,6 +285,7 @@ export default class DiscussionsIndex extends Component {
         </div>
         <div
           className="closed-for-comments-discussions-v2__wrapper"
+          style={this.props.breakpoints.mobileOnly ? mobileThemeOverride : {}}
           data-testid="discussion-droppable-connected-container"
         >
           <DroppableConnectedDiscussionsContainer
@@ -309,7 +327,7 @@ export default class DiscussionsIndex extends Component {
         {ENV?.FEATURES?.selective_release_ui_api &&
           this.state.showAssignToTray &&
           this.props.contextType === 'course' && (
-            <ItemAssignToTray
+            <ItemAssignToManager
               open={this.state.showAssignToTray}
               onClose={this.closeAssignToTray}
               onDismiss={this.closeAssignToTray}
@@ -322,6 +340,7 @@ export default class DiscussionsIndex extends Component {
               locale={ENV.LOCALE || 'en'}
               timezone={ENV.TIMEZONE || 'UTC'}
               removeDueDateInput={!this.state?.discussionDetails?.assignment_id}
+              isCheckpointed={this.state?.discussionDetails.is_checkpointed}
             />
           )}
       </View>
@@ -330,17 +349,21 @@ export default class DiscussionsIndex extends Component {
 
   render() {
     return (
-      <div className="discussions-v2__wrapper">
-        <ScreenReaderContent>
-          <Heading level="h1">{I18n.t('Discussions')}</Heading>
-        </ScreenReaderContent>
-        <ConnectedIndexHeader />
-        {this.props.isLoadingDiscussions
-          ? this.renderSpinner(I18n.t('Loading Discussions'))
-          : this.props.permissions.moderate || this.props.DIRECT_SHARE_ENABLED
-          ? this.renderTeacherView()
-          : this.renderStudentView()}
-      </div>
+      <>
+        <TopNavPortalWithDefaults currentPageName={I18n.t('Discussions')} useStudentView={true} />
+        <div className="discussions-v2__wrapper">
+          <ScreenReaderContent>
+            <Heading level="h1">{I18n.t('Discussions')}</Heading>
+          </ScreenReaderContent>
+          <ConnectedIndexHeader breakpoints={this.props.breakpoints} />
+          {ENV?.FEATURES?.disallow_threaded_replies_fix_alert && <DisallowThreadedFixAlert />}
+          {this.props.isLoadingDiscussions
+            ? this.renderSpinner(I18n.t('Loading Discussions'))
+            : this.props.permissions.moderate || this.props.DIRECT_SHARE_ENABLED
+            ? this.renderTeacherView()
+            : this.renderStudentView()}
+        </div>
+      </>
     )
   }
 }
@@ -383,5 +406,5 @@ const connectActions = dispatch =>
     dispatch
   )
 export const ConnectedDiscussionsIndex = DragDropContext(HTML5Backend)(
-  connect(connectState, connectActions)(DiscussionsIndex)
+  WithBreakpoints(connect(connectState, connectActions)(DiscussionsIndex))
 )

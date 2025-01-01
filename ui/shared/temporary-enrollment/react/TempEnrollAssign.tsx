@@ -18,7 +18,7 @@
 
 import React, {useEffect, useMemo, useState} from 'react'
 import type {ChangeEvent, Dispatch, SetStateAction, SyntheticEvent} from 'react'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import {Grid} from '@instructure/ui-grid'
 import {IconArrowOpenStartLine} from '@instructure/ui-icons'
@@ -32,6 +32,7 @@ import {Button} from '@instructure/ui-buttons'
 import {EnrollmentTree} from './EnrollmentTree'
 import {Flex} from '@instructure/ui-flex'
 import {
+  generateDateTimeMessage,
   getDayBoundaries,
   getFromLocalStorage,
   removeStringAffix,
@@ -45,7 +46,7 @@ import type {
   Enrollment,
   EnrollmentType,
   NodeStructure,
-  Permissions,
+  RolePermissions,
   Role,
   SelectedEnrollment,
   TemporaryEnrollmentPairing,
@@ -72,7 +73,7 @@ import {captureException} from '@sentry/browser'
 
 declare const ENV: GlobalEnv & EnvCommon
 
-const I18n = useI18nScope('temporary_enrollment')
+const I18n = createI18nScope('temporary_enrollment')
 
 // initialize analytics props
 const analyticProps = createAnalyticPropsGenerator(MODULE_NAME)
@@ -83,9 +84,9 @@ interface EnrollmentRole {
 }
 
 export interface Props {
-  enrollment: User | any
+  enrollments: User[]
   user: User
-  permissions: Permissions
+  rolePermissions: RolePermissions
   roles: Role[]
   goBack: Function
   doSubmit: () => boolean
@@ -98,6 +99,11 @@ export interface Props {
 interface RoleChoice {
   id: string
   name: string
+}
+
+interface DateErrors {
+  invalidStart: boolean
+  invalidEnd: boolean
 }
 
 interface StoredData {
@@ -157,13 +163,13 @@ export function getStoredData(roles: Role[]): StoredData {
 }
 
 interface EnrollmentAndUserProps {
-  enrollmentProps: User
+  enrollmentProps: User[]
   userProps: User
 }
 
 interface EnrollmentAndUserContextProps {
   enrollmentType: EnrollmentType
-  enrollment: User
+  enrollments: User[]
   user: User
 }
 
@@ -180,9 +186,9 @@ interface EnrollmentAndUserContextProps {
 export function getEnrollmentAndUserProps(
   props: EnrollmentAndUserContextProps
 ): EnrollmentAndUserProps {
-  const {enrollmentType, enrollment, user} = props
-  const enrollmentProps = enrollmentType === RECIPIENT ? user : enrollment
-  const userProps = enrollmentType === RECIPIENT ? enrollment : user
+  const {enrollmentType, enrollments, user} = props
+  const enrollmentProps = enrollmentType === RECIPIENT ? [user] : enrollments
+  const userProps = enrollmentType === RECIPIENT ? enrollments[0] : user
 
   return {enrollmentProps, userProps}
 }
@@ -217,13 +223,15 @@ export function isMatchFound(
 export const deleteMultipleEnrollmentsByNoMatch = (
   tempEnrollments: Enrollment[],
   sectionIds: string[],
-  userId: string,
+  enrollmentUsers: User[],
   roleId: string
 ): Promise<void>[] => {
-  const deletionPromises = []
-  for (const tempEnrollment of tempEnrollments) {
-    if (!isMatchFound(sectionIds, tempEnrollment, userId, roleId)) {
-      deletionPromises.push(deleteEnrollment(tempEnrollment.course_id, tempEnrollment.id))
+  const deletionPromises: Promise<void>[] = []
+  for (const user of enrollmentUsers) {
+    for (const tempEnrollment of tempEnrollments) {
+      if (!isMatchFound(sectionIds, tempEnrollment, user.id, roleId)) {
+        deletionPromises.push(deleteEnrollment(tempEnrollment.course_id, tempEnrollment.id))
+      }
     }
   }
   return deletionPromises
@@ -239,13 +247,14 @@ export function TempEnrollAssign(props: Props) {
   const [endDate, setEndDate] = useState<Date>(storedData.endDate)
   const [roleChoice, setRoleChoice] = useState<RoleChoice>(storedData.roleChoice)
   const [stateChoice, setStateChoice] = useState<EnrollmentStateOption>(storedData.stateChoice)
+  const [dateErrors, setDateErrors] = useState<DateErrors>({invalidEnd: false, invalidStart: false})
 
   // reminders …
   // enrollmentProps = recipient user object
   // userProps = provider user object
   const {enrollmentProps, userProps} = getEnrollmentAndUserProps(props)
 
-  const roleOptions = []
+  const roleOptions: JSX.Element[] = []
 
   // using useMemo to compute and memoize roleLabel thus avoiding unnecessary re-renders
   const roleLabel = useMemo(() => {
@@ -284,7 +293,7 @@ export function TempEnrollAssign(props: Props) {
           }
         })
         .catch(error => {
-          // eslint-disable-next-line no-console
+           
           console.error('Error fetching temporary enrollment pairing:', error)
           captureException(error)
         })
@@ -294,7 +303,7 @@ export function TempEnrollAssign(props: Props) {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const result = await doFetchApi({
+        const {json} = await doFetchApi<Course[]>({
           path: `/api/v1/users/${userProps.id}/courses`,
           params: {
             enrollment_state: 'active',
@@ -303,7 +312,8 @@ export function TempEnrollAssign(props: Props) {
             ...(ENV.ACCOUNT_ID !== ENV.ROOT_ACCOUNT_ID && {account_id: ENV.ACCOUNT_ID}),
           },
         })
-        setEnrollmentsByCourse(result.json)
+        // @ts-expect-error
+        setEnrollmentsByCourse(json)
       } catch (error: any) {
         showFlashError(
           I18n.t('There was an error while requesting user enrollments, please try again')
@@ -348,13 +358,11 @@ export function TempEnrollAssign(props: Props) {
     if (validatedDate) {
       setDateState(validatedDate)
       updateLocalStorageObject(tempEnrollAssignData, {[localStorageKey]: validatedDate})
-    } else {
-      // eslint-disable-next-line no-console
-      console.error('Invalid date in handleDateChange:', dateValue)
-      captureException(
-        new Error(`Invalid date in handleDateChange: ${dateValue} for ${localStorageKey}`)
-      )
     }
+    // set error state for DateTime
+    localStorageKey === 'startDate'
+      ? setDateErrors({...dateErrors, invalidStart: !validatedDate})
+      : setDateErrors({...dateErrors, invalidEnd: !validatedDate})
   }
 
   const handleStartDateChange = (event: SyntheticEvent<Element, Event>, dateValue?: string) => {
@@ -393,7 +401,7 @@ export function TempEnrollAssign(props: Props) {
 
   const handleValidationError = (message: string) => {
     setErrorMsg(message)
-    props.setEnrollmentStatus(false)
+    props.setEnrollmentStatus(false, false, false)
     setLoading(false)
   }
 
@@ -458,8 +466,15 @@ export function TempEnrollAssign(props: Props) {
     let success: boolean = false
     try {
       setErrorMsg('')
-      const temporaryEnrollmentPairing: TemporaryEnrollmentPairing =
-        await createTemporaryEnrollmentPairing(ENV.ACCOUNT_ID, stateChoice)
+      // @ts-expect-error
+      const pairingPromises = []
+      enrollmentProps.forEach(() => {
+        pairingPromises.push(createTemporaryEnrollmentPairing(ENV.ACCOUNT_ID, stateChoice))
+      })
+      const temporaryEnrollmentPairings: TemporaryEnrollmentPairing[] = await Promise.all(
+        // @ts-expect-error
+        pairingPromises
+      )
 
       if (props.tempEnrollmentsPairing && props.tempEnrollmentsPairing.length >= 1) {
         // delete any enrollments that were not selected
@@ -470,28 +485,30 @@ export function TempEnrollAssign(props: Props) {
           deleteMultipleEnrollmentsByNoMatch(
             props.tempEnrollmentsPairing,
             sectionIds,
-            enrollmentProps.id,
+            enrollmentProps,
             roleChoice.id
           )
         )
       }
       // iterate through the form’s selected enrollments
       const createPromises: Promise<void>[] = []
-      submitEnrolls.forEach(enroll => {
-        // create all selected enrollments
-        createPromises.push(
-          createEnrollment(
-            enroll.section,
-            enrollmentProps.id,
-            userProps.id,
-            temporaryEnrollmentPairing.id,
-            enroll.limit_privileges_to_course_section,
-            startDate,
-            endDate,
-            roleChoice.id
+      for (const index in enrollmentProps) {
+        submitEnrolls.forEach(enroll => {
+          // create all selected enrollments
+          createPromises.push(
+            createEnrollment(
+              enroll.section,
+              enrollmentProps[index].id,
+              userProps.id,
+              temporaryEnrollmentPairings[index].id,
+              enroll.limit_privileges_to_course_section,
+              startDate,
+              endDate,
+              roleChoice.id
+            )
           )
-        )
-      })
+        })
+      }
       await Promise.all(createPromises)
       success = true
     } catch (error) {
@@ -502,8 +519,14 @@ export function TempEnrollAssign(props: Props) {
       }
       success = false
     } finally {
-      props.setEnrollmentStatus(success)
-      setLoading(false)
+      // if there is no pairing, we are creating a new enrollment
+      const isUpdate = props.tempEnrollmentsPairing != null
+      const isMultiple = props.enrollments.length > 1
+      props.setEnrollmentStatus(success, isUpdate, isMultiple)
+      // only set loading state if modal is still open
+      if (!success) {
+        setLoading(false)
+      }
     }
   }
 
@@ -515,7 +538,7 @@ export function TempEnrollAssign(props: Props) {
     const permissionName = rolePermissionMapping[role.base_role_name as RoleName]
 
     if (permissionName) {
-      const hasPermission = props.permissions[permissionName]
+      const hasPermission = props.rolePermissions[permissionName]
 
       if (hasPermission) {
         roleOptions.push(
@@ -546,6 +569,7 @@ export function TempEnrollAssign(props: Props) {
           <Flex.Item overflowY="visible">
             <Button
               onClick={handleGoBack}
+              // @ts-expect-error
               renderIcon={IconArrowOpenStartLine}
               {...analyticProps('Back')}
             >
@@ -554,11 +578,18 @@ export function TempEnrollAssign(props: Props) {
           </Flex.Item>
         )}
         <Flex.Item>
-          <TempEnrollAvatar user={enrollmentProps}>
-            {I18n.t('%{enroll} will receive temporary enrollments from %{user}', {
-              enroll: enrollmentProps.name,
-              user: userProps.name,
-            })}
+          <TempEnrollAvatar user={userProps}>
+            {I18n.t(
+              {
+                one: '%{enroll} will receive temporary enrollments from %{user}',
+                other: '%{count} users will receive temporary enrollments from %{user}',
+              },
+              {
+                count: enrollmentProps.length,
+                enroll: enrollmentProps[0].name,
+                user: userProps.name,
+              }
+            )}
           </TempEnrollAvatar>
         </Flex.Item>
         {errorMsg && (
@@ -593,7 +624,10 @@ export function TempEnrollAssign(props: Props) {
                   isRequired={true}
                   description={
                     <ScreenReaderContent>
-                      {I18n.t('Start Date for %{enroll}', {enroll: enrollmentProps.name})}
+                      {I18n.t(
+                        {one: 'Start Date for %{enroll}', other: 'Start Date for %{count} users'},
+                        {count: enrollmentProps.length, enroll: enrollmentProps[0].name}
+                      )}
                     </ScreenReaderContent>
                   }
                   dateRenderLabel={I18n.t('Begins On')}
@@ -602,6 +636,11 @@ export function TempEnrollAssign(props: Props) {
                   nextMonthLabel={I18n.t('Next')}
                   value={startDate.toISOString()}
                   onChange={handleStartDateChange}
+                  messages={generateDateTimeMessage(
+                    startDate.toISOString(),
+                    dateErrors.invalidStart
+                  )}
+                  showMessages={false}
                   invalidDateTimeMessage={I18n.t('The chosen date and time is invalid.')}
                   dateInputRef={ref => setAnalyticPropsOnRef(ref, analyticProps('StartDate'))}
                   timeInputRef={ref => setAnalyticPropsOnRef(ref, analyticProps('StartTime'))}
@@ -617,7 +656,10 @@ export function TempEnrollAssign(props: Props) {
                   isRequired={true}
                   description={
                     <ScreenReaderContent>
-                      {I18n.t('End Date for %{enroll}', {enroll: enrollmentProps.name})}
+                      {I18n.t(
+                        {one: 'End Date for %{enroll}', other: 'End Date for %{count} users'},
+                        {count: enrollmentProps.length, enroll: enrollmentProps[0].name}
+                      )}
                     </ScreenReaderContent>
                   }
                   dateRenderLabel={I18n.t('Until')}
@@ -626,6 +668,8 @@ export function TempEnrollAssign(props: Props) {
                   nextMonthLabel={I18n.t('Next')}
                   value={endDate.toISOString()}
                   onChange={handleEndDateChange}
+                  messages={generateDateTimeMessage(endDate.toISOString(), dateErrors.invalidEnd)}
+                  showMessages={false}
                   invalidDateTimeMessage={I18n.t('The chosen date and time is invalid.')}
                   dateInputRef={ref => setAnalyticPropsOnRef(ref, analyticProps('EndDate'))}
                   timeInputRef={ref => setAnalyticPropsOnRef(ref, analyticProps('EndTime'))}
@@ -646,9 +690,14 @@ export function TempEnrollAssign(props: Props) {
             <Flex.Item shouldGrow={true}>
               <Text as="p" data-testid="temp-enroll-summary">
                 {I18n.t(
-                  'Canvas will enroll %{recipient} as a %{role} in the selected courses of %{source} from %{start} - %{end} with an ending enrollment state of %{state}',
                   {
-                    recipient: enrollmentProps.name,
+                    one: 'Canvas will enroll %{recipient} as a %{role} in the selected courses of %{source} from %{start} - %{end} with an ending enrollment state of %{state}',
+                    other:
+                      'Canvas will enroll %{count} users as a %{role} in the selected courses of %{source} from %{start} - %{end} with an ending enrollment state of %{state}',
+                  },
+                  {
+                    count: enrollmentProps.length,
+                    recipient: enrollmentProps[0].name,
                     role: roleLabel,
                     source: userProps.name,
                     start: formatDateTime(startDate),

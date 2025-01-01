@@ -16,62 +16,49 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
-import axios from 'axios'
+import {useScope as createI18nScope} from '@canvas/i18n'
+import axios from '@canvas/axios'
 
-const I18n = useI18nScope('Navigation')
+const I18n = createI18nScope('Navigation')
 
-export type CommonProperties = {
-  href: string | null | undefined
-  isActive: boolean
+export type ExternalTool = {
+  href: string | null
+  imgSrc?: string | null
   label: string
-  svgPath?: string
-  imgSrc?: string
+  svgPath?: string | null
 }
 
-type SvgTool = CommonProperties & {svgPath: string}
-type ImgTool = CommonProperties & {imgSrc: string}
-
-export type ExternalTool = SvgTool | ImgTool
-
 export const getExternalApps = async (): Promise<ExternalTool[]> => {
-  const externalApps: ExternalTool[] = []
-
   const {data: tools} = await axios.get(
-    `/api/v1/accounts/${window.ENV.ACCOUNT_ID}/lti_apps?per_page=50`
+    `/api/v1/accounts/${window.ENV.ACCOUNT_ID}/lti_apps/launch_definitions?per_page=50&placements[]=global_navigation&only_visible=true`
   )
-
-  if (!Array.isArray(tools)) return externalApps
-
-  const values = await Promise.all(
-    tools.map(async (tool: any) => {
-      const {data: detailsData} = await axios.get(
-        `/api/v1/${tool.context.toLowerCase()}s/${tool.context_id}/external_tools/${tool.app_id}`
-      )
-      const externalApp = {
-        href: detailsData?.custom_fields?.url ?? detailsData?.global_navigation?.url,
-        isActive: detailsData?.global_navigation?.enabled,
-        label: detailsData?.global_navigation?.label,
-        svgPath: detailsData?.global_navigation?.icon_svg_path_64,
-        imgSrc: detailsData?.global_navigation?.icon_url,
+  if (!Array.isArray(tools)) return []
+  return tools
+    .map((tool: any) => {
+      const globalNavigation = tool.placements?.global_navigation
+      if (!globalNavigation?.title) {
+        return null
       }
-      return externalApp as ExternalTool
+      return {
+        href: globalNavigation.html_url,
+        label: globalNavigation.title,
+        imgSrc: globalNavigation.icon_url || null,
+        svgPath: globalNavigation.icon_svg_path_64 || null,
+      } as ExternalTool
     })
-  )
-
-  return values
+    .filter((app): app is ExternalTool => app !== null)
 }
 
 export function getExternalTools(): ExternalTool[] {
   return Array.from(document.querySelectorAll('.globalNavExternalTool')).map(el => {
     const svg = el.querySelector('svg')
     return {
-      href: el.querySelector('a')?.getAttribute('href'),
-      isActive: el.classList.contains('ic-app-header__menu-list-item--active'),
+      href: el.querySelector('a')?.getAttribute('href') || null,
       label: (el.querySelector('.menu-item__text') as HTMLDivElement)?.innerText || '',
-      ...(svg
-        ? {svgPath: svg.innerHTML}
-        : {imgSrc: (el.querySelector('img') as HTMLImageElement)?.getAttribute('src') || ''}),
+      svgPath: svg?.innerHTML || null,
+      imgSrc: svg
+        ? null
+        : (el.querySelector('img') as HTMLImageElement)?.getAttribute('src') || null,
     }
   })
 }
@@ -178,4 +165,27 @@ export function sideNavReducer(state: any, action: {type: any; payload?: any}) {
     default:
       return state
   }
+}
+
+export interface ProcessedTool {
+  href: string | null
+  label: string
+  svgPath?: string | null
+  toolId: string
+  toolImg?: string | null
+}
+
+export function filterAndProcessTools(tools: ExternalTool[] | null | undefined): ProcessedTool[] {
+  if (tools == null) {
+    return []
+  }
+  return tools
+    .filter(tool => tool.label?.trim())
+    .map(tool => ({
+      href: tool.href || null,
+      label: tool.label,
+      svgPath: tool.svgPath || null,
+      toolId: tool.label.toLowerCase().replaceAll(' ', '-'),
+      toolImg: tool.imgSrc || null,
+    }))
 }

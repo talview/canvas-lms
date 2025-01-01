@@ -18,27 +18,59 @@
 
 import classNames from 'classnames'
 import PropTypes from 'prop-types'
-import React, {useLayoutEffect, useRef} from 'react'
+import React, {useLayoutEffect, useRef, useContext} from 'react'
+import {DiscussionManagerUtilityContext} from '../../utils/constants'
 import theme from '@instructure/canvas-theme'
 
 export function Highlight({...props}) {
   const highlightRef = useRef()
+  const urlParams = new URLSearchParams(window.location.search)
+  const isPersistEnabled = urlParams.get('persist') === '1'
+  const className = isPersistEnabled ? 'highlight-discussion' : 'highlight-fadeout'
+  const {focusSelector, setFocusSelector} = useContext(DiscussionManagerUtilityContext)
+
+  const triggerFocus = element => {
+    if (!element) {
+      return
+    }
+    let eventType = 'onfocusin' in element ? 'focusin' : 'focus'
+    let bubbles = 'onfocusin' in element
+    let event
+
+    if ('createEvent' in document) {
+      event = document.createEvent('Event')
+      event.initEvent(eventType, bubbles, true)
+    } else if ('Event' in window) {
+      event = new Event(eventType, {bubbles: bubbles, cancelable: true})
+    }
+
+    element.focus()
+    element.dispatchEvent(event)
+  }
 
   useLayoutEffect(() => {
     if (props.isHighlighted && highlightRef.current) {
       setTimeout(() => {
         highlightRef.current?.scrollIntoView({behavior: 'smooth', block: 'center'})
-        highlightRef.current?.querySelector('button').focus({preventScroll: true})
+        if (focusSelector) {
+          const speedGraderDiv = highlightRef.current?.querySelector('#speedgrader-navigator')
+          triggerFocus(speedGraderDiv)
+          highlightRef.current?.querySelector(focusSelector).focus({preventScroll: true})
+          setFocusSelector('')
+        } else {
+          highlightRef.current?.querySelector('button').focus({preventScroll: true})
+        }
       }, 0)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.isHighlighted, highlightRef])
 
   return (
     <div
       style={{
-        borderRadius: theme.variables.borders.radiusLarge,
+        borderRadius: theme.borders.radiusLarge,
       }}
-      className={classNames({'highlight-fadeout': props.isHighlighted})}
+      className={classNames({[className]: props.isHighlighted})}
       data-testid={props.isHighlighted ? 'isHighlighted' : 'notHighlighted'}
       ref={highlightRef}
     >

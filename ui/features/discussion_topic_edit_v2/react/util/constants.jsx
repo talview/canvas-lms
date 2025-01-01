@@ -16,9 +16,9 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 import React from 'react'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
-const I18n = useI18nScope('discussion_create')
+const I18n = createI18nScope('discussion_create')
 
 export const defaultEveryoneOption = {
   assetCode: 'everyone',
@@ -75,7 +75,8 @@ export const useShouldShowContent = (
   discussionAnonymousState,
   isEditing,
   isStudent,
-  published
+  published,
+  isCheckpoints
 ) => {
   const shouldShowTodoSettings =
     !isGraded &&
@@ -101,7 +102,8 @@ export const useShouldShowContent = (
     discussionAnonymousState === 'off' &&
     !isAnnouncement &&
     !isGroupContext &&
-    ENV.DISCUSSION_TOPIC.PERMISSIONS.CAN_SET_GROUP
+    ENV.DISCUSSION_TOPIC.PERMISSIONS.CAN_SET_GROUP &&
+    !isCheckpoints
 
   const shouldShowGradedDiscussionOptions =
     discussionAnonymousState === 'off' &&
@@ -110,17 +112,14 @@ export const useShouldShowContent = (
     ENV.DISCUSSION_TOPIC.PERMISSIONS.CAN_CREATE_ASSIGNMENT
 
   const shouldShowUsageRightsOption =
-    ENV?.DISCUSSION_TOPIC?.PERMISSIONS?.CAN_ATTACH &&
-    ENV?.FEATURES?.usage_rights_discussion_topics &&
-    ENV?.USAGE_RIGHTS_REQUIRED &&
-    ENV?.PERMISSIONS?.manage_files
+    ENV?.DISCUSSION_TOPIC?.PERMISSIONS?.CAN_ATTACH && ENV?.USAGE_RIGHTS_REQUIRED
 
   const shouldShowLikingOption = !ENV.K5_HOMEROOM_COURSE
 
   const shouldShowPartialAnonymousSelector =
     !isEditing && discussionAnonymousState === 'partial_anonymity' && isStudent
 
-  const shouldShowAvailabilityOptions = !isAnnouncement && !isGroupContext
+  const shouldShowAvailabilityOptions = !isGroupContext
 
   /* discussion moderators viewing a new or still unpublished discussion */
   const shouldShowSaveAndPublishButton =
@@ -129,18 +128,17 @@ export const useShouldShowContent = (
   const shouldShowPodcastFeedOption =
     ENV.DISCUSSION_TOPIC?.PERMISSIONS?.CAN_MODERATE && !ENV.K5_HOMEROOM_COURSE
 
-  const shouldShowCheckpointsOptions = isGraded && ENV.DISCUSSION_CHECKPOINTS_ENABLED
-
-  const canCreateGradedDiscussion =
-    !isEditing && ENV?.DISCUSSION_TOPIC?.PERMISSIONS?.CAN_CREATE_ASSIGNMENT
-  const canEditDiscussionAssignment =
-    isEditing && ENV?.DISCUSSION_TOPIC?.PERMISSIONS?.CAN_UPDATE_ASSIGNMENT
+  const shouldShowCheckpointsOptions =
+    isGraded && ENV.DISCUSSION_CHECKPOINTS_ENABLED && !ENV.RESTRICT_QUANTITATIVE_DATA
 
   const shouldShowAssignToForUngradedDiscussions =
     !isAnnouncement &&
     !isGraded &&
     ENV.FEATURES?.selective_release_ui_api &&
     ENV.DISCUSSION_TOPIC?.PERMISSIONS?.CAN_MANAGE_ASSIGN_TO_UNGRADED
+
+  const shouldShowAllowParticipantsToCommentOption =
+    !ENV?.ANNOUNCEMENTS_COMMENTS_DISABLED && shouldShowAnnouncementOnlyOptions
 
   return {
     shouldShowTodoSettings,
@@ -157,5 +155,6 @@ export const useShouldShowContent = (
     shouldShowPodcastFeedOption,
     shouldShowCheckpointsOptions,
     shouldShowAssignToForUngradedDiscussions,
+    shouldShowAllowParticipantsToCommentOption,
   }
 }

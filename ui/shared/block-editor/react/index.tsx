@@ -21,13 +21,12 @@ import ReactDOM from 'react-dom'
 import BlockEditor from './BlockEditor'
 
 import BlockEditorView from './BlockEditorView'
+import {type BlockEditorDataTypes} from './utils/transformations'
 
-export {BlockEditor, BlockEditorView}
-
-export default function renderBlockEditorApp(_: unknown, elt: ReactDOM.Container) {
-  ReactDOM.render(<BlockEditor />, elt)
-}
-
-export function renderBlockEditorView(content: string, container: HTMLElement) {
+function renderBlockEditorView(content: BlockEditorDataTypes, container: HTMLElement) {
+  // eslint-disable-next-line no-restricted-properties
   ReactDOM.render(<BlockEditorView content={content} />, container)
 }
+
+export {BlockEditor, BlockEditorView, renderBlockEditorView, type BlockEditorDataTypes}
+export default BlockEditor

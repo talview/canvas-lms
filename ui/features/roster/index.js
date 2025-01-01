@@ -17,7 +17,7 @@
  */
 
 import ready from '@instructure/ready'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {Model} from '@canvas/backbone'
 import Role from './backbone/models/Role'
 import RoleSelectView from './backbone/views/RoleSelectView'
@@ -35,7 +35,7 @@ import ResendInvitationsView from './backbone/views/ResendInvitationsView'
 import $ from 'jquery'
 import '@canvas/context-cards/react/StudentContextCardTrigger'
 
-const I18n = useI18nScope('roster_publicjs')
+const I18n = createI18nScope('roster_publicjs')
 
 const fetchOptions = {
   include: [
@@ -77,10 +77,7 @@ const roleSelectView = new RoleSelectView({
 const resendInvitationsView = new ResendInvitationsView({
   model: course,
   resendInvitationsUrl: ENV.resend_invitations_url,
-  canResend:
-    ENV.permissions.manage_students ||
-    ENV.permissions.manage_admin_users ||
-    ENV.permissions.can_allow_course_admin_actions,
+  canResend: ENV.permissions.manage_students || ENV.permissions.can_allow_course_admin_actions,
 })
 
 class GroupCategoryCollectionForThisCourse extends GroupCategoryCollection {}
@@ -125,4 +122,11 @@ users.once('reset', () =>
 
 app.render()
 ready(() => app.$el.appendTo($('#content')))
-users.fetch()
+users.fetch({
+  success() {
+    if (users.length === 0) return
+    // PaginatedCollectionView first's attempt to get the container does not wait for the DOM to be ready
+    // so when we recieve the users data we need to reset the scroll container, to be sure
+    usersView.resetScrollContainer(document.getElementById('drawer-layout-content') || window)
+  },
+})

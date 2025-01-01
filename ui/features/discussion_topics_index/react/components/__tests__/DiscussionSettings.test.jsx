@@ -75,6 +75,13 @@ describe('DiscussionsSettings', () => {
     }).not.toThrow()
   })
 
+  it('should render discussion settings with buttonText', () => {
+    render(<DiscussionSettings {...makeProps()} />)
+
+    const settingsButton = screen.getByTestId('discussion-setting-button')
+    expect(settingsButton).toHaveTextContent('Settings')
+  })
+
   it('should find 0 checked boxes', () => {
     render(
       <DiscussionSettings

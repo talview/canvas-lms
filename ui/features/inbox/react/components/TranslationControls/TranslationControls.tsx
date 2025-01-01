@@ -21,12 +21,12 @@ import {RadioInput} from '@instructure/ui-radio-input'
 import {SimpleSelect} from '@instructure/ui-simple-select'
 import {Checkbox} from '@instructure/ui-checkbox'
 
-import React, {useContext, useState, useRef, useEffect} from 'react'
+import React, {useContext, useState, useRef, useEffect, useMemo} from 'react'
 import {ModalBodyContext, signatureSeparator, translationSeparator} from '../../utils/constants'
 import {stripSignature} from '../../utils/inbox_translator'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
-const I18n = useI18nScope('conversations_2')
+const I18n = createI18nScope('conversations_2')
 
 interface TranslationControlsProps {
   inboxSettingsFeature: boolean
@@ -34,36 +34,65 @@ interface TranslationControlsProps {
 }
 
 const TranslationControls = (props: TranslationControlsProps) => {
+  // @ts-expect-error
   const languages = useRef(ENV?.inbox_translation_languages ?? [])
   const [language, setLanguage] = useState('English')
   const [includeTranslation, setIncludeTranslation] = useState(false)
-  const [primary, setIsPrimary] = useState(null)
-  const [translated, setTranslated] = useState(false)
   const {
     setMessagePosition,
     messagePosition,
+    // @ts-expect-error
+    translationTargetLanguage,
     setTranslationTargetLanguage,
     translateBody,
+    // @ts-expect-error
+    translateBodyWith,
+    body,
     setBody,
   } = useContext(ModalBodyContext)
 
+  // If we have a message position, the message has been translated.
+  const primary = useMemo(() => {
+    if (messagePosition === null) {
+      return null
+    }
+
+    return messagePosition === 'primary'
+  }, [messagePosition])
+
+  const translated = useMemo(() => {
+    return messagePosition !== null && body.includes(translationSeparator)
+  }, [messagePosition, body])
+
+  // @ts-expect-error
   const handleSelect = (e, {id, value}) => {
     setLanguage(value)
     setTranslationTargetLanguage(id)
+
+    // If this has already been translated, we need to change the language.
+    if (translated) {
+      let newBody = body
+      if (props.inboxSettingsFeature && props.signature !== '') {
+        newBody = stripSignature(newBody)
+      }
+      newBody = newBody.split(translationSeparator)[primary ? 1 : 0]
+      translateBodyWith(primary, newBody, {tgtLang: id})
+    }
   }
 
   /**
    * Handle placing translated message in primary or secondary position
    * */
+  // @ts-expect-error
   const handleChange = isPrimary => {
-    setIsPrimary(isPrimary)
+    // If not already translated, translate the body.
     setMessagePosition(isPrimary ? 'primary' : 'secondary')
     if (!translated) {
       translateBody(isPrimary)
-      setTranslated(true)
       return
     }
 
+    // @ts-expect-error
     setBody(prevBody => {
       let newBody = prevBody
       // Strip the signature
@@ -86,12 +115,13 @@ const TranslationControls = (props: TranslationControlsProps) => {
     })
   }
 
-  const handleIncludeTranslation = shouldInclude => {
-    setIncludeTranslation(shouldInclude)
-  }
+  // @ts-expect-error
+  const handleIncludeTranslation = shouldInclude => setIncludeTranslation(shouldInclude)
 
   useEffect(() => {
     if (!includeTranslation && translated) {
+      setMessagePosition(null)
+      // @ts-expect-error
       setBody(prevBody => {
         if (props.inboxSettingsFeature && props.signature !== '') {
           prevBody = stripSignature(prevBody)
@@ -106,11 +136,10 @@ const TranslationControls = (props: TranslationControlsProps) => {
 
         return newBody
       })
-      setTranslated(false)
-      setIsPrimary(null)
     }
   }, [
     includeTranslation,
+    setMessagePosition,
     messagePosition,
     props.inboxSettingsFeature,
     props.signature,
@@ -136,9 +165,11 @@ const TranslationControls = (props: TranslationControlsProps) => {
             <SimpleSelect
               renderLabel={I18n.t('Select Translation Language')}
               value={language}
+              // @ts-expect-error
               onChange={handleSelect}
               width="360px"
             >
+              {/* @ts-expect-error */}
               {languages.current.map(({id, name}) => {
                 return (
                   <SimpleSelect.Option key={id} id={id} value={name}>

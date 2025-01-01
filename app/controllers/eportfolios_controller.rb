@@ -19,11 +19,12 @@
 #
 
 class EportfoliosController < ApplicationController
+  include Api::V1::Eportfolio
   include EportfolioPage
   before_action :require_user, only: [:index, :user_index]
   before_action :reject_student_view_student
   before_action :verified_user_check, only: %i[index user_index create]
-  before_action :get_eportfolio, except: %i[index user_index create]
+  before_action :find_eportfolio, except: %i[index user_index create]
 
   def index
     user_index
@@ -39,6 +40,63 @@ class EportfoliosController < ApplicationController
     add_crumb(t(:crumb, "ePortfolios"))
     @portfolios = @current_user.eportfolios.active.order(:updated_at).to_a
     render :user_index
+  end
+
+  def show
+    if params[:verifier] == @portfolio.uuid
+      session[:eportfolio_ids] ||= []
+      session[:eportfolio_ids] << @portfolio.id
+      session[:permissions_key] = SecureRandom.uuid
+    end
+    if authorized_action(@portfolio, @current_user, :read)
+      hash = rce_js_env
+      hash[:eportfolio_id] = @portfolio.id
+      @portfolio.ensure_defaults
+      @category = @portfolio.eportfolio_categories.first
+      hash[:category_id] = @category.id
+      @page = @category.eportfolio_entries.first
+      @owner_view = @portfolio.user == @current_user && params[:view] != "preview"
+      hash[:owner_view] = @owner_view
+      js_env(hash)
+      if @owner_view
+        @used_submission_ids = []
+        @portfolio.eportfolio_entries.each do |entry|
+          entry.content_sections.each do |s|
+            if s.is_a?(Hash) && s[:section_type] == "submission"
+              @used_submission_ids << s[:submission_id].to_i
+            end
+          end
+        end
+      end
+      respond_to do |format|
+        if @current_user
+          # if profiles are enabled and I can message the portfolio's owner, link
+          # to their profile
+          @owner_url = user_profile_url(@portfolio.user) if @domain_root_account.enable_profiles? && @current_user.address_book.known_user(@portfolio.user)
+          # otherwise, if I'm the portfolio's owner (implying I can message
+          # myself, so therefore profiles just aren't enabled), link to my
+          # profile
+          @owner_url ||= profile_url if @current_user == @portfolio.user
+          # otherwise, if  I can otherwise view the user, link directly to them
+          @owner_url ||= user_url(@portfolio.user) if @portfolio.user.grants_right?(@current_user, :view_statistics)
+        end
+
+        format.html do
+          @show_left_side = true
+          eportfolio_page_attributes
+          if can_do(@portfolio, @current_user, :update)
+            content_for_head helpers.auto_discovery_link_tag(:atom, feeds_eportfolio_path(@portfolio.id, :atom, verifier: @portfolio.uuid), { title: t("titles.feed", "Eportfolio Atom Feed") })
+          elsif @portfolio.public
+            content_for_head helpers.auto_discovery_link_tag(:atom, feeds_eportfolio_path(@portfolio.id, :atom), { title: t("titles.feed", "Eportfolio Atom Feed") })
+          end
+        end
+        format.json do
+          hash = eportfolio_json(@portfolio, @current_user, session)
+          hash["profile_url"] = @owner_url
+          render json: hash
+        end
+      end
+    end
   end
 
   def create
@@ -61,59 +119,12 @@ class EportfoliosController < ApplicationController
     end
   end
 
-  def show
-    if params[:verifier] == @portfolio.uuid
-      session[:eportfolio_ids] ||= []
-      session[:eportfolio_ids] << @portfolio.id
-      session[:permissions_key] = SecureRandom.uuid
-    end
-    if authorized_action(@portfolio, @current_user, :read)
-      rce_js_env
-      @portfolio.ensure_defaults
-      @category = @portfolio.eportfolio_categories.first
-      @page = @category.eportfolio_entries.first
-      @owner_view = @portfolio.user == @current_user && params[:view] != "preview"
-      if @owner_view
-        @used_submission_ids = []
-        @portfolio.eportfolio_entries.each do |entry|
-          entry.content_sections.each do |s|
-            if s.is_a?(Hash) && s[:section_type] == "submission"
-              @used_submission_ids << s[:submission_id].to_i
-            end
-          end
-        end
-      end
-      @show_left_side = true
-      eportfolio_page_attributes
-      if @current_user
-        # if profiles are enabled and I can message the portfolio's owner, link
-        # to their profile
-        @owner_url = user_profile_url(@portfolio.user) if @domain_root_account.enable_profiles? && @current_user.address_book.known_user(@portfolio.user)
-
-        # otherwise, if I'm the portfolio's owner (implying I can message
-        # myself, so therefore profiles just aren't enabled), link to my
-        # profile
-        @owner_url ||= profile_url if @current_user == @portfolio.user
-
-        # otherwise, if  I can otherwise view the user, link directly to them
-        @owner_url ||= user_url(@portfolio.user) if @portfolio.user.grants_right?(@current_user, :view_statistics)
-      end
-
-      if can_do(@portfolio, @current_user, :update)
-        content_for_head helpers.auto_discovery_link_tag(:atom, feeds_eportfolio_path(@portfolio.id, :atom, verifier: @portfolio.uuid), { title: t("titles.feed", "Eportfolio Atom Feed") })
-      elsif @portfolio.public
-        content_for_head helpers.auto_discovery_link_tag(:atom, feeds_eportfolio_path(@portfolio.id, :atom), { title: t("titles.feed", "Eportfolio Atom Feed") })
-      end
-    end
-  end
-
   def update
     update_params = if @portfolio.grants_right?(@current_user, session, :update)
                       eportfolio_params
                     elsif @portfolio.grants_right?(@current_user, :moderate)
                       eportfolio_moderation_params
                     end
-
     if update_params
       respond_to do |format|
         if @portfolio.update(update_params)
@@ -175,12 +186,10 @@ class EportfoliosController < ApplicationController
                                       user_id: @current_user)
       @attachment = @attachments.order(:created_at).last
       @attachments.where.not(id: @attachment).find_each(&:destroy_permanently_plus)
-
       if @attachment && stale_zip_file?
         @attachment.destroy_permanently_plus
         @attachment = nil
       end
-
       if @attachment
         respond_to do |format|
           if @attachment.zipped?
@@ -216,13 +225,10 @@ class EportfoliosController < ApplicationController
   def public_feed
     if @portfolio.public || params[:verifier] == @portfolio.uuid
       @entries = @portfolio.eportfolio_entries.order("eportfolio_entries.created_at DESC").to_a
-
       title = t(:title, "%{portfolio_name} Feed", portfolio_name: @portfolio.name)
-      updated = @entries.first.updated_at rescue Time.now
+      updated = @entries.first&.updated_at || Time.zone.now
       link = eportfolio_url(@portfolio.id)
-
       private_value = params[:verifier] == @portfolio.uuid
-
       respond_to do |format|
         format.atom { render plain: AtomFeedHelper.render_xml(title:, link:, updated:, entries: @entries, private: private_value) }
       end
@@ -241,7 +247,7 @@ class EportfoliosController < ApplicationController
     params.require(:eportfolio).permit(:spam_status)
   end
 
-  def get_eportfolio
+  def find_eportfolio
     @portfolio = Eportfolio.active.find(params[:eportfolio_id] || params[:id])
   end
 

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /*
  * Copyright (C) 2022 - present Instructure, Inc.
  *
@@ -20,14 +19,14 @@
 import React, {useEffect, useState} from 'react'
 import {connect} from 'react-redux'
 import moment from 'moment-timezone'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {Flex} from '@instructure/ui-flex'
 import {PresentationContent} from '@instructure/ui-a11y-content'
 import {Text} from '@instructure/ui-text'
 import {View} from '@instructure/ui-view'
 
 import {coursePaceActions as actions} from '../../../actions/course_paces'
-import {StoreState, CoursePace, OptionalDate, PaceDuration} from '../../../types'
+import type {StoreState, CoursePace, OptionalDate, PaceDuration} from '../../../types'
 import {
   getCoursePace,
   getCoursePaceItems,
@@ -37,7 +36,7 @@ import {
 } from '../../../reducers/course_paces'
 import {coursePaceTimezone, coursePaceDateFormatter} from '../../../shared/api/backend_serializer'
 
-const I18n = useI18nScope('course_paces_projected_dates')
+const I18n = createI18nScope('course_paces_projected_dates')
 
 const DASH = String.fromCharCode(0x2013)
 const NBSP = String.fromCharCode(0x00a0)
@@ -106,6 +105,7 @@ export const ProjectedDates = ({
 
   const hasAtLeastOneDate = () => !!(startDateValue || endDateValue)
 
+  // @ts-expect-error
   const renderDate = (label, dateValue, helpText, testid) => {
     return (
       <div data-testid={testid} style={{display: 'inline-block', lineHeight: '1.125rem'}}>

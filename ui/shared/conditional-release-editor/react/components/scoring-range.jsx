@@ -26,10 +26,10 @@ import ScoreInput from './score-input'
 import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import AssignmentSet from './assignment-set'
 import * as actions from '../actions'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {transformScore, getScoringRangeSplitWarning} from '../score-helpers'
 
-const I18n = useI18nScope('conditional_release')
+const I18n = createI18nScope('conditional_release')
 
 const {object, func, bool} = PropTypes
 
@@ -189,19 +189,21 @@ class ScoringRange extends React.Component {
           <div className="cr-scoring-range__bound cr-scoring-range__upper-bound">
             {this.renderUpperBound()}
           </div>
-          <button
-            type="button"
-            className="cr-scoring-range__add-assignment-button"
-            aria-label={I18n.t('Add Items to Score Range')}
-            onClick={this.handleAddItems}
-          >
-            +
-          </button>
+          <div className="cr-scoring-range__center">
+            <button
+              type="button"
+              className="cr-scoring-range__add-assignment-button"
+              aria-label={I18n.t('Add Items to Score Range')}
+              onClick={this.handleAddItems}
+            >
+              +
+            </button>
+            <div className="cr-scoring-range__assignments">{this.renderAssignmentSets()}</div>
+          </div>
           <div className="cr-scoring-range__bound cr-scoring-range__lower-bound">
             {this.renderLowerBound()}
           </div>
         </div>
-        <div className="cr-scoring-range__assignments">{this.renderAssignmentSets()}</div>
       </div>
     )
   }

@@ -1,6 +1,7 @@
 <div class="tool_content_wrapper
-  <%= 'custom_height' unless @lti_launch.tool_dimensions[:selection_height] == '100%' %>"
+  <%= 'custom_height' unless full_height? %>"
   data-tool-wrapper-id="<%= @lti_launch.post_message_token %>"
+  <% unless full_height? %> data-height_overridden="true" <% end %>
 >
     <form action="<%= @lti_launch.resource_url %>"
         class="hide"
@@ -39,20 +40,22 @@
     </div>
     </div>
 
-    <%= iframe(
-    "about:blank",
-    name: @tool_form_id ? "tool_content_#{@tool_form_id}" : "tool_content",
-    id: @tool_form_id ? "tool_content_#{@tool_form_id}" : "tool_content",
-    class: "tool_launch",
-    allowfullscreen: "true",
-    webkitallowfullscreen: "true",
-    mozallowfullscreen: "true",
-    tabindex:"0",
-    title: @lti_launch.link_text,
-    style: "height:#{@lti_launch.tool_dimensions[:selection_height]};width:#{@lti_launch.tool_dimensions[:selection_width]};",
-    allow: Lti::Launch.iframe_allowances.join('; '),
-    data: { 'lti-launch': true }
-    ) %>
+    <% if @lti_launch.launch_type != "window" %>
+      <%= iframe(
+      "about:blank",
+      name: @tool_form_id ? "tool_content_#{@tool_form_id}" : "tool_content",
+      id: @tool_form_id ? "tool_content_#{@tool_form_id}" : "tool_content",
+      class: "tool_launch",
+      allowfullscreen: "true",
+      webkitallowfullscreen: "true",
+      mozallowfullscreen: "true",
+      tabindex:"0",
+      title: @lti_launch.link_text,
+      style: "height:#{@lti_launch.tool_dimensions[:selection_height]};width:#{@lti_launch.tool_dimensions[:selection_width]};",
+      allow: Lti::Launch.iframe_allowances.join('; '),
+      data: { 'lti-launch': true }
+      ) %>
+    <% end %>
 
     <div class="after_external_content_info_alert screenreader-only-tool" tabindex="0">
     <div class="ic-flash-info">

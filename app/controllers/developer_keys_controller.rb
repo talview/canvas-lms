@@ -21,7 +21,7 @@
 class DeveloperKeysController < ApplicationController
   before_action :set_key, only: [:update, :destroy]
   before_action :require_manage_developer_keys
-  before_action :require_root_account, only: [:index, :create]
+  before_action :require_root_account, only: %i[index create]
 
   include Api::V1::DeveloperKey
 
@@ -29,19 +29,21 @@ class DeveloperKeysController < ApplicationController
     respond_to do |format|
       format.html do
         set_navigation
+
         js_env(
           accountEndpoint: api_v1_account_developer_keys_path(@context),
           enableTestClusterChecks: DeveloperKey.test_cluster_checks_enabled?,
-          validLtiScopes: TokenScopes::LTI_SCOPES,
-          validLtiPlacements: Lti::ResourcePlacement.public_placements(@domain_root_account),
-          includesFeatureFlagEnabled: Account.site_admin.feature_enabled?(:developer_key_support_includes)
+          validLtiScopes:
+            TokenScopes.public_lti_scopes_hash_for_account(@domain_root_account),
+          validLtiPlacements:
+            Lti::ResourcePlacement.public_placements(@domain_root_account)
         )
 
         render :index
       end
 
       format.json do
-        @keys = Api.paginate(index_scope, self, account_developer_keys_url(@context))
+        @keys = Api.paginate(index_scope, self, api_v1_account_developer_keys_url(@context))
         render json: developer_keys_json(
           @keys,
           @current_user,

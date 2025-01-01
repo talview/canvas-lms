@@ -19,6 +19,8 @@
 
 require_relative "../helpers/blueprint_common"
 require_relative "../../helpers/selective_release_common"
+require_relative "../helpers/items_assign_to_tray"
+require_relative "../assignments/page_objects/assignment_create_edit_page"
 
 shared_context "blueprint courses assignment context" do
   def assignment_options
@@ -38,6 +40,7 @@ describe "blueprint courses assignments" do
   include_context "blueprint courses assignment context"
   include BlueprintCourseCommon
   include SelectiveReleaseCommon
+  include ItemsAssignToTray
 
   context "as a blueprint teacher" do
     before :once do
@@ -163,6 +166,90 @@ describe "blueprint courses assignments" do
       expect(f("#assignment_grading_type")).not_to contain_css('option[value="not_graded"]')
     end
 
+    it "does not allow editing of restricted due dates and availability dates in SR tray" do
+      # restrict everything
+      @tag.update(restrictions: { content: true, points: true, due_dates: true, availability_dates: true })
+
+      get "/courses/#{@copy_to.id}/assignments/#{@assmt_copy.id}/edit"
+
+      expect(f("#assignment_name").tag_name).to eq "h1"
+      expect(f("#assignment_description").tag_name).to eq "div"
+      expect(f("#assignment_points_possible").attribute("readonly")).to eq "true"
+      expect(f("#assignment_grading_type")).to contain_css('option[value="points"]')
+      expect(f("#assignment_grading_type")).not_to contain_css('option[value="not_graded"]')
+
+      unless Account.site_admin.feature_enabled?(:selective_release_edit_page)
+        AssignmentCreateEditPage.click_manage_assign_to_button
+        wait_for_assign_to_tray_spinner
+        keep_trying_until { expect(item_tray_exists?).to be_truthy }
+      end
+
+      expect(assign_to_due_date(0).enabled?).to be_falsey
+      expect(assign_to_due_time(0).enabled?).to be_falsey
+      expect(assign_to_available_from_date(0).enabled?).to be_falsey
+      expect(assign_to_available_from_time(0).enabled?).to be_falsey
+      expect(assign_to_until_date(0).enabled?).to be_falsey
+      expect(assign_to_until_time(0).enabled?).to be_falsey
+
+      expect(element_exists?(bp_locked_alert_text_selector("Due Dates & Availability Dates"), true)).to be_truthy
+    end
+
+    it "does not allow editing of restricted due dates in SR tray" do
+      # restrict everything
+      @tag.update(restrictions: { content: true, points: true, due_dates: true, availability_dates: false })
+
+      get "/courses/#{@copy_to.id}/assignments/#{@assmt_copy.id}/edit"
+
+      expect(f("#assignment_name").tag_name).to eq "h1"
+      expect(f("#assignment_description").tag_name).to eq "div"
+      expect(f("#assignment_points_possible").attribute("readonly")).to eq "true"
+      expect(f("#assignment_grading_type")).to contain_css('option[value="points"]')
+      expect(f("#assignment_grading_type")).not_to contain_css('option[value="not_graded"]')
+
+      unless Account.site_admin.feature_enabled?(:selective_release_edit_page)
+        AssignmentCreateEditPage.click_manage_assign_to_button
+        wait_for_assign_to_tray_spinner
+        keep_trying_until { expect(item_tray_exists?).to be_truthy }
+      end
+
+      expect(assign_to_due_date(0).enabled?).to be_falsey
+      expect(assign_to_due_time(0).enabled?).to be_falsey
+      expect(assign_to_available_from_date(0).enabled?).to be_truthy
+      expect(assign_to_available_from_time(0).enabled?).to be_truthy
+      expect(assign_to_until_date(0).enabled?).to be_truthy
+      expect(assign_to_until_time(0).enabled?).to be_truthy
+
+      expect(element_exists?(bp_locked_alert_text_selector("Due Dates"), true)).to be_truthy
+    end
+
+    it "does not allow editing of restricted availability dates in SR tray" do
+      # restrict everything
+      @tag.update(restrictions: { content: true, points: true, due_dates: false, availability_dates: true })
+
+      get "/courses/#{@copy_to.id}/assignments/#{@assmt_copy.id}/edit"
+
+      expect(f("#assignment_name").tag_name).to eq "h1"
+      expect(f("#assignment_description").tag_name).to eq "div"
+      expect(f("#assignment_points_possible").attribute("readonly")).to eq "true"
+      expect(f("#assignment_grading_type")).to contain_css('option[value="points"]')
+      expect(f("#assignment_grading_type")).not_to contain_css('option[value="not_graded"]')
+
+      unless Account.site_admin.feature_enabled?(:selective_release_edit_page)
+        AssignmentCreateEditPage.click_manage_assign_to_button
+        wait_for_assign_to_tray_spinner
+        keep_trying_until { expect(item_tray_exists?).to be_truthy }
+      end
+
+      expect(assign_to_due_date(0).enabled?).to be_truthy
+      expect(assign_to_due_time(0).enabled?).to be_truthy
+      expect(assign_to_available_from_date(0).enabled?).to be_falsey
+      expect(assign_to_available_from_time(0).enabled?).to be_falsey
+      expect(assign_to_until_date(0).enabled?).to be_falsey
+      expect(assign_to_until_time(0).enabled?).to be_falsey
+
+      expect(element_exists?(bp_locked_alert_text_selector("Availability Dates"), true)).to be_truthy
+    end
+
     it "does not allow making a non-graded assignment graded when points are locked" do
       not_graded_assignment = @copy_from.assignments.create!(
         title: "eh", description: "meh", submission_types: "not_graded", grading_type: "not_graded"
@@ -193,10 +280,13 @@ describe "blueprint courses assignments" do
       get "/courses/#{@copy_to.id}/assignments"
 
       hover_and_click(".edit_assignment")
-      expect(f(".ui-dialog-titlebar .ui-dialog-title").text).to eq "Edit Assignment"
-      expect(f("#assign_#{@assmt_copy.id}_assignment_name").tag_name).to eq "h3"
-      expect(f("#assign_#{@assmt_copy.id}_assignment_due_at").attribute("readonly")).to eq "true"
-      expect(f("#assign_#{@assmt_copy.id}_assignment_points").attribute("readonly")).to eq "true"
+
+      expect(f("[data-testid='assignment-name-input']")).to be_disabled
+      expect(f("[data-testid='points-input']")).to be_disabled
+      # Date
+      expect(f("#Selectable_0")).to be_disabled
+      # Time
+      expect(f("#Select_0")).to be_disabled
     end
   end
 

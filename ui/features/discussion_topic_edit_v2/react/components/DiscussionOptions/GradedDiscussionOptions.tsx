@@ -19,7 +19,7 @@
 import React from 'react'
 
 import {View} from '@instructure/ui-view'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {AssignmentGroupSelect} from './AssignmentGroupSelect'
 import {DisplayGradeAs} from './DisplayGradeAs'
 import {PointsPossible} from './PointsPossible'
@@ -35,7 +35,7 @@ import CoursePacingNotice from '@canvas/due-dates/react/CoursePacingNotice'
 type Props = {
   assignmentGroups: [{_id: string; name: string}]
   pointsPossible: number
-  setPointsPossible: (points: number) => void
+  setPointsPossible: (points: number | string) => void
   displayGradeAs: string
   setDisplayGradeAs: (id: string | undefined) => void
   assignmentGroup: string
@@ -56,7 +56,7 @@ type Props = {
   canManageAssignTo: boolean
 }
 
-const I18n = useI18nScope('discussion_create')
+const I18n = createI18nScope('discussion_create')
 
 export const GradedDiscussionOptions = ({
   assignmentGroups,
@@ -105,7 +105,7 @@ export const GradedDiscussionOptions = ({
       {!isCheckpoints && (
         <View as="div" margin="medium 0">
           <PointsPossible
-            pointsPossible={pointsPossible || 0}
+            pointsPossible={pointsPossible}
             setPointsPossible={setPointsPossible}
             pointsPossibleLabel={I18n.t('Points Possible')}
             pointsPossibleDataTestId="points-possible-input"

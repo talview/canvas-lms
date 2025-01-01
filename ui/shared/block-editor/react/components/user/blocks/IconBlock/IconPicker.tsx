@@ -16,18 +16,28 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {useCallback} from 'react'
+import React, {useCallback, useState} from 'react'
+import classNames from 'classnames'
 import {Flex} from '@instructure/ui-flex'
+import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import {Text} from '@instructure/ui-text'
 import {View} from '@instructure/ui-view'
+import {getArrowNext, getArrowPrev} from '../../../../utils'
 
-import {iconMap} from '../../../../assets/icons'
+import {iconMap} from '../../../../assets/user-icons'
+
+import {useScope as createI18nScope} from '@canvas/i18n'
+
+const I18n = createI18nScope('block-editor')
 
 type IconPickerProps = {
   iconName?: string
   onSelect: (iconName: string) => void
+  onClose: () => void
 }
-const IconPicker = ({iconName, onSelect}: IconPickerProps) => {
+const IconPicker = ({iconName, onSelect, onClose}: IconPickerProps) => {
+  const [arrowNext] = useState(getArrowNext())
+  const [arrowPrev] = useState(getArrowPrev())
   const handleSelectIcon = useCallback(
     (newIconName: string) => {
       onSelect(newIconName)
@@ -37,57 +47,57 @@ const IconPicker = ({iconName, onSelect}: IconPickerProps) => {
 
   const handleKey = useCallback(
     (event: React.KeyboardEvent, newIconName: string) => {
+      if (
+        ['Enter', 'Escape', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'].includes(event.key)
+      ) {
+        event.stopPropagation()
+        event.preventDefault()
+      }
       if (event.key === 'Enter') {
         handleSelectIcon(newIconName)
+      } else if (event.key === 'Escape') {
+        onClose()
+      } else if (arrowNext.includes(event.key)) {
+        ;(event.currentTarget.nextElementSibling as HTMLElement)?.focus()
+      } else if (arrowPrev.includes(event.key)) {
+        ;(event.currentTarget.previousElementSibling as HTMLElement)?.focus()
       }
     },
-    [handleSelectIcon]
+    [arrowNext, arrowPrev, handleSelectIcon, onClose]
   )
-
-  const selectedStyle = {borderColor: 'var(--ic-brand-primary)'}
-  const iconButtonStyle = {
-    padding: '2px',
-    display: 'inline-block',
-    cursor: 'pointer',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'transparent',
-    borderRadius: '4px',
-  }
 
   const renderNoIcon = () => {
     const isSelected = !iconName
-    let style = {...iconButtonStyle}
-    if (isSelected) style = {...style, ...selectedStyle}
 
     return (
       <div
+        className={classNames('icon-picker__icon', {
+          selected: isSelected,
+        })}
         role="button"
-        style={style}
         tabIndex={0}
         onClick={() => handleSelectIcon('')}
         onKeyDown={(event: React.KeyboardEvent) => handleKey(event, '')}
       >
-        <Text size="small">No Icon</Text>
+        <Text size="small">{I18n.t('No Icon')}</Text>
       </div>
     )
   }
 
   return (
-    <View as="div" margin="small" background="secondary" borderWidth="small" maxWidth="17rem">
+    <View as="div" margin="small" borderWidth="small" maxWidth="17rem">
       <Flex wrap="wrap" gap="small" justifyItems="space-between" margin="x-small">
+        <ScreenReaderContent>{I18n.t('Select an icon')}</ScreenReaderContent>
         {Object.keys(iconMap).map(icon => {
           const Icon = iconMap[icon]
           const isSelected = icon === iconName
-          let style = {...iconButtonStyle}
-          if (isSelected) {
-            style = {...style, ...selectedStyle}
-          }
           return (
             <div
+              className={classNames('icon-picker__icon', {
+                selected: isSelected,
+              })}
               key={icon}
               role="button"
-              style={style}
               tabIndex={0}
               onClick={() => handleSelectIcon(icon)}
               onKeyDown={(event: React.KeyboardEvent) => handleKey(event, icon)}

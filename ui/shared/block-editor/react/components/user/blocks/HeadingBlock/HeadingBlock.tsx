@@ -16,30 +16,21 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {useCallback, useEffect, useRef, useState} from 'react'
+import React, {useCallback, useRef, useState} from 'react'
 import ContentEditable from 'react-contenteditable'
-import {useEditor, useNode} from '@craftjs/core'
+import {useEditor, useNode, type Node} from '@craftjs/core'
 import {Heading} from '@instructure/ui-heading'
 import {TextBlock} from '../TextBlock/TextBlock'
-import {
-  useClassNames,
-  shouldAddNewNode,
-  shouldDeleteNode,
-  addNewNodeAsNextSibling,
-  deleteNodeAndSelectPrevSibling,
-} from '../../../../utils'
-import {HeadingBlockSettings} from './HeadingBlockSettings'
+import {useClassNames} from '../../../../utils'
 import {HeadingBlockToolbar} from './HeadingBlockToolbar'
 
-type HeadingLevels = 'h2' | 'h3' | 'h4'
+import {type HeadingBlockProps, type HeadingLevel} from './types'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
-type HeadingBlockProps = {
-  text?: string
-  level?: HeadingLevels
-}
+const I18n = createI18nScope('block-editor')
 
-export const HeadingBlock = ({text = '', level = 'h2'}: HeadingBlockProps) => {
-  const {actions, query, enabled} = useEditor(state => {
+export const HeadingBlock = ({text = '', level, fontSize}: HeadingBlockProps) => {
+  const {enabled} = useEditor(state => {
     return {
       enabled: state.options.enabled,
     }
@@ -47,29 +38,20 @@ export const HeadingBlock = ({text = '', level = 'h2'}: HeadingBlockProps) => {
   const {
     connectors: {connect, drag},
     actions: {setProp},
-    id,
     selected,
-    themeOverride,
-  } = useNode(state => ({
-    id: state.id,
-    selected: state.events.selected,
-    themeOverride: state.data.custom.themeOverride,
+    node,
+  } = useNode((n: Node) => ({
+    selected: n.events.selected,
+    node: n,
   }))
-  const clazz = useClassNames(enabled, {empty: !text}, 'HeadingBlock')
+  const clazz = useClassNames(enabled, {empty: !text}, ['block', 'heading-block'])
   const focusableElem = useRef<HTMLElement | null>(null)
-  const [editable, setEditable] = useState(false)
-  const lastChar = useRef<string>('Enter') // so 1 Enter creates a new text node
-
-  useEffect(() => {
-    if (editable && selected && focusableElem.current) {
-      focusableElem.current.focus()
-    }
-    setEditable(selected)
-  }, [editable, focusableElem, selected])
+  const [editable, setEditable] = useState(true) // editable when first added
 
   const handleChange = useCallback(
+    // @ts-expect-error
     e => {
-      setProp((props: Partial<HeadingBlockProps>) => {
+      setProp((props: HeadingBlockProps) => {
         props.text = e.target.value.replace(/<\/?[^>]+(>|$)/g, '')
       })
     },
@@ -77,55 +59,99 @@ export const HeadingBlock = ({text = '', level = 'h2'}: HeadingBlockProps) => {
   )
 
   const handleKey = useCallback(
-    e => {
-      if (shouldAddNewNode(e, lastChar.current)) {
+    (e: React.KeyboardEvent) => {
+      if (editable) {
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          e.stopPropagation()
+          setEditable(false)
+        } else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+          e.stopPropagation()
+        }
+      } else if (!editable && (e.key === 'Enter' || e.key === ' ')) {
         e.preventDefault()
-        addNewNodeAsNextSibling(<TextBlock text="" />, id, actions, query)
-      } else if (shouldDeleteNode(e)) {
-        e.preventDefault()
-        deleteNodeAndSelectPrevSibling(id, actions, query)
+        setEditable(true)
       }
     },
-    [actions, id, query]
+    [editable]
   )
 
+  // @ts-expect-error
   const handleClick = useCallback(_e => {
     setEditable(true)
   }, [])
 
+  const styl: React.CSSProperties = {fontSize}
+  if (node.data.props.width) {
+    styl.width = `${node.data.props.width}px`
+  }
+  if (node.data.props.height) {
+    styl.height = `${node.data.props.height}px`
+  }
+
+  const renderHeading = () => {
+    switch (level) {
+      case 'h2':
+        return <Heading level="h2">{text}</Heading>
+      case 'h3':
+        return <Heading level="h3">{text}</Heading>
+      case 'h4':
+        return <Heading level="h4">{text}</Heading>
+      default:
+        return <Heading level="h2">{text}</Heading>
+    }
+  }
+
   if (enabled) {
     return (
-      // eslint-disable-next-line jsx-a11y/interactive-supports-focus, jsx-a11y/click-events-have-key-events
-      <div ref={el => el && connect(drag(el))} role="textbox" onClick={handleClick}>
-        <Heading level={level} color="primary" themeOverride={themeOverride}>
-          <ContentEditable
-            innerRef={focusableElem}
-            data-placeholder={`Heading ${level.replace('h', '')}`}
-            className={clazz}
-            disabled={!editable}
-            html={text}
-            onChange={handleChange}
-            onKeyDown={handleKey}
-            tagName="span"
-          />
-        </Heading>
-      </div>
+      <ContentEditable
+        role="treeitem"
+        aria-label={TextBlock.craft.displayName}
+        aria-selected={selected}
+        tabIndex={-1}
+        innerRef={(el: HTMLElement) => {
+          if (el) {
+            connect(drag(el))
+          }
+          focusableElem.current = el
+        }}
+        data-placeholder={`Heading ${level?.replace('h', '')}`}
+        className={clazz}
+        disabled={!editable}
+        html={text}
+        style={styl}
+        tagName={level}
+        onChange={handleChange}
+        onClick={handleClick}
+        onKeyDown={selected ? handleKey : undefined}
+        onBlur={() => setEditable(false)}
+      />
     )
   } else {
     return (
-      <Heading level={level} color="primary" themeOverride={themeOverride}>
-        {text}
-      </Heading>
+      <div
+        role="treeitem"
+        aria-label={TextBlock.craft.displayName}
+        aria-selected={selected}
+        tabIndex={-1}
+      >
+        {renderHeading()}
+      </div>
     )
   }
 }
 
 HeadingBlock.craft = {
-  displayName: 'Heading',
+  displayName: I18n.t('Heading'),
   defaultProps: {
-    level: 'h2',
+    text: '',
+    level: 'h2' as HeadingLevel,
   },
   related: {
     toolbar: HeadingBlockToolbar,
+  },
+  custom: {
+    isResizable: true,
+    isBlock: true,
   },
 }

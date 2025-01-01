@@ -27,12 +27,12 @@ import {Grid} from '@instructure/ui-grid'
 import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import CanvasSelect from '@canvas/instui-bindings/react/Select'
 import SearchableSelect from './SearchableSelect'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import preventDefault from '@canvas/util/preventDefault'
-import {propType as termsPropType} from '../store/TermsStore'
+import {propType as termsPropType, termType} from '../store/TermsStore'
 import NewCourseModal from './NewCourseModal'
 
-const I18n = useI18nScope('account_course_user_search')
+const I18n = createI18nScope('account_course_user_search')
 
 function termGroup(term) {
   if (term.start_at && new Date(term.start_at) > new Date()) return 'future'
@@ -57,6 +57,7 @@ const allTermsGroup = (
 export default function CoursesToolbar({
   can_create_courses,
   terms,
+  filteredTerms,
   onApplyFilters,
   onUpdateFilters,
   isLoading,
@@ -64,7 +65,7 @@ export default function CoursesToolbar({
   draftFilters,
   toggleSRMessage,
 }) {
-  const groupedTerms = groupBy(terms.data, termGroup)
+  const groupedTerms = groupBy(filteredTerms, termGroup)
   const searchLabel =
     draftFilters.search_by === 'teacher'
       ? I18n.t('Search courses by teacher...')
@@ -212,6 +213,7 @@ CoursesToolbar.propTypes = {
   }).isRequired,
   errors: shape({search_term: string}).isRequired,
   terms: termsPropType,
+  filteredTerms: arrayOf(termType).isRequired,
 }
 
 CoursesToolbar.defaultProps = {

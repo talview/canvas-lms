@@ -19,13 +19,18 @@
   css_bundle(:instructure_eportfolio) if @eportfolio_view === true
   css_bundle(:new_user_tutorials) if tutorials_enabled?
   js_bundle(:navigation_header) unless @headers == false
-  js_bundle(:top_navigation_tools) if @domain_root_account&.feature_enabled?(:top_navigation_placement)
+
+  if @domain_root_account&.feature_enabled?(:top_navigation_placement)
+    js_env INIT_DRAWER_LAYOUT_MUTEX: "init-drawer-layout"
+    js_bundle(:top_navigation_tools)
+end
 
   load_blueprint_courses_ui
   @has_content_notices = load_content_notices
   provide :head, include_common_stylesheets
   set_badge_counts_for(@context, @current_user) if @set_badge_counts
   js_env notices: flash_notices()
+  student_view_text = @context.is_a?(Course) && @context.horizon_course? ? t('View as Learner') : t('View as Student')
 -%>
 <%= render :partial => "layouts/head" %>
 <%-
@@ -36,7 +41,8 @@
   # Collapse the course menu according to user preference, unless a certain action
   # requests that it default to collapsed for that page
   @collapse_course_menu ||= @current_user&.reload&.collapse_course_nav?
-  @enhanced_rubrics_enabled = !!@domain_root_account&.feature_enabled?(:enhanced_rubrics)
+  context_is_course_or_account = @context&.is_a?(Course) || @context&.is_a?(Account)
+  @enhanced_rubrics_enabled = context_is_course_or_account ? @context.feature_enabled?(:enhanced_rubrics) : false
 
   if @collapse_course_menu
     subnav_menu_text = t('Show Navigation Menu')
@@ -79,7 +85,8 @@
   body_classes << 'primary-nav-transitions' if @collapse_global_nav
   # We probably want to consider doing this everywhere, all the time, but when I did
   # for LS-1745, people complained a lot, so maybe not.
-  body_classes << 'full-width' if @domain_root_account.try(:feature_enabled?, :new_user_tutorial)
+  # Putting this behind a feature flag because of the above comment.
+  body_classes << 'full-width' if @domain_root_account.try(:feature_enabled?, :full_width_everywhere) || @domain_root_account.try(:feature_enabled?, :new_user_tutorial)
   body_classes << "context-#{@context.asset_string}" if @context
   body_classes << "responsive_student_grades_page" if !!@domain_root_account&.feature_enabled?(:responsive_student_grades_page)
 -%>
@@ -108,12 +115,12 @@
   </div>
 
   <div id="wrapper" class="ic-Layout-wrapper">
-    <% if crumbs.length > 1 %>
-      <% if @instui_topnav %>
-        <div class="instui-topnav-container">
-          <div id="react-instui-topnav"></div>
-        </div>
-      <% else %>
+    <% if @instui_topnav %>
+      <div class="instui-topnav-container">
+        <div id="react-instui-topnav"></div>
+      </div>
+    <% else %>
+      <% if crumbs.length > 1 %>
         <div class="ic-app-nav-toggle-and-crumbs no-print">
           <% if @show_left_side %>
             <button type="button" id="courseMenuToggle" class="Button Button--link ic-app-course-nav-toggle" aria-live="polite" aria-label="<%= subnav_menu_text %>">
@@ -146,8 +153,8 @@
               <div id="immersive_reader_mount_point"></div>
             <% end %>
             <% if show_student_view_button? %>
-              <%= link_to course_student_view_path(course_id: @context, redirect_to_referer: 1), :class => "btn btn-top-nav", :id => "easy_student_view", :method => :post do %>
-                <i class="icon-student-view"></i> <%= t('View as Student') %>
+              <%= link_to course_student_view_path(course_id: @context, redirect_to_referer: 1), :class => "btn btn-top-nav", :id => "easy_student_view", :method => :post, :"aria-label" => student_view_text do %>
+                <i class="icon-student-view"></i> <%= student_view_text %>
               <% end %>
             <% end %>
             <% if (@context&.is_a?(Course) || @context&.is_a?(Assignment)) && @context_enrollment&.observer? %>

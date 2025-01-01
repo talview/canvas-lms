@@ -85,7 +85,7 @@ class WikiPage < ActiveRecord::Base
     if Account.site_admin.feature_enabled?(:selective_release_backend)
       # no assignment -> visible if wiki_page_visibilities has results
       # assignment -> visible if assignment_visibilities has results
-      visible_wiki_page_ids = WikiPageVisibility::WikiPageVisibilityService.wiki_pages_visible_to_students_in_courses(course_ids:, user_ids:).map(&:wiki_page_id)
+      visible_wiki_page_ids = WikiPageVisibility::WikiPageVisibilityService.wiki_pages_visible_to_students(course_ids:, user_ids:).map(&:wiki_page_id)
 
       without_assignment_in_course(course_ids).where(id: visible_wiki_page_ids)
                                               .union(joins_assignment_student_visibilities(user_ids, course_ids))
@@ -111,8 +111,8 @@ class WikiPage < ActiveRecord::Base
     context_pages = where(wiki_id: wiki_ids)
     if Account.site_admin.feature_enabled?(:selective_release_backend)
       scope_assignments = context_pages.where.not(assignment_id: nil).pluck(:assignment_id)
-      visible_wiki_pages = WikiPageVisibility::WikiPageVisibilityService.wiki_pages_visible_to_student_in_courses(user_id:, course_ids:).map(&:wiki_page_id)
-      visible_assignments = AssignmentVisibility::AssignmentVisibilityService.assignments_visible_to_student_by_assignment(user_id:, assignment_ids: scope_assignments).map(&:assignment_id)
+      visible_wiki_pages = WikiPageVisibility::WikiPageVisibilityService.wiki_pages_visible_to_students(user_ids: user_id, course_ids:).map(&:wiki_page_id)
+      visible_assignments = AssignmentVisibility::AssignmentVisibilityService.assignments_visible_to_students(user_ids: user_id, assignment_ids: scope_assignments).map(&:assignment_id)
 
       context_pages.where("wiki_pages.assignment_id IS NULL AND (wiki_pages.id IN (?) OR wiki_pages.context_type = 'Group')", visible_wiki_pages)
                    .or(context_pages.where("wiki_pages.assignment_id IS NOT NULL AND wiki_pages.assignment_id IN (?)", visible_assignments))
@@ -150,9 +150,9 @@ class WikiPage < ActiveRecord::Base
   end
 
   def url
-    return read_attribute(:url) unless Account.site_admin.feature_enabled?(:permanent_page_links)
+    return super unless Account.site_admin.feature_enabled?(:permanent_page_links)
 
-    current_lookup&.slug || read_attribute(:url)
+    current_lookup&.slug || super
   end
 
   def should_create_lookup?
@@ -162,12 +162,16 @@ class WikiPage < ActiveRecord::Base
 
   def create_lookup
     new_record = id_changed?
-    WikiPageLookup.unique_constraint_retry do
-      lookup = wiki_page_lookups.find_by(slug: read_attribute(:url)) unless new_record
-      lookup ||= wiki_page_lookups.build(slug: read_attribute(:url))
-      lookup.save
-      # this is kind of circular so we want to avoid triggering callbacks again
-      update_column(:current_lookup_id, lookup.id)
+    begin
+      WikiPageLookup.unique_constraint_retry do
+        lookup = wiki_page_lookups.find_by(slug: self["url"]) unless new_record
+        lookup ||= wiki_page_lookups.build(slug: self["url"])
+        lookup.save
+        # this is kind of circular so we want to avoid triggering callbacks again
+        update_column(:current_lookup_id, lookup.id)
+      end
+    rescue ActiveRecord::RecordNotUnique
+      raise RequestError.new("wiki page with that url already exists", 409)
     end
   end
 
@@ -180,7 +184,7 @@ class WikiPage < ActiveRecord::Base
     return if deleted? || Account.site_admin.feature_enabled?(:permanent_page_links)
 
     to_cased_title = ->(string) { string.gsub(/[^\w]+/, " ").gsub(/\b('?[a-z])/) { $1.capitalize }.strip }
-    self.title ||= to_cased_title.call(read_attribute(:url) || "page")
+    self.title ||= to_cased_title.call(self["url"] || "page")
     # TODO: i18n (see wiki.rb)
 
     if self.title == "Front Page" && new_record?
@@ -246,9 +250,9 @@ class WikiPage < ActiveRecord::Base
       while urls.detect { |u| u == "#{base_url}-#{n}" }
         n = n.succ
       end
-      write_attribute url_attribute, "#{base_url}-#{n}"
+      self[url_attribute] = "#{base_url}-#{n}"
     else
-      write_attribute url_attribute, base_url
+      self[url_attribute] = base_url
     end
   end
 
@@ -291,8 +295,8 @@ class WikiPage < ActiveRecord::Base
   alias_method :published?, :active?
 
   def set_revised_at
-    self.revised_at ||= Time.now
-    self.revised_at = Time.now if body_changed? || title_changed?
+    self.revised_at ||= Time.zone.now
+    self.revised_at = Time.zone.now if body_changed? || title_changed?
     @page_changed = body_changed? || title_changed?
     true
   end
@@ -438,8 +442,19 @@ class WikiPage < ActiveRecord::Base
     false
   end
 
+  def show_in_search_for_user?(user)
+    return false unless user
+    return true if can_edit_page?(user)
+
+    if context.tab_hidden?(Course::TAB_PAGES)
+      return false unless context_module_tags.where(context:).any? { |tag| tag.context_module&.available_for?(user) }
+    end
+
+    !locked_for?(user)
+  end
+
   def effective_roles
-    context_roles = context.default_wiki_editing_roles rescue nil
+    context_roles = context.try(:default_wiki_editing_roles)
     roles = (editing_roles || context_roles || default_roles).split(",")
     (roles == %w[teachers]) ? [] : roles # "Only teachers" option doesn't grant rights excluded by RoleOverrides
   end
@@ -516,7 +531,7 @@ class WikiPage < ActiveRecord::Base
 
   def last_revision_at
     res = self.revised_at || updated_at
-    res = Time.now if res.is_a?(String)
+    res = Time.zone.now if res.is_a?(String)
     res
   end
 
@@ -589,6 +604,7 @@ class WikiPage < ActiveRecord::Base
       copy_title: nil
     }
     opts_with_default = default_opts.merge(opts)
+
     result = WikiPage.new({
                             title: opts_with_default[:copy_title] || get_copy_title(self, t("Copy"), self.title),
                             wiki_id: self.wiki_id,
@@ -599,8 +615,14 @@ class WikiPage < ActiveRecord::Base
                             user_id:,
                             protected_editing:,
                             editing_roles:,
-                            todo_date:
+                            todo_date:,
                           })
+
+    if block_editor
+      block_editor_attributes = { version: block_editor.version, blocks: block_editor.blocks }
+      result.block_editor_attributes = block_editor_attributes
+    end
+
     if assignment && opts_with_default[:duplicate_assignment]
       result.assignment = assignment.duplicate({
                                                  duplicate_wiki_page: false,
@@ -623,7 +645,7 @@ class WikiPage < ActiveRecord::Base
                             "active"
                           end
 
-    self.editing_roles = (context.default_wiki_editing_roles rescue nil) || default_roles
+    self.editing_roles = context.try(:default_wiki_editing_roles) || default_roles
 
     if is_front_page?
       self.body = t "#application.wiki_front_page_default_content_course", "Welcome to your new course wiki!" if context.is_a?(Course)
@@ -648,7 +670,7 @@ class WikiPage < ActiveRecord::Base
 
   def self.visible_ids_by_user(opts)
     assignment_page_visibilities = if Account.site_admin.feature_enabled?(:selective_release_backend)
-                                     visible_assignments = AssignmentVisibility::AssignmentVisibilityService.assignments_visible_to_students_in_courses(user_ids: opts[:user_id], course_ids: opts[:course_id])
+                                     visible_assignments = AssignmentVisibility::AssignmentVisibilityService.assignments_visible_to_students(user_ids: opts[:user_id], course_ids: opts[:course_id])
                                      # map the visibilities to a hash of assignment_id => [user_ids]
                                      assignment_user_map = visible_assignments.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |visibility, hash|
                                        hash[visibility.assignment_id] << visibility.user_id
@@ -665,7 +687,7 @@ class WikiPage < ActiveRecord::Base
                                    end
     no_assignment_page_visibilities = without_assignment_in_course(opts[:course_id])
     no_assignment_page_visibilities = if Account.site_admin.feature_enabled?(:selective_release_backend)
-                                        visible_wiki_pages = WikiPageVisibility::WikiPageVisibilityService.wiki_pages_visible_to_students_in_courses(course_ids: opts[:course_id], user_ids: opts[:user_id])
+                                        visible_wiki_pages = WikiPageVisibility::WikiPageVisibilityService.wiki_pages_visible_to_students(course_ids: opts[:course_id], user_ids: opts[:user_id])
                                         visible_wiki_page_ids = visible_wiki_pages.map { |visibility| [visibility.wiki_page_id, visibility.user_id] }
 
                                         no_assignment_page_visibilities

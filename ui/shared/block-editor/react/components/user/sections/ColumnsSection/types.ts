@@ -16,4 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-export type ColumnsSectionVariant = 'fixed' | 'fluid' | 'simple'
+export type ColumnsSectionProps = {
+  columns: number
+  background?: string
+}

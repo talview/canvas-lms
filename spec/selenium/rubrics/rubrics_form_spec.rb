@@ -20,6 +20,7 @@
 require_relative "../helpers/rubrics_common"
 require_relative "pages/rubrics_index_page"
 require_relative "pages/rubrics_form_page"
+require_relative "pages/rubrics_assessment_tray"
 
 describe "Rubric form page" do
   include_context "in-process server selenium tests"
@@ -30,10 +31,32 @@ describe "Rubric form page" do
     student_in_course
     @assignment = @course.assignments.create!(name: "Assignment 1", points_possible: 30)
     @submission = @assignment.find_or_create_submission(@student)
+    @outcome1 = LearningOutcome.create!(context: @course, short_description: "test1", title: "Outcome 1", display_name: "Out1", description: "Outcome 1 description")
+    @outcome2 = LearningOutcome.create!(context: @course, short_description: "test2", title: "Outcome 2", display_name: "Out2")
+    group = LearningOutcomeGroup.create!(context: @course, title: "Group 1")
+    ContentTag.create!({
+                         title: @outcome1.title,
+                         context: @course,
+                         learning_outcome: @outcome1,
+                         content_type: "LearningOutcome",
+                         tag_type: "learning_outcome_association",
+                         associated_asset_type: "LearningOutcomeGroup",
+                         associated_asset_id: group.id,
+                         content_id: @outcome1.id,
+                       })
+    ContentTag.create!({
+                         title: @outcome2.title,
+                         context: @course,
+                         learning_outcome: @outcome2,
+                         content_type: "LearningOutcome",
+                         tag_type: "learning_outcome_association",
+                         associated_asset_type: "LearningOutcomeGroup",
+                         associated_asset_id: group.id,
+                         content_id: @outcome2.id,
+                       })
     @rubric1 = @course.rubrics.create!(title: "Rubric 1", user: @user, context: @course, data: larger_rubric_data, points_possible: 12)
-    @rubric2 = @course.rubrics.create!(title: "Rubric 2", user: @user, context: @course, data: smallest_rubric_data, points_possible: 10)
+    @rubric2 = @course.rubrics.create!(title: "Rubric 2", user: @user, context: @course, data: smallest_rubric_data, points_possible: 10, free_form_criterion_comments: false)
     RubricAssociation.create!(rubric: @rubric1, context: @course, association_object: @course, purpose: "bookmark")
-    # ra_params = rubric_association_params_for_assignment(@assignment, use_for_grading: "1")
     rubric_assoc = RubricAssociation.generate(@teacher, @rubric2, @course, ActiveSupport::HashWithIndifferentAccess.new({
                                                                                                                           hide_score_total: "0",
                                                                                                                           purpose: "grading",
@@ -52,7 +75,33 @@ describe "Rubric form page" do
                                rubric_association: rubric_assoc,
                                data: [{ points: 3.0, description: "hello", comments: "hey hey" }]
                              })
-    @course.root_account.enable_feature!(:enhanced_rubrics)
+    @outcome_rubric = Rubric.create!(context: @course, points_possible: 3)
+    @outcome_rubric.data = [
+      {
+        points: 3,
+        description: "Outcome 1 description",
+        id: 1,
+        ratings: [
+          {
+            points: 3,
+            description: "Rockin'",
+            criterion_id: 1,
+            id: 2
+          },
+          {
+            points: 0,
+            description: "Lame",
+            criterion_id: 1,
+            id: 3
+          }
+        ],
+        learning_outcome_id: @outcome1.id,
+        mastery_points: 3
+      }
+    ]
+    @outcome_rubric.save!
+    RubricAssociation.create!(rubric: @outcome_rubric, context: @course, association_object: @course, purpose: "bookmark")
+    @course.enable_feature!(:enhanced_rubrics)
     get "/courses/#{@course.id}/rubrics"
   end
 
@@ -85,6 +134,7 @@ describe "Rubric form page" do
     RubricsIndex.create_rubric_button.click
     RubricsForm.rubric_title_input.send_keys("Rubric 4")
     RubricsForm.cancel_rubric_button.click
+    RubricsForm.warning_exit_rubric_button.click
 
     expect(RubricsIndex.saved_rubrics_panel).not_to include_text("Rubric 4")
   end
@@ -178,6 +228,7 @@ describe "Rubric form page" do
     RubricsForm.rubric_title_input.send_keys("Rubric 4")
     RubricsForm.add_criterion_button.click
     RubricsForm.criterion_name_input.send_keys("Criterion 1")
+    hover(RubricsForm.add_rating_row_button)
     RubricsForm.add_rating_row_button.click
     RubricsForm.rating_name_inputs[0].send_keys("new rating")
     RubricsForm.rating_description_inputs[0].send_keys("new rating description")
@@ -206,6 +257,7 @@ describe "Rubric form page" do
     RubricsForm.rubric_title_input.send_keys("Rubric 4")
     RubricsForm.add_criterion_button.click
     RubricsForm.criterion_name_input.send_keys("Criterion 1")
+    hover(RubricsForm.add_rating_row_button)
     RubricsForm.add_rating_row_button.click
     RubricsForm.save_criterion_button.click
 
@@ -230,10 +282,12 @@ describe "Rubric form page" do
     RubricsForm.criterion_name_input.send_keys("Criterion 1")
 
     expect(RubricsForm.criterion_rating_scales.length).to eq(5)
-    expect(RubricsForm.criterion_rating_scales[0].attribute("value")).to eq("4")
+    expect(RubricsForm.criterion_rating_scales[0]).to include_text("4")
+
     RubricsForm.remove_rating_buttons[2].click
+
     expect(RubricsForm.criterion_rating_scales.length).to eq(4)
-    expect(RubricsForm.criterion_rating_scales[0].attribute("value")).to eq("3")
+    expect(RubricsForm.criterion_rating_scales[0]).to include_text("3")
   end
 
   it "does not save the criterion if cancel is selected" do
@@ -243,6 +297,7 @@ describe "Rubric form page" do
     RubricsIndex.edit_rubric_button.click
     RubricsForm.add_criterion_button.click
     RubricsForm.cancel_criterion_button.click
+    RubricsForm.warning_exit_rubric_button.click
     RubricsForm.save_rubric_button.click
 
     expect(RubricsIndex.rubric_criterion_count(0)).to include_text("2")
@@ -332,5 +387,85 @@ describe "Rubric form page" do
     RubricsForm.criterion_row_edit_buttons[0].click
 
     expect(RubricsForm.rating_description_inputs[0]).to_not be_disabled
+  end
+
+  it "allows previewing a rubric" do
+    RubricsIndex.create_rubric_button.click
+    RubricsForm.rubric_title_input.send_keys("Rubric 4")
+    RubricsForm.add_criterion_button.click
+    RubricsForm.criterion_name_input.send_keys("Criterion 1")
+    RubricsForm.save_criterion_button.click
+    RubricsForm.preview_rubric_button.click
+
+    expect(RubricsForm.traditional_grid_rating_button(0)).to include_text("Exceeds")
+    expect(RubricsForm.traditional_grid_rating_button(0)).to include_text("4 pts")
+    expect(RubricsForm.traditional_grid_rating_button(4)).to include_text("No Evidence")
+    expect(RubricsForm.traditional_grid_rating_button(4)).to include_text("0 pts")
+  end
+
+  it "allows free form comment rubrics to be previewed" do
+    @rubric2.update!(free_form_criterion_comments: true)
+
+    RubricsIndex.rubric_popover(@rubric2.id).click
+    RubricsIndex.edit_rubric_button.click
+    RubricsForm.preview_rubric_button.click
+
+    expect(RubricAssessmentTray.free_form_comment_area(@rubric2.data[0][:id])).to be_displayed
+    expect(RubricAssessmentTray.save_comment_checkbox(@rubric2.data[0][:id])).to be_displayed
+  end
+
+  it "preview mode allows input and updates the instructor score" do
+    RubricsIndex.rubric_popover(@rubric1.id).click
+    RubricsIndex.edit_rubric_button.click
+    RubricsForm.preview_rubric_button.click
+    RubricAssessmentTray.traditional_grid_rating_button(@rubric1.data[0][:id], 0).click
+
+    expect(RubricAssessmentTray.rubric_assessment_instructor_score).to include_text("10 pts")
+  end
+
+  it "can import outcomes as rubric criterion" do
+    RubricsIndex.create_rubric_button.click
+    RubricsForm.create_from_outcome_button.click
+    RubricsForm.outcome_links[0].click
+
+    expect(RubricsForm.import_outcome_button).to be_displayed
+  end
+
+  it "displays the threshold for a outcome linked criterion" do
+    RubricsIndex.rubric_popover(@outcome_rubric.id).click
+    RubricsIndex.edit_rubric_button.click
+
+    expect(RubricsForm.criteria_threshold).to include_text("Threshold: 3 pts")
+  end
+
+  it "displays the outcome description in the outcome tag" do
+    RubricsIndex.rubric_popover(@outcome_rubric.id).click
+    RubricsIndex.edit_rubric_button.click
+
+    expect(RubricsForm.rubric_criteria_row_outcome_tag).to include_text(@outcome1.description)
+  end
+
+  it "displays the outcome display name under the outcome tag in the subtitle" do
+    RubricsIndex.rubric_popover(@outcome_rubric.id).click
+    RubricsIndex.edit_rubric_button.click
+
+    expect(RubricsForm.rubric_criteria_row_subtitle).to include_text(@outcome1.display_name)
+  end
+
+  it "allows viewing od the outcome info that the criterion is linked to" do
+    RubricsIndex.rubric_popover(@outcome_rubric.id).click
+    RubricsIndex.edit_rubric_button.click
+    RubricsForm.criterion_row_edit_buttons[0].click
+
+    expect(RubricsForm.outcome_info_modal).to include_text(@outcome1.title)
+    expect(RubricsForm.outcome_info_modal).to include_text("Threshold: 3 pts")
+  end
+
+  it "shows the threshold for a criterion linked to an outcome in the rubric preview tray" do
+    RubricsIndex.rubric_popover(@outcome_rubric.id).click
+    RubricsIndex.edit_rubric_button.click
+    RubricsForm.preview_rubric_button.click
+
+    expect(RubricAssessmentTray.traditional_grid_rubric_assessment_view).to include_text("Threshold: 3 pts")
   end
 end

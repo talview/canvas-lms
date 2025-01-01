@@ -59,13 +59,23 @@ describe('AssignmentSubmissionTypeContainer', () => {
   it('renders the resource link card when a resource is available and the user has not clicked the resource close button', () => {
     const resource = {title: 'Resource Title'}
     renderComponent(resource)
-    expect(
-      screen.getByTestId('assignment-submission-type-selection-resource-link-card')
-    ).toBeTruthy()
+    const el = screen.getByTestId('assignment-submission-type-selection-resource-link-card')
+    expect(el).toBeTruthy()
+    // check text:
+    expect(el).toHaveTextContent('Resource Title')
     expect(screen.queryByTestId('assignment_submission_type_selection_launch_button')).toBeFalsy()
   })
 
-  it('renders the launch button again after user clicks the close button on the resource link card', () => {
+  it('renders the resource link card with "Unnamed Document" when a resource is available but it has no title', () => {
+    const resource = {}
+    renderComponent(resource)
+    const el = screen.getByTestId('assignment-submission-type-selection-resource-link-card')
+    expect(el).toBeTruthy()
+    expect(el).toHaveTextContent('Unnamed Document')
+    expect(screen.queryByTestId('assignment_submission_type_selection_launch_button')).toBeFalsy()
+  })
+
+  it('calls onRemoveResource when the user clicks the resource close button', () => {
     const resource = {title: 'Resource Title'}
     renderComponent(resource)
     expect(
@@ -75,9 +85,6 @@ describe('AssignmentSubmissionTypeContainer', () => {
 
     fireEvent.click(screen.getByRole('button'))
 
-    expect(screen.getByTestId('assignment_submission_type_selection_launch_button')).toBeTruthy()
-    expect(
-      screen.queryByTestId('assignment-submission-type-selection-resource-link-card')
-    ).toBeFalsy()
+    expect(onRemoveResourceFn).toHaveBeenCalled()
   })
 })

@@ -55,6 +55,10 @@ class RubricsForm
       f("[data-testid='cancel-rubric-save-button']")
     end
 
+    def warning_exit_rubric_button
+      f("[data-testid='exit-rubric-warning-button']")
+    end
+
     def save_as_draft_button
       f("[data-testid='save-as-draft-button']")
     end
@@ -99,16 +103,28 @@ class RubricsForm
       f("[data-testid='create-from-outcome-button']")
     end
 
-    def outcome_link
-      f("[class='outcome-link']")
+    def outcome_info_modal
+      f("[data-testid='outcome-rubric-criterion-modal']")
+    end
+
+    def outcome_links
+      ff("[class='outcome-link']")
     end
 
     def import_outcome_button
-      ff("[class='btn-primary ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only']")[0]
+      f(".btn-primary")
+    end
+
+    def criteria_threshold
+      f("[data-testid='rubric-criteria-row-threshold']")
     end
 
     def rubric_criteria_row_outcome_tag
       f("[data-testid='rubric-criteria-row-outcome-tag']")
+    end
+
+    def rubric_criteria_row_subtitle
+      f("[data-testid='rubric-criteria-outcome-subtitle']")
     end
 
     def add_rating_row_button

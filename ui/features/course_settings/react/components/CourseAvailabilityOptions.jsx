@@ -16,7 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import * as tz from '@instructure/moment-utils'
 import {isMidnight} from '@instructure/moment-utils'
 import moment from 'moment'
@@ -33,7 +33,7 @@ import {IconWarningSolid} from '@instructure/ui-icons'
 import {changeTimezone} from '@instructure/moment-utils/changeTimezone'
 import {View} from '@instructure/ui-view'
 
-const I18n = useI18nScope('CourseAvailabilityOptions')
+const I18n = createI18nScope('CourseAvailabilityOptions')
 
 export default function CourseAvailabilityOptions({canManage, viewPastLocked, viewFutureLocked}) {
   const FORM_IDS = {
@@ -104,6 +104,18 @@ export default function CourseAvailabilityOptions({canManage, viewPastLocked, vi
     setStartDate(null)
     setFormValue(FORM_IDS.END_DATE, null)
     setEndDate(null)
+  }
+
+  const endDateErrors = (startDate, endDate) => {
+    if (endDate < startDate) {
+      return [
+        {
+          type: 'error',
+          text: I18n.t('The end date can not occur before the start date.'),
+        },
+      ]
+    }
+    return []
   }
 
   return (
@@ -195,6 +207,7 @@ export default function CourseAvailabilityOptions({canManage, viewPastLocked, vi
             <Flex.Item padding="xx-small">
               <ScreenReaderContent>{I18n.t('Course End Date')}</ScreenReaderContent>
               <CanvasDateInput
+                messages={endDateErrors(startDate, endDate)}
                 renderLabel={I18n.t('End')}
                 formatDate={formatDate}
                 interaction={datesInteraction()}

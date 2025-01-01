@@ -21,7 +21,7 @@ import {Discussion} from '../../../../graphql/Discussion'
 import {DiscussionEntry} from '../../../../graphql/DiscussionEntry'
 import {fireEvent, render} from '@testing-library/react'
 import {SplitScreenParent} from '../SplitScreenParent'
-import {MockedProvider} from '@apollo/react-testing'
+import {MockedProvider} from '@apollo/client/testing'
 import React from 'react'
 import {updateDiscussionEntryParticipantMock} from '../../../../graphql/Mocks'
 import {waitFor} from '@testing-library/dom'
@@ -300,6 +300,39 @@ describe('SplitScreenParent', () => {
       const container = setup(props)
       expect(container.queryByText('Sorry, Something Broke')).toBeNull()
       expect(container.getByText('Anonymous 1')).toBeInTheDocument()
+    })
+  })
+
+  describe('rating', () => {
+    it('should react on liked', async () => {
+      const onToggleRating = jest.fn()
+      const {queryByTestId} = setup(
+        defaultProps({
+          overrides: {onToggleRating},
+        })
+      )
+      const likeButton = await queryByTestId('not-liked-icon')
+      expect(likeButton).toBeInTheDocument()
+      fireEvent.click(likeButton)
+      expect(onToggleRating).toHaveBeenCalled()
+    })
+
+    it('should react on not_liked', async () => {
+      const onToggleRating = jest.fn()
+      const {queryByTestId} = setup(
+        defaultProps({
+          discussionEntryOverrides: {
+            entryParticipant: {
+              rating: true,
+            },
+          },
+          overrides: {onToggleRating},
+        })
+      )
+      const likeButton = await queryByTestId('liked-icon')
+      expect(likeButton).toBeInTheDocument()
+      fireEvent.click(likeButton)
+      expect(onToggleRating).toHaveBeenCalled()
     })
   })
 })

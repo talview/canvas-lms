@@ -79,18 +79,17 @@ module CC
 
         # these need to go last, to gather up all the references to the files
         run_and_set_progress(:add_course_files, 70, I18n.t("course_exports.errors.files", "Failed to export some files"))
-        run_and_set_progress(:add_media_objects, 89, I18n.t("course_exports.errors.media_files", "Failed to export some media files"))
-        run_and_set_progress(:add_media_tracks, 90, I18n.t("course_exports.errors.media_tracks", "Failed to export some media captions")) if Account.site_admin.feature_enabled?(:media_links_use_attachment_id)
-        run_and_set_progress(:create_basic_lti_links, 91, I18n.t("course_exports.errors.lti_links", "Failed to export some external tool configurations"))
+        run_and_set_progress(:add_media_tracks, 80, I18n.t("course_exports.errors.media_tracks", "Failed to export some media captions")) if Account.site_admin.feature_enabled?(:media_links_use_attachment_id)
+        run_and_set_progress(:create_basic_lti_links, 90, I18n.t("course_exports.errors.lti_links", "Failed to export some external tool configurations"))
         run_and_set_progress(:create_tool_profiles, 92, I18n.t("course_exports.errors.tool_profiles", "Failed to export some tool profiles"))
         run_and_set_progress(:create_blueprint_settings, 93, I18n.t("Failed to export blueprint course settings"))
       end
     end
 
-    def run_and_set_progress(method, progress, fail_message, *args)
+    def run_and_set_progress(method, progress, fail_message, *)
       res = nil
       begin
-        res = send(method, *args)
+        res = send(method, *)
       rescue
         add_error(fail_message, $!)
       end

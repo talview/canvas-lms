@@ -19,7 +19,7 @@
 
 import React, {useCallback, useState} from 'react'
 import ReactDOM from 'react-dom'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import authenticity_token from '@canvas/authenticity-token'
 import CanvasModal from '@canvas/instui-bindings/react/Modal'
 import {showFlashAlert} from '@canvas/alerts/react/FlashAlert'
@@ -32,8 +32,9 @@ import {Tooltip} from '@instructure/ui-tooltip'
 import {View} from '@instructure/ui-view'
 import {Flex} from '@instructure/ui-flex'
 import {Event, Which} from './types'
+import {subAssignmentOrOverride} from '@canvas/calendar/jquery/CommonEvent/SubAssignment'
 
-const I18n = useI18nScope('calendar_event')
+const I18n = createI18nScope('calendar_event')
 
 type Props = {
   readonly isOpen: boolean
@@ -44,6 +45,7 @@ type Props = {
   readonly delUrl: string
   readonly isRepeating: boolean
   readonly isSeriesHead: boolean
+  readonly eventType: string
 }
 
 const DeleteCalendarEventDialog = ({
@@ -55,6 +57,7 @@ const DeleteCalendarEventDialog = ({
   delUrl,
   isRepeating,
   isSeriesHead,
+  eventType,
 }: Props) => {
   const [which, setWhich] = useState<Which>('one')
   const [isDeleting, setIsDeleting] = useState<boolean>(false)
@@ -154,7 +157,19 @@ const DeleteCalendarEventDialog = ({
   }
 
   const renderOne = (): JSX.Element => {
-    return <Text>{I18n.t('Are you sure you want to delete this event?')}</Text>
+    return (
+      <Text>
+        {eventType === 'assignment'
+          ? I18n.t(
+              'Are you sure you want to delete this event? Deleting this event will also delete the associated assignment.'
+            )
+          : subAssignmentOrOverride(eventType)
+          ? I18n.t(
+              'Are you sure you want to delete this event? Deleting this event will also delete the associated assignment and other checkpoints associated with the assignment.'
+            )
+          : I18n.t('Are you sure you want to delete this event?')}
+      </Text>
+    )
   }
 
   return (
@@ -174,6 +189,7 @@ const DeleteCalendarEventDialog = ({
 }
 
 function renderDeleteCalendarEventDialog(element: Element, props: Props): void {
+   
   ReactDOM.render(<DeleteCalendarEventDialog {...props} />, element)
 }
 

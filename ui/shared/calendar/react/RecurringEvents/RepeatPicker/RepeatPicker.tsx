@@ -19,7 +19,7 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react'
 import moment from 'moment-timezone'
 import WeekdayPicker from '../WeekdayPicker/WeekdayPicker'
-import {useScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import {NumberInput} from '@instructure/ui-number-input'
 import {px} from '@instructure/ui-utils'
@@ -41,7 +41,7 @@ import {
   weekdaysFromMoment,
 } from '../utils'
 
-const I18n = useScope('calendar_custom_recurring_event_repeat_picker')
+const I18n = createI18nScope('calendar_custom_recurring_event_repeat_picker')
 
 const {Option: SimpleSelectOption} = SimpleSelect as any
 
@@ -151,6 +151,7 @@ export default function RepeatPicker({
   }, [freq])
 
   const fireOnChange = useCallback(
+    // @ts-expect-error
     (i, f, w, md, m, p) => {
       if (f === 'YEARLY') {
         onChange({
@@ -187,6 +188,7 @@ export default function RepeatPicker({
   )
 
   const handleChangeMonthlyMode = useCallback(
+    // @ts-expect-error
     (_event, {value}) => {
       const newMonthlyMode = value as MonthlyModeValue
 
@@ -233,6 +235,7 @@ export default function RepeatPicker({
   )
 
   const handleFreqChange = useCallback(
+    // @ts-expect-error
     (_event, {value}) => {
       activeElement.current = document.activeElement as HTMLElement
 
@@ -287,6 +290,7 @@ export default function RepeatPicker({
         >
           <span style={{flexShrink: 1}}>
             <NumberInput
+              allowStringValue={true}
               data-testid="repeat-interval"
               display="inline-block"
               renderLabel={<ScreenReaderContent>{I18n.t('every')}</ScreenReaderContent>}
@@ -314,6 +318,7 @@ export default function RepeatPicker({
               assistiveText={I18n.t('Use arrow keys to navigate options.')}
               value={freq}
               width={freqPickerWidth}
+              // @ts-expect-error
               onChange={handleFreqChange}
             >
               <SimpleSelectOption id="DAILY" value="DAILY">
@@ -351,6 +356,7 @@ export default function RepeatPicker({
                 assistiveText={I18n.t('Use arrow keys to navigate options.')}
                 value={currMonthlyMode}
                 width={monthlyOptionsWidth}
+                // @ts-expect-error
                 onChange={handleChangeMonthlyMode}
               >
                 <SimpleSelectOption id="BYMONTHDATE" value="BYMONTHDATE">

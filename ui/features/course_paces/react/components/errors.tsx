@@ -1,4 +1,3 @@
-// @ts-nocheck
 /*
  * Copyright (C) 2021 - present Instructure, Inc.
  *
@@ -17,17 +16,17 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {CategoryErrors, ResponsiveSizes, StoreState} from '../types'
+import type {CategoryErrors, ResponsiveSizes, StoreState} from '../types'
 import {getErrors, getResponsiveSize} from '../reducers/ui'
 import {coursePaceActions} from '../actions/course_paces'
 import {connect} from 'react-redux'
-import React, {createRef, ReactNode, RefObject} from 'react'
+import React, {createRef, type ReactNode, type RefObject} from 'react'
 import {ExpandableErrorAlert} from '@canvas/alerts/react/ExpandableErrorAlert'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 import {View} from '@instructure/ui-view'
 import {Button} from '@instructure/ui-buttons'
 
-const I18n = useI18nScope('course_paces_errors')
+const I18n = createI18nScope('course_paces_errors')
 
 type StoreProps = {
   errors: CategoryErrors
@@ -63,6 +62,7 @@ export const Errors = ({errors, responsiveSize, syncUnpublishedChanges}: ErrorsP
           result.focusRef = createRef()
           result.contents = (
             <>
+              {/* @ts-expect-error */}
               <div ref={result.focusRef} tabIndex={-1}>
                 {msg}
               </div>

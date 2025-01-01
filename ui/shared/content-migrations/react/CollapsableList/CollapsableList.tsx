@@ -18,15 +18,14 @@
 
 import React, {Fragment, type ComponentClass, useState, useEffect, useRef, useCallback} from 'react'
 import {Flex} from '@instructure/ui-flex'
-// @ts-ignore
 import {Checkbox} from '@instructure/ui-checkbox'
 import {Text} from '@instructure/ui-text'
 import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import {ToggleDetails} from '@instructure/ui-toggle-details'
-import {useScope as useI18nScope} from '@canvas/i18n'
+import {useScope as createI18nScope} from '@canvas/i18n'
 
 const {Item: FlexItem} = Flex as any
-const I18n = useI18nScope('collapsable_list')
+const I18n = createI18nScope('collapsable_list')
 
 type SingleItemCheckboxProps = {
   id: string
@@ -256,7 +255,7 @@ const SingleItemCheckbox = ({
     >
       {/* Needed to do that to properly indent the item */}
       {!isRoot && <FlexItem margin="0 xxx-small 0 0" />}
-      <FlexItem margin="0 x-small 0 0" shouldShrink={true}>
+      <FlexItem margin="0 x-small 0 0">
         <Checkbox
           checked={innerState === 'checked'}
           onChange={(e: any) => handleCheck(e.target.checked)}
@@ -265,7 +264,7 @@ const SingleItemCheckbox = ({
         />
       </FlexItem>
       {ParentIcon && (
-        <FlexItem margin="0 small 0 0" shouldShrink={true}>
+        <FlexItem margin="0 small 0 0">
           <ParentIcon size="small" />
         </FlexItem>
       )}
